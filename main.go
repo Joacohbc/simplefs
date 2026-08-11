@@ -19,7 +19,7 @@ import (
 var embeddedFS embed.FS
 
 var (
-	storageDir = "./uploads"
+	storageDir = "."
 	tmpl       *template.Template
 )
 
@@ -58,6 +58,11 @@ type PreviewData struct {
 }
 
 func main() {
+	// Configure storage directory from env or default to current project root "."
+	if dir := os.Getenv("STORAGE_DIR"); dir != "" {
+		storageDir = dir
+	}
+
 	// Ensure storage directory exists
 	if err := os.MkdirAll(storageDir, 0755); err != nil {
 		log.Fatalf("Failed to create storage directory: %v", err)
@@ -89,8 +94,9 @@ func main() {
 		port = "8080"
 	}
 
+	absStorage, _ := filepath.Abs(storageDir)
 	addr := ":" + port
-	log.Printf("🚀 SimpleFS running at http://localhost%s", addr)
+	log.Printf("🚀 SimpleFS running at http://localhost%s serving directory: %s", addr, absStorage)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("Server stopped: %v", err)
 	}
@@ -135,7 +141,8 @@ func getPageData(relPath, query string) (PageData, error) {
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == ".gitkeep" {
+		// Filter out internal git and devcontainer build folders
+		if name == ".git" || name == ".dc_simplefs" || name == "simplefs" {
 			continue
 		}
 
