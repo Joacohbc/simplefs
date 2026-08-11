@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"io"
@@ -317,6 +318,7 @@ func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 	relPath := r.FormValue("path")
 	filename := strings.TrimSpace(r.FormValue("filename"))
 	content := r.FormValue("content")
+	isBase64 := r.FormValue("is_base64") == "true"
 
 	if filename == "" || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
 		http.Error(w, "Invalid filename", http.StatusBadRequest)
@@ -329,7 +331,23 @@ func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := os.WriteFile(targetFile, []byte(content), 0644); err != nil {
+	var fileBytes []byte
+	if isBase64 {
+		// Strip DataURL prefix if present e.g. "data:image/png;base64,"
+		if idx := strings.Index(content, ","); idx != -1 {
+			content = content[idx+1:]
+		}
+		var err error
+		fileBytes, err = base64.StdEncoding.DecodeString(content)
+		if err != nil {
+			http.Error(w, "Invalid base64 data", http.StatusBadRequest)
+			return
+		}
+	} else {
+		fileBytes = []byte(content)
+	}
+
+	if err := os.WriteFile(targetFile, fileBytes, 0644); err != nil {
 		http.Error(w, "Failed to save file", http.StatusInternalServerError)
 		return
 	}

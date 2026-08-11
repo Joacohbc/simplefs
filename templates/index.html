@@ -100,7 +100,7 @@
   <!-- Modal Container for File Previews -->
   <div id="modal-container"></div>
 
-  <!-- Modal for Paste / Create File from Clipboard -->
+  <!-- Modal for Paste / Create File from Clipboard (Text or Image) -->
   <div id="clipboard-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-card" style="max-width: 750px; height: auto; max-height: 90vh;">
       <div class="modal-header">
@@ -109,7 +109,7 @@
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
-          <span>Crear Archivo desde Portapapeles</span>
+          <span id="clipboard-modal-title">Crear Archivo desde Portapapeles</span>
         </div>
         <button class="modal-close" onclick="closeClipboardModal()">&times;</button>
       </div>
@@ -117,27 +117,33 @@
       <form hx-post="/api/create-file" 
             hx-target="#file-list-container" 
             hx-indicator="#global-spinner"
-            hx-on::after-request="closeClipboardModal(); this.reset(); updateMiniPreview()">
+            hx-on::after-request="closeClipboardModal(); resetClipboardForm()">
         <input type="hidden" name="path" id="clipboard-path-input" value="{{ .Path }}">
+        <input type="hidden" name="is_base64" id="clipboard-is-base64" value="false">
+        <input type="hidden" name="content" id="clipboard-hidden-content" value="">
+
         <div class="modal-body">
           <!-- Filename Input & Extension Selector -->
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
               <label class="form-label" style="margin: 0;">Nombre del Archivo</label>
               <button type="button" class="btn btn-secondary btn-sm" onclick="pasteFromClipboard()">
-                📋 Pegar Portapapeles
+                📋 Pegar Texto
               </button>
             </div>
             <input type="text" 
                    id="clipboard-filename" 
                    name="filename" 
                    class="form-control" 
-                   placeholder="Ej: snippet.go o notas.md" 
+                   placeholder="Ej: captura.png o snippet.go" 
                    oninput="updateMiniPreview()"
                    required>
             
             <!-- Quick Extension Pills -->
-            <div class="extension-pills">
+            <div class="extension-pills" id="extension-pills">
+              <span class="extension-pill" onclick="setExtension('.png')">.png</span>
+              <span class="extension-pill" onclick="setExtension('.jpg')">.jpg</span>
+              <span class="extension-pill" onclick="setExtension('.webp')">.webp</span>
               <span class="extension-pill" onclick="setExtension('.go')">.go</span>
               <span class="extension-pill" onclick="setExtension('.md')">.md</span>
               <span class="extension-pill" onclick="setExtension('.json')">.json</span>
@@ -147,29 +153,33 @@
               <span class="extension-pill" onclick="setExtension('.css')">.css</span>
               <span class="extension-pill" onclick="setExtension('.html')">.html</span>
               <span class="extension-pill" onclick="setExtension('.sh')">.sh</span>
-              <span class="extension-pill" onclick="setExtension('.sql')">.sql</span>
-              <span class="extension-pill" onclick="setExtension('.yml')">.yml</span>
             </div>
           </div>
 
-          <!-- Content Textarea -->
-          <div class="form-group">
-            <label class="form-label">Contenido del Archivo</label>
+          <!-- Text Mode Input -->
+          <div class="form-group" id="text-input-group">
+            <label class="form-label">Contenido de Texto / Código</label>
             <textarea id="clipboard-content" 
-                      name="content" 
                       class="form-control" 
                       rows="6" 
-                      placeholder="Pega aquí tu código, texto o configuración..."
+                      placeholder="Pega aquí código, texto o presiona Ctrl+V para capturar imágenes..."
                       oninput="updateMiniPreview()"></textarea>
           </div>
 
-          <!-- Live Mini Preview -->
+          <!-- Image Preview Mode Container -->
+          <div id="image-preview-group" style="display: none; text-align: center; margin-bottom: 1rem;">
+            <div class="image-preview-wrapper" style="max-height: 250px; padding: 1rem;">
+              <img id="pasted-image-preview" src="" alt="Vista previa de imagen pegada" class="preview-media-image" style="max-height: 220px;">
+            </div>
+          </div>
+
+          <!-- Live Mini Preview Metadata & Code Box -->
           <div class="mini-preview-container">
             <div class="mini-preview-meta">
               <span>Mini Vista Previa</span>
               <div id="mini-preview-stats">Líneas: 0 | Caracteres: 0 | Tamaño: 0 B</div>
             </div>
-            <pre class="mini-preview-box"><code id="mini-preview-code" class="language-plaintext">// La vista previa aparecerá aquí al pegar o escribir...</code></pre>
+            <pre class="mini-preview-box" id="mini-preview-text-box"><code id="mini-preview-code" class="language-plaintext">// La vista previa aparecerá aquí al pegar texto o imágenes...</code></pre>
           </div>
 
           <!-- Submit Buttons -->
@@ -206,6 +216,64 @@
   </div>
 
   <script>
+    let isImageMode = false;
+    let pastedDataUrl = '';
+
+    // Global Paste Listener (Ctrl+V / Cmd+V)
+    window.addEventListener('paste', function(e) {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            handlePastedImageFile(file);
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+    });
+
+    function handlePastedImageFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        pastedDataUrl = evt.target.result;
+        isImageMode = true;
+        
+        // Open modal
+        openClipboardModal();
+
+        // Switch modal to Image Mode
+        document.getElementById('text-input-group').style.display = 'none';
+        document.getElementById('image-preview-group').style.display = 'block';
+        document.getElementById('mini-preview-text-box').style.display = 'none';
+        document.getElementById('clipboard-modal-title').innerText = 'Imagen pegada desde Portapapeles';
+
+        const img = document.getElementById('pasted-image-preview');
+        img.src = pastedDataUrl;
+
+        // Auto-generate filename
+        const now = new Date();
+        const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + '_' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+        const ext = file.type === 'image/jpeg' ? '.jpg' : file.type === 'image/webp' ? '.webp' : '.png';
+        
+        document.getElementById('clipboard-filename').value = 'captura_' + dateStr + ext;
+        document.getElementById('clipboard-is-base64').value = 'true';
+        document.getElementById('clipboard-hidden-content').value = pastedDataUrl;
+
+        // Calculate Image stats
+        img.onload = function() {
+          const bytes = Math.round((pastedDataUrl.length * 3) / 4);
+          const sizeKb = (bytes / 1024).toFixed(1);
+          document.getElementById('mini-preview-stats').innerText = `Dimensiones: ${img.naturalWidth} x ${img.naturalHeight} px | Tipo: ${file.type} | Tamaño: ${sizeKb} KB`;
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+
     // Update path input on HTMX swaps
     document.body.addEventListener('htmx:afterSwap', function(evt) {
       const activePath = document.getElementById('active-path');
@@ -243,15 +311,45 @@
         document.getElementById('clipboard-path-input').value = activePath.getAttribute('data-path') || '';
       }
       document.getElementById('clipboard-modal').style.display = 'flex';
-      pasteFromClipboard();
+      
+      if (!isImageMode) {
+        pasteFromClipboard();
+      }
     }
 
     function closeClipboardModal() {
       document.getElementById('clipboard-modal').style.display = 'none';
+      resetClipboardForm();
+    }
+
+    function resetClipboardForm() {
+      isImageMode = false;
+      pastedDataUrl = '';
+      document.getElementById('text-input-group').style.display = 'block';
+      document.getElementById('image-preview-group').style.display = 'none';
+      document.getElementById('mini-preview-text-box').style.display = 'block';
+      document.getElementById('clipboard-modal-title').innerText = 'Crear Archivo desde Portapapeles';
+      document.getElementById('clipboard-is-base64').value = 'false';
+      document.getElementById('clipboard-hidden-content').value = '';
+      document.getElementById('clipboard-content').value = '';
+      document.getElementById('clipboard-filename').value = '';
+      updateMiniPreview();
     }
 
     async function pasteFromClipboard() {
       try {
+        if (navigator.clipboard && navigator.clipboard.read) {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const item of clipboardItems) {
+            for (const type of item.types) {
+              if (type.startsWith('image/')) {
+                const blob = await item.getType(type);
+                handlePastedImageFile(blob);
+                return;
+              }
+            }
+          }
+        }
         if (navigator.clipboard && navigator.clipboard.readText) {
           const text = await navigator.clipboard.readText();
           if (text) {
@@ -260,7 +358,7 @@
           }
         }
       } catch (err) {
-        console.log('No se pudo acceder automáticamente al portapapeles:', err);
+        console.log('Intento de lectura directa del portapapeles:', err);
       }
     }
 
@@ -268,18 +366,16 @@
       const input = document.getElementById('clipboard-filename');
       let val = input.value.trim();
 
-      // Remove existing extension if any
       const lastDot = val.lastIndexOf('.');
       if (lastDot > 0) {
         val = val.substring(0, lastDot);
       }
 
       if (!val) {
-        val = 'snippet';
+        val = isImageMode ? 'captura' : 'snippet';
       }
       input.value = val + ext;
 
-      // Highlight active pill
       document.querySelectorAll('.extension-pill').forEach(pill => {
         pill.classList.toggle('active', pill.innerText === ext);
       });
@@ -288,10 +384,19 @@
     }
 
     function updateMiniPreview() {
+      if (isImageMode) {
+        document.getElementById('clipboard-hidden-content').value = pastedDataUrl;
+        return;
+      }
+
       const content = document.getElementById('clipboard-content').value;
       const filename = document.getElementById('clipboard-filename').value;
       const codeBlock = document.getElementById('mini-preview-code');
       const stats = document.getElementById('mini-preview-stats');
+
+      // Update hidden content field
+      document.getElementById('clipboard-hidden-content').value = content;
+      document.getElementById('clipboard-is-base64').value = 'false';
 
       const lines = content ? content.split('\n').length : 0;
       const chars = content.length;
@@ -301,11 +406,10 @@
 
       if (!content.trim()) {
         codeBlock.className = 'language-plaintext';
-        codeBlock.textContent = '// La vista previa aparecerá aquí al pegar o escribir...';
+        codeBlock.textContent = '// La vista previa aparecerá aquí al pegar texto o imágenes...';
         return;
       }
 
-      // Infer syntax language from extension
       const ext = filename.includes('.') ? '.' + filename.split('.').pop().toLowerCase() : '';
       const langMap = {
         '.go': 'language-go',
