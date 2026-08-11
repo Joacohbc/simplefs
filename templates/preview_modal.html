@@ -1,0 +1,36 @@
+<div class="modal-backdrop" onclick="if(event.target === this) this.remove()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">{{ .Name }}</div>
+      <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button>
+    </div>
+    <div class="modal-body">
+      {{ if eq .Type "image" }}
+        <img src="/download?path={{ .RelPath }}" alt="{{ .Name }}" class="preview-media">
+      {{ else if eq .Type "video" }}
+        <video controls class="preview-media">
+          <source src="/download?path={{ .RelPath }}">
+          Tu navegador no soporta reproducción de video.
+        </video>
+      {{ else if eq .Type "audio" }}
+        <audio controls style="width: 100%; margin-top: 1rem;">
+          <source src="/download?path={{ .RelPath }}">
+          Tu navegador no soporta reproducción de audio.
+        </audio>
+      {{ else if eq .Type "text" }}
+        <pre class="preview-code"><code>{{ .Content }}</code></pre>
+      {{ else }}
+        <div style="text-align: center; padding: 2rem 0; color: var(--text-muted);">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 1rem;">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+            <polyline points="13 2 13 9 20 9"></polyline>
+          </svg>
+          <p style="margin-bottom: 1rem;">Vista previa no disponible para este tipo de archivo.</p>
+          <a href="/download?path={{ .RelPath }}" download class="btn btn-primary">
+            Descargar Archivo ({{ .FormattedSize }})
+          </a>
+        </div>
+      {{ end }}
+    </div>
+  </div>
+</div>

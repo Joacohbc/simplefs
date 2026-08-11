@@ -1,0 +1,19 @@
+# Binaries
+simplefs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Devcontainer CLI
+.dc_simplefs/
+
+# Storage / Uploads
+uploads/*
+!uploads/.gitkeep
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/

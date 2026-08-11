@@ -1,0 +1,21 @@
+{
+  "mode": "local-cached",
+  "image": "devcontainer-cli/2ed879e27cfe:latest",
+  "workspace": "simplefs",
+  "dockerfile": {
+    "modules": [
+      {
+        "id": "go"
+      }
+    ]
+  },
+  "compose": {
+    "services": [],
+    "subnet": "172.25.0.0/28",
+    "ports": [
+      "8080:8080"
+    ]
+  },
+  "env": {},
+  "fingerprint": "2ed879e27cfe049476c11c9d2d58a0c51733c9b56b7c40b989f9a8dfb1f80b55"
+}

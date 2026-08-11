@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SimpleFS - HTMX + Go File Server</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- HTMX 1.9.10 from unpkg -->
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="logo-area">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </div>
+        <span class="logo-title">SimpleFS</span>
+        <span class="badge">Go + HTMX</span>
+      </div>
+      <div>
+        <span class="htmx-indicator spinner" id="global-spinner"></span>
+      </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" 
+               name="query" 
+               placeholder="Buscar archivos..." 
+               hx-get="/api/files" 
+               hx-trigger="keyup changed delay:250ms, search" 
+               hx-target="#file-list-container" 
+               hx-include="[name='path']"
+               hx-indicator="#global-spinner">
+      </div>
+
+      <div class="action-buttons">
+        <button class="btn btn-secondary" onclick="document.getElementById('folder-modal').style.display='flex'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Nueva Carpeta
+        </button>
+      </div>
+    </div>
+
+    <!-- Dropzone for Uploads -->
+    <form id="upload-form" 
+          hx-post="/api/upload" 
+          hx-target="#file-list-container" 
+          hx-encoding="multipart/form-data" 
+          hx-indicator="#global-spinner">
+      <input type="hidden" name="path" id="current-path-input" value="{{ .Path }}">
+      <div class="dropzone" id="dropzone">
+        <input type="file" name="files" multiple onchange="this.form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))">
+        <div class="dropzone-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <div class="dropzone-text">Arrastra archivos aquí o haz clic para subir</div>
+        <div class="dropzone-subtext">Carga instantánea de archivos con HTMX</div>
+      </div>
+    </form>
+
+    <!-- Dynamic File Listing Container -->
+    <div id="file-list-container">
+      {{ template "file_list.html" . }}
+    </div>
+  </div>
+
+  <!-- Modal Container for File Previews -->
+  <div id="modal-container"></div>
+
+  <!-- Modal for Creating Folder -->
+  <div id="folder-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card" style="max-width: 400px;">
+      <div class="modal-header">
+        <div class="modal-title">Crear Nueva Carpeta</div>
+        <button class="modal-close" onclick="document.getElementById('folder-modal').style.display='none'">&times;</button>
+      </div>
+      <form hx-post="/api/folder" hx-target="#file-list-container" hx-on::after-request="document.getElementById('folder-modal').style.display='none'; this.reset()">
+        <input type="hidden" name="path" value="{{ .Path }}">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nombre de la carpeta</label>
+            <input type="text" name="name" class="form-control" placeholder="Ej: Documentos" required autofocus>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('folder-modal').style.display='none'">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Crear</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Update hidden path inputs when path changes via HTMX target swapped
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+      const activePath = document.getElementById('active-path');
+      if (activePath) {
+        const pathVal = activePath.getAttribute('data-path');
+        const currentPathInput = document.getElementById('current-path-input');
+        if (currentPathInput) currentPathInput.value = pathVal;
+      }
+    });
+
+    // Drag & drop highlights
+    const dropzone = document.getElementById('dropzone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => e.target.classList.add('dragover'), false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => e.target.classList.remove('dragover'), false);
+    });
+  </script>
+</body>
+</html>

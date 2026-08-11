@@ -1,0 +1,115 @@
+<div id="active-path" data-path="{{ .Path }}"></div>
+
+<!-- Breadcrumbs Navigation -->
+<div class="breadcrumb-container">
+  <a class="breadcrumb-item" 
+     hx-get="/api/files?path=" 
+     hx-target="#file-list-container" 
+     hx-indicator="#global-spinner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+    </svg>
+    Inicio
+  </a>
+
+  {{ range .Breadcrumbs }}
+    <span class="breadcrumb-separator">/</span>
+    <a class="breadcrumb-item" 
+       hx-get="/api/files?path={{ .Path }}" 
+       hx-target="#file-list-container" 
+       hx-indicator="#global-spinner">
+      {{ .Name }}
+    </a>
+  {{ end }}
+</div>
+
+<!-- Table View -->
+<div class="file-table-wrapper">
+  <table class="file-table">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Tamaño</th>
+        <th>Modificado</th>
+        <th style="text-align: right;">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ if not .Files }}
+      <tr>
+        <td colspan="4">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <p>Esta carpeta está vacía</p>
+          </div>
+        </td>
+      </tr>
+      {{ else }}
+        {{ range .Files }}
+        <tr>
+          <td>
+            {{ if .IsDir }}
+              <a class="file-name-cell" 
+                 hx-get="/api/files?path={{ .RelPath }}" 
+                 hx-target="#file-list-container" 
+                 hx-indicator="#global-spinner">
+                <span class="file-icon folder">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path>
+                  </svg>
+                </span>
+                <span>{{ .Name }}</span>
+              </a>
+            {{ else }}
+              <div class="file-name-cell" 
+                   hx-get="/api/preview?path={{ .RelPath }}" 
+                   hx-target="#modal-container" 
+                   hx-indicator="#global-spinner">
+                <span class="file-icon file">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                    <polyline points="13 2 13 9 20 9"></polyline>
+                  </svg>
+                </span>
+                <span>{{ .Name }}</span>
+              </div>
+            {{ end }}
+          </td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">
+            {{ if .IsDir }}--{{ else }}{{ .FormattedSize }}{{ end }}
+          </td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">
+            {{ .FormattedTime }}
+          </td>
+          <td style="text-align: right;">
+            <div style="display: flex; gap: 0.4rem; justify-content: flex-end;">
+              {{ if not .IsDir }}
+                <a href="/download?path={{ .RelPath }}" download class="btn btn-secondary btn-sm" title="Descargar">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                </a>
+              {{ end }}
+              <button class="btn btn-danger btn-sm" 
+                      hx-delete="/api/delete?path={{ .RelPath }}" 
+                      hx-confirm="¿Estás seguro de que deseas eliminar '{{ .Name }}'?" 
+                      hx-target="#file-list-container" 
+                      hx-indicator="#global-spinner" 
+                      title="Eliminar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {{ end }}
+      {{ end }}
+    </tbody>
+  </table>
+</div>
