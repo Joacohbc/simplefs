@@ -1,31 +1,108 @@
 <div class="modal-backdrop" onclick="if(event.target === this) this.remove()">
   <div class="modal-card">
     <div class="modal-header">
-      <div class="modal-title">{{ .Name }}</div>
-      <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button>
+      <div class="modal-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-color);">
+          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+          <polyline points="13 2 13 9 20 9"></polyline>
+        </svg>
+        <span>{{ .Name }}</span>
+      </div>
+      
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(window.location.origin + '/download?path={{ .RelPath }}', this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Copiar Enlace
+        </button>
+
+        <a href="/download?path={{ .RelPath }}" download class="btn btn-primary btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Descargar
+        </a>
+
+        <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button>
+      </div>
     </div>
+
     <div class="modal-body">
+      <!-- Enriched Metadata Bar -->
+      <div class="preview-meta-bar">
+        <div class="meta-tags">
+          <span class="meta-tag" style="color: var(--accent-color);">{{ .MimeType }}</span>
+          <span class="meta-tag">{{ .FormattedSize }}</span>
+          {{ if .LineCount }}
+            <span class="meta-tag">{{ .LineCount }} líneas</span>
+          {{ end }}
+        </div>
+        <div>Modificado: {{ .ModTime }}</div>
+      </div>
+
+      <!-- Preview Content Handler -->
       {{ if eq .Type "image" }}
-        <img src="/download?path={{ .RelPath }}" alt="{{ .Name }}" class="preview-media">
+        <div style="text-align: center; background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <img src="/download?path={{ .RelPath }}" alt="{{ .Name }}" class="preview-media">
+        </div>
+
       {{ else if eq .Type "video" }}
-        <video controls class="preview-media">
-          <source src="/download?path={{ .RelPath }}">
-          Tu navegador no soporta reproducción de video.
-        </video>
+        <div style="background: #000; border-radius: var(--radius-md); overflow: hidden;">
+          <video controls class="preview-media" style="width: 100%;">
+            <source src="/download?path={{ .RelPath }}" type="{{ .MimeType }}">
+            Tu navegador no soporta reproducción de video.
+          </video>
+        </div>
+
       {{ else if eq .Type "audio" }}
-        <audio controls style="width: 100%; margin-top: 1rem;">
-          <source src="/download?path={{ .RelPath }}">
-          Tu navegador no soporta reproducción de audio.
-        </audio>
-      {{ else if eq .Type "text" }}
-        <pre class="preview-code"><code>{{ .Content }}</code></pre>
+        <div style="background: var(--bg-primary); padding: 2rem; border-radius: var(--radius-md); text-align: center; border: 1px solid var(--border-color);">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-color); margin-bottom: 1rem;">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          <audio controls style="width: 100%; margin-top: 1rem;">
+            <source src="/download?path={{ .RelPath }}" type="{{ .MimeType }}">
+            Tu navegador no soporta reproducción de audio.
+          </audio>
+        </div>
+
+      {{ else if eq .Type "pdf" }}
+        <iframe src="/download?path={{ .RelPath }}" class="pdf-viewer"></iframe>
+
+      {{ else if eq .Type "markdown" }}
+        <div style="position: relative;">
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(`{{ .Content }}`, this)">
+              Copiar Markdown
+            </button>
+          </div>
+          <div class="markdown-body" data-markdown="{{ .Content }}"></div>
+        </div>
+
+      {{ else if eq .Type "code" }}
+        <div class="preview-code-container">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #161b22; padding: 0.5rem 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.8rem; color: var(--text-muted);">
+            <span>Código / Texto</span>
+            <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(`{{ .Content }}`, this)">
+              Copiar Código
+            </button>
+          </div>
+          <pre><code class="{{ .LanguageClass }}">{{ .Content }}</code></pre>
+        </div>
+
       {{ else }}
-        <div style="text-align: center; padding: 2rem 0; color: var(--text-muted);">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 1rem;">
+        <div style="text-align: center; padding: 3rem 1rem; color: var(--text-muted); background: var(--bg-primary); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 1rem; opacity: 0.6;">
             <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
             <polyline points="13 2 13 9 20 9"></polyline>
           </svg>
-          <p style="margin-bottom: 1rem;">Vista previa no disponible para este tipo de archivo.</p>
+          <p style="font-weight: 500; color: var(--text-primary); margin-bottom: 0.5rem;">Archivo Binario</p>
+          <p style="font-size: 0.85rem; margin-bottom: 1.5rem;">Este archivo no tiene una vista previa en texto. Puedes descargarlo directamente.</p>
           <a href="/download?path={{ .RelPath }}" download class="btn btn-primary">
             Descargar Archivo ({{ .FormattedSize }})
           </a>

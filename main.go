@@ -47,9 +47,14 @@ type PageData struct {
 type PreviewData struct {
 	Name          string
 	RelPath       string
-	Type          string
+	Type          string // image, video, audio, pdf, markdown, code, binary
+	Extension     string
+	MimeType      string
 	Content       string
 	FormattedSize string
+	ModTime       string
+	LineCount     int
+	LanguageClass string
 }
 
 func main() {
@@ -349,16 +354,24 @@ func handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 
 	ext := strings.ToLower(filepath.Ext(absPath))
 	fileType := classifyFileType(ext)
+	mimeType := mime.TypeByExtension(ext)
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
 
 	preview := PreviewData{
 		Name:          filepath.Base(absPath),
 		RelPath:       filepath.ToSlash(relPath),
 		Type:          fileType,
+		Extension:     ext,
+		MimeType:      mimeType,
 		FormattedSize: formatBytes(info.Size()),
+		ModTime:       info.ModTime().Format("02/01/2006 15:04"),
+		LanguageClass: getLanguageClass(ext),
 	}
 
-	if fileType == "text" {
-		if info.Size() > 500*1024 { // 500 KB limit for inline preview
+	if fileType == "code" || fileType == "markdown" {
+		if info.Size() > 1000*1024 { // 1 MB limit for inline preview
 			preview.Content = "[Archivo demasiado grande para vista previa en texto]"
 		} else {
 			content, err := os.ReadFile(absPath)
@@ -366,6 +379,7 @@ func handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 				preview.Content = "[Error al leer el archivo]"
 			} else {
 				preview.Content = string(content)
+				preview.LineCount = strings.Count(preview.Content, "\n") + 1
 			}
 		}
 	}
@@ -405,10 +419,47 @@ func classifyFileType(ext string) string {
 		return "video"
 	case ".mp3", ".wav", ".ogg", ".flac", ".m4a":
 		return "audio"
-	case ".txt", ".md", ".go", ".js", ".css", ".html", ".json", ".xml", ".sh", ".py", ".yml", ".yaml", ".c", ".cpp", ".h", ".rs", ".sql", ".env", ".gitignore", ".mod", ".sum":
-		return "text"
+	case ".pdf":
+		return "pdf"
+	case ".md", ".markdown":
+		return "markdown"
+	case ".txt", ".go", ".js", ".ts", ".jsx", ".tsx", ".css", ".html", ".json", ".xml", ".sh", ".py", ".yml", ".yaml", ".c", ".cpp", ".h", ".rs", ".sql", ".env", ".gitignore", ".mod", ".sum":
+		return "code"
 	default:
 		return "binary"
+	}
+}
+
+func getLanguageClass(ext string) string {
+	switch ext {
+	case ".go":
+		return "language-go"
+	case ".js", ".jsx":
+		return "language-javascript"
+	case ".ts", ".tsx":
+		return "language-typescript"
+	case ".py":
+		return "language-python"
+	case ".rs":
+		return "language-rust"
+	case ".css":
+		return "language-css"
+	case ".html":
+		return "language-html"
+	case ".json":
+		return "language-json"
+	case ".sh":
+		return "language-bash"
+	case ".sql":
+		return "language-sql"
+	case ".yml", ".yaml":
+		return "language-yaml"
+	case ".c", ".cpp", ".h":
+		return "language-cpp"
+	case ".md", ".markdown":
+		return "language-markdown"
+	default:
+		return "language-plaintext"
 	}
 }
 

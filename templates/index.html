@@ -5,8 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SimpleFS - HTMX + Go File Server</title>
   <link rel="stylesheet" href="/static/style.css">
-  <!-- HTMX 1.9.10 from unpkg -->
+  
+  <!-- HTMX 1.9.10 -->
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  
+  <!-- Highlight.js for Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  
+  <!-- Marked for Markdown Rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -35,7 +43,7 @@
         </svg>
         <input type="text" 
                name="query" 
-               placeholder="Buscar archivos..." 
+               placeholder="Buscar archivos por nombre..." 
                hx-get="/api/files" 
                hx-trigger="keyup changed delay:250ms, search" 
                hx-target="#file-list-container" 
@@ -71,7 +79,7 @@
           </svg>
         </div>
         <div class="dropzone-text">Arrastra archivos aquí o haz clic para subir</div>
-        <div class="dropzone-subtext">Carga instantánea de archivos con HTMX</div>
+        <div class="dropzone-subtext">Archivos, imágenes, documentos, código y multimedia</div>
       </div>
     </form>
 
@@ -108,7 +116,7 @@
   </div>
 
   <script>
-    // Update hidden path inputs when path changes via HTMX target swapped
+    // Update path input on HTMX swaps
     document.body.addEventListener('htmx:afterSwap', function(evt) {
       const activePath = document.getElementById('active-path');
       if (activePath) {
@@ -116,9 +124,41 @@
         const currentPathInput = document.getElementById('current-path-input');
         if (currentPathInput) currentPathInput.value = pathVal;
       }
+      initRichPreviews();
     });
 
-    // Drag & drop highlights
+    // Enriched Preview Initializer
+    function initRichPreviews() {
+      // Syntax Highlighting
+      document.querySelectorAll('pre code').forEach((block) => {
+        if (window.hljs) hljs.highlightElement(block);
+      });
+
+      // Markdown Rendering
+      document.querySelectorAll('.markdown-body').forEach((container) => {
+        const rawContent = container.getAttribute('data-markdown');
+        if (rawContent && window.marked) {
+          container.innerHTML = marked.parse(rawContent);
+        }
+      });
+    }
+
+    // Copy to Clipboard Utility
+    function copyToClipboard(text, btnElement) {
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btnElement.innerText;
+        btnElement.innerText = '¡Copiado!';
+        btnElement.classList.add('btn-success');
+        setTimeout(() => {
+          btnElement.innerText = originalText;
+          btnElement.classList.remove('btn-success');
+        }, 2000);
+      }).catch(err => {
+        console.error('Error al copiar:', err);
+      });
+    }
+
+    // Drag & Drop effects
     const dropzone = document.getElementById('dropzone');
     ['dragenter', 'dragover'].forEach(eventName => {
       dropzone.addEventListener(eventName, (e) => e.target.classList.add('dragover'), false);
@@ -126,6 +166,8 @@
     ['dragleave', 'drop'].forEach(eventName => {
       dropzone.addEventListener(eventName, (e) => e.target.classList.remove('dragover'), false);
     });
+
+    document.addEventListener('DOMContentLoaded', initRichPreviews);
   </script>
 </body>
 </html>
