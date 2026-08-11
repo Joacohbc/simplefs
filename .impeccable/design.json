@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-11T00:27:00Z",
+  "title": "Design System: SimpleFS",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Cyan Eléctrico", "canonical": "#38bdf8" },
+      "primary-hover": { "role": "primary", "displayName": "Deep Cyan", "canonical": "#0284c7" },
+      "bg-primary": { "role": "neutral", "displayName": "Deep Obsidian Base", "canonical": "#0b0f19" },
+      "bg-surface": { "role": "neutral", "displayName": "Dark Slate Surface", "canonical": "#151c2c" },
+      "border-color": { "role": "neutral", "displayName": "Subtle Slate Border", "canonical": "#27354a" },
+      "text-primary": { "role": "neutral", "displayName": "High Contrast White", "canonical": "#f8fafc" },
+      "danger": { "role": "functional", "displayName": "Rose Red", "canonical": "#f43f5e" },
+      "folder": { "role": "functional", "displayName": "Amber Yellow Folder", "canonical": "#fbbf24" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display Title", "purpose": "Encabezado principal de la app" },
+      "body": { "displayName": "Body Text", "purpose": "Texto general de la tabla de archivos" },
+      "code": { "displayName": "Mono Code", "purpose": "Visor de código fuente y bloques markdown" }
+    },
+    "shadows": [
+      { "name": "modal-shadow", "value": "0 20px 40px rgba(0, 0, 0, 0.55)", "purpose": "Elevación máxima de modales y visores" },
+      { "name": "table-shadow", "value": "0 6px 16px rgba(0, 0, 0, 0.35)", "purpose": "Profundidad de tarjeta de lista de archivos" }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Transición fluida para hovers y apertura de modales" }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal destacada en Cyan.",
+      "html": "<button class=\"ds-btn-primary\">Crear Carpeta</button>",
+      "css": ".ds-btn-primary { background: #38bdf8; color: #0b0f19; padding: 0.6rem 1.1rem; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn-primary:hover { background: #0284c7; color: #ffffff; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acción secundaria neutra.",
+      "html": "<button class=\"ds-btn-secondary\">Copiar Enlace</button>",
+      "css": ".ds-btn-secondary { background: #151c2c; color: #f8fafc; border: 1px solid #27354a; padding: 0.6rem 1.1rem; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn-secondary:hover { background: #1e293b; border-color: rgba(56, 189, 248, 0.4); }"
+    },
+    {
+      "name": "Search Box",
+      "kind": "input",
+      "refersTo": "search-input",
+      "description": "Buscador en tiempo real con filtro instantáneo.",
+      "html": "<input type=\"text\" class=\"ds-search-input\" placeholder=\"Buscar archivos...\">",
+      "css": ".ds-search-input { width: 100%; padding: 0.65rem 1rem 0.65rem 2.5rem; background: #151c2c; border: 1px solid #27354a; border-radius: 10px; color: #f8fafc; font-size: 0.9rem; outline: none; transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1); } .ds-search-input:focus { border-color: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Minimalist Terminal",
+    "overview": "SimpleFS adopta una estética de consola de alto rendimiento con precisión de ingeniería.",
+    "keyCharacteristics": [
+      "Fondo azul oscuro profundo con paneles en capas de contraste",
+      "Acento Cyan brillante reservado para acciones primarias",
+      "Vistas previas en vivo integradas para código, Markdown y PDF"
+    ],
+    "rules": [
+      { "name": "The Rarity Accent Rule", "body": "El acento cyan eléctrico se utiliza en ≤10% de la pantalla.", "section": "colors" },
+      { "name": "The Flat-By-Default Rule", "body": "Las superficies permanecen planas al reposo; las sombras aparecen en modales.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do mantener el acento cyan enfocado únicamente en acciones primarias",
+      "Do usar fuentes monoespaciadas para fragmentos de código"
+    ],
+    "donts": [
+      "Don't agregar bordes gruesos decorativos",
+      "Don't incluir gradientes de texto ni elementos ornamentales"
+    ]
+  }
+}
