@@ -52,6 +52,14 @@
       </div>
 
       <div class="action-buttons">
+        <button class="btn btn-secondary" onclick="openClipboardModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Pegar Portapapeles
+        </button>
+
         <button class="btn btn-secondary" onclick="document.getElementById('folder-modal').style.display='flex'">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -92,9 +100,91 @@
   <!-- Modal Container for File Previews -->
   <div id="modal-container"></div>
 
+  <!-- Modal for Paste / Create File from Clipboard -->
+  <div id="clipboard-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card" style="max-width: 750px; height: auto; max-height: 90vh;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-color);">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span>Crear Archivo desde Portapapeles</span>
+        </div>
+        <button class="modal-close" onclick="closeClipboardModal()">&times;</button>
+      </div>
+
+      <form hx-post="/api/create-file" 
+            hx-target="#file-list-container" 
+            hx-indicator="#global-spinner"
+            hx-on::after-request="closeClipboardModal(); this.reset(); updateMiniPreview()">
+        <input type="hidden" name="path" id="clipboard-path-input" value="{{ .Path }}">
+        <div class="modal-body">
+          <!-- Filename Input & Extension Selector -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <label class="form-label" style="margin: 0;">Nombre del Archivo</label>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="pasteFromClipboard()">
+                📋 Pegar Portapapeles
+              </button>
+            </div>
+            <input type="text" 
+                   id="clipboard-filename" 
+                   name="filename" 
+                   class="form-control" 
+                   placeholder="Ej: snippet.go o notas.md" 
+                   oninput="updateMiniPreview()"
+                   required>
+            
+            <!-- Quick Extension Pills -->
+            <div class="extension-pills">
+              <span class="extension-pill" onclick="setExtension('.go')">.go</span>
+              <span class="extension-pill" onclick="setExtension('.md')">.md</span>
+              <span class="extension-pill" onclick="setExtension('.json')">.json</span>
+              <span class="extension-pill" onclick="setExtension('.js')">.js</span>
+              <span class="extension-pill" onclick="setExtension('.py')">.py</span>
+              <span class="extension-pill" onclick="setExtension('.txt')">.txt</span>
+              <span class="extension-pill" onclick="setExtension('.css')">.css</span>
+              <span class="extension-pill" onclick="setExtension('.html')">.html</span>
+              <span class="extension-pill" onclick="setExtension('.sh')">.sh</span>
+              <span class="extension-pill" onclick="setExtension('.sql')">.sql</span>
+              <span class="extension-pill" onclick="setExtension('.yml')">.yml</span>
+            </div>
+          </div>
+
+          <!-- Content Textarea -->
+          <div class="form-group">
+            <label class="form-label">Contenido del Archivo</label>
+            <textarea id="clipboard-content" 
+                      name="content" 
+                      class="form-control" 
+                      rows="6" 
+                      placeholder="Pega aquí tu código, texto o configuración..."
+                      oninput="updateMiniPreview()"></textarea>
+          </div>
+
+          <!-- Live Mini Preview -->
+          <div class="mini-preview-container">
+            <div class="mini-preview-meta">
+              <span>Mini Vista Previa</span>
+              <div id="mini-preview-stats">Líneas: 0 | Caracteres: 0 | Tamaño: 0 B</div>
+            </div>
+            <pre class="mini-preview-box"><code id="mini-preview-code" class="language-plaintext">// La vista previa aparecerá aquí al pegar o escribir...</code></pre>
+          </div>
+
+          <!-- Submit Buttons -->
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+            <button type="button" class="btn btn-secondary" onclick="closeClipboardModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar Archivo</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Modal for Creating Folder -->
   <div id="folder-modal" class="modal-backdrop" style="display: none;">
-    <div class="modal-card" style="max-width: 400px;">
+    <div class="modal-card" style="max-width: 400px; height: auto;">
       <div class="modal-header">
         <div class="modal-title">Crear Nueva Carpeta</div>
         <button class="modal-close" onclick="document.getElementById('folder-modal').style.display='none'">&times;</button>
@@ -123,24 +213,122 @@
         const pathVal = activePath.getAttribute('data-path');
         const currentPathInput = document.getElementById('current-path-input');
         if (currentPathInput) currentPathInput.value = pathVal;
+
+        const clipboardPathInput = document.getElementById('clipboard-path-input');
+        if (clipboardPathInput) clipboardPathInput.value = pathVal;
       }
       initRichPreviews();
     });
 
     // Enriched Preview Initializer
     function initRichPreviews() {
-      // Syntax Highlighting
       document.querySelectorAll('pre code').forEach((block) => {
-        if (window.hljs) hljs.highlightElement(block);
+        if (window.hljs && !block.classList.contains('hljs')) {
+          hljs.highlightElement(block);
+        }
       });
 
-      // Markdown Rendering
       document.querySelectorAll('.markdown-body').forEach((container) => {
         const rawContent = container.getAttribute('data-markdown');
         if (rawContent && window.marked) {
           container.innerHTML = marked.parse(rawContent);
         }
       });
+    }
+
+    // Clipboard Modal Handlers
+    function openClipboardModal() {
+      const activePath = document.getElementById('active-path');
+      if (activePath) {
+        document.getElementById('clipboard-path-input').value = activePath.getAttribute('data-path') || '';
+      }
+      document.getElementById('clipboard-modal').style.display = 'flex';
+      pasteFromClipboard();
+    }
+
+    function closeClipboardModal() {
+      document.getElementById('clipboard-modal').style.display = 'none';
+    }
+
+    async function pasteFromClipboard() {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            document.getElementById('clipboard-content').value = text;
+            updateMiniPreview();
+          }
+        }
+      } catch (err) {
+        console.log('No se pudo acceder automáticamente al portapapeles:', err);
+      }
+    }
+
+    function setExtension(ext) {
+      const input = document.getElementById('clipboard-filename');
+      let val = input.value.trim();
+
+      // Remove existing extension if any
+      const lastDot = val.lastIndexOf('.');
+      if (lastDot > 0) {
+        val = val.substring(0, lastDot);
+      }
+
+      if (!val) {
+        val = 'snippet';
+      }
+      input.value = val + ext;
+
+      // Highlight active pill
+      document.querySelectorAll('.extension-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.innerText === ext);
+      });
+
+      updateMiniPreview();
+    }
+
+    function updateMiniPreview() {
+      const content = document.getElementById('clipboard-content').value;
+      const filename = document.getElementById('clipboard-filename').value;
+      const codeBlock = document.getElementById('mini-preview-code');
+      const stats = document.getElementById('mini-preview-stats');
+
+      const lines = content ? content.split('\n').length : 0;
+      const chars = content.length;
+      const bytes = new Blob([content]).size;
+
+      stats.innerText = `Líneas: ${lines} | Caracteres: ${chars} | Tamaño: ${bytes} B`;
+
+      if (!content.trim()) {
+        codeBlock.className = 'language-plaintext';
+        codeBlock.textContent = '// La vista previa aparecerá aquí al pegar o escribir...';
+        return;
+      }
+
+      // Infer syntax language from extension
+      const ext = filename.includes('.') ? '.' + filename.split('.').pop().toLowerCase() : '';
+      const langMap = {
+        '.go': 'language-go',
+        '.js': 'language-javascript',
+        '.ts': 'language-typescript',
+        '.py': 'language-python',
+        '.rs': 'language-rust',
+        '.css': 'language-css',
+        '.html': 'language-html',
+        '.json': 'language-json',
+        '.sh': 'language-bash',
+        '.sql': 'language-sql',
+        '.yml': 'language-yaml',
+        '.md': 'language-markdown'
+      };
+
+      codeBlock.className = langMap[ext] || 'language-plaintext';
+      codeBlock.textContent = content;
+
+      if (window.hljs) {
+        delete codeBlock.dataset.highlighted;
+        hljs.highlightElement(codeBlock);
+      }
     }
 
     // Copy to Clipboard Utility

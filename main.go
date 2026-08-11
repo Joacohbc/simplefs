@@ -85,6 +85,7 @@ func main() {
 	mux.HandleFunc("GET /api/files", handleAPIFiles)
 	mux.HandleFunc("POST /api/upload", handleAPIUpload)
 	mux.HandleFunc("POST /api/folder", handleAPIFolder)
+	mux.HandleFunc("POST /api/create-file", handleAPICreateFile)
 	mux.HandleFunc("DELETE /api/delete", handleAPIDelete)
 	mux.HandleFunc("GET /api/preview", handleAPIPreview)
 	mux.HandleFunc("GET /download", handleDownload)
@@ -299,6 +300,37 @@ func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 	newFolderDir := filepath.Join(targetDir, folderName)
 	if err := os.MkdirAll(newFolderDir, 0755); err != nil {
 		http.Error(w, "Failed to create folder", http.StatusInternalServerError)
+		return
+	}
+
+	data, err := getPageData(relPath, "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	tmpl.ExecuteTemplate(w, "file_list.html", data)
+}
+
+func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
+	relPath := r.FormValue("path")
+	filename := strings.TrimSpace(r.FormValue("filename"))
+	content := r.FormValue("content")
+
+	if filename == "" || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		http.Error(w, "Invalid filename", http.StatusBadRequest)
+		return
+	}
+
+	targetFile, err := resolvePath(filepath.Join(relPath, filename))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := os.WriteFile(targetFile, []byte(content), 0644); err != nil {
+		http.Error(w, "Failed to save file", http.StatusInternalServerError)
 		return
 	}
 

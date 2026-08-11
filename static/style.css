@@ -141,6 +141,7 @@ header {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .btn {
@@ -436,6 +437,67 @@ header {
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+}
+
+/* Extension Pills */
+.extension-pills {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  margin-top: 0.4rem;
+}
+
+.extension-pill {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.6rem;
+  font-family: monospace;
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.extension-pill:hover, .extension-pill.active {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background-color: var(--bg-surface-hover);
+}
+
+/* Mini Preview Box */
+.mini-preview-container {
+  margin-top: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
+
+.mini-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: rgba(11, 15, 25, 0.6);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mini-preview-box {
+  margin: 0;
+  padding: 0.85rem;
+  max-height: 180px;
+  overflow: auto;
+  font-family: 'Fira Code', Consolas, Monaco, monospace;
+  font-size: 0.825rem;
+  line-height: 1.5;
+  background-color: #0d1117 !important;
+  color: var(--text-primary);
 }
 
 /* Rich Preview Layouts */
