@@ -25,13 +25,19 @@ var (
 )
 
 type FileInfo struct {
-	Name          string
-	RelPath       string
-	IsDir         bool
-	Size          int64
-	FormattedSize string
-	ModTime       time.Time
-	FormattedTime string
+	Name             string
+	RelPath          string
+	IsDir            bool
+	Size             int64
+	FormattedSize    string
+	ModTime          time.Time
+	FormattedMod     string
+	FormattedCreated string
+	ItemCount        int
+	TypeLabel        string
+	MaterialIcon     string
+	IconColorClass   string
+	IsImage          bool
 }
 
 type Breadcrumb struct {
@@ -42,7 +48,9 @@ type Breadcrumb struct {
 type PageData struct {
 	Path        string
 	Breadcrumbs []Breadcrumb
+	Folders     []FileInfo
 	Files       []FileInfo
+	ViewMode    string
 }
 
 type PreviewData struct {
@@ -56,6 +64,19 @@ type PreviewData struct {
 	ModTime       string
 	LineCount     int
 	LanguageClass string
+	MaterialIcon  string
+}
+
+type FileDetailsData struct {
+	Name          string
+	RelPath       string
+	DirLocation   string
+	TypeLabel     string
+	MaterialIcon  string
+	FormattedSize string
+	CreatedDate   string
+	ModifiedDate  string
+	IsImage       bool
 }
 
 func main() {
@@ -84,6 +105,7 @@ func main() {
 	// Web Routes
 	mux.HandleFunc("GET /", handleIndex)
 	mux.HandleFunc("GET /api/files", handleAPIFiles)
+	mux.HandleFunc("GET /api/file-details", handleAPIFileDetails)
 	mux.HandleFunc("POST /api/upload", handleAPIUpload)
 	mux.HandleFunc("POST /api/folder", handleAPIFolder)
 	mux.HandleFunc("POST /api/create-file", handleAPICreateFile)
@@ -127,7 +149,7 @@ func resolvePath(rel string) (string, error) {
 	return targetPath, nil
 }
 
-func getPageData(relPath, query string) (PageData, error) {
+func getPageData(relPath, query, viewMode string) (PageData, error) {
 	absPath, err := resolvePath(relPath)
 	if err != nil {
 		return PageData{}, err
@@ -138,13 +160,14 @@ func getPageData(relPath, query string) (PageData, error) {
 		return PageData{}, err
 	}
 
+	var folders []FileInfo
 	var files []FileInfo
 	queryLower := strings.ToLower(query)
 
 	for _, entry := range entries {
 		name := entry.Name()
 		// Filter out internal git and devcontainer build folders
-		if name == ".git" || name == ".dc_simplefs" || name == "simplefs" {
+		if name == ".git" || name == ".dc_simplefs" || name == "simplefs" || name == "node_modules" || name == ".stitch" {
 			continue
 		}
 
@@ -158,30 +181,105 @@ func getPageData(relPath, query string) (PageData, error) {
 		}
 
 		entryRelPath := filepath.Join(relPath, name)
-		files = append(files, FileInfo{
-			Name:          name,
-			RelPath:       filepath.ToSlash(entryRelPath),
-			IsDir:         entry.IsDir(),
-			Size:          info.Size(),
-			FormattedSize: formatBytes(info.Size()),
-			ModTime:       info.ModTime(),
-			FormattedTime: info.ModTime().Format("02/01/2006 15:04"),
-		})
+		ext := strings.ToLower(filepath.Ext(name))
+		typeLabel, matIcon, colorClass := getFileInfoMeta(name, entry.IsDir(), ext)
+
+		itemCount := 0
+		if entry.IsDir() {
+			subEntries, err := os.ReadDir(filepath.Join(absPath, name))
+			if err == nil {
+				for _, sub := range subEntries {
+					subName := sub.Name()
+					if !strings.HasPrefix(subName, ".") && subName != "node_modules" {
+						itemCount++
+					}
+				}
+			}
+		}
+
+		fileObj := FileInfo{
+			Name:             name,
+			RelPath:          filepath.ToSlash(entryRelPath),
+			IsDir:            entry.IsDir(),
+			Size:             info.Size(),
+			FormattedSize:    formatBytes(info.Size()),
+			ModTime:          info.ModTime(),
+			FormattedMod:     info.ModTime().Format("02 Jan 2006"),
+			FormattedCreated: info.ModTime().Format("02 Jan 2006"),
+			ItemCount:        itemCount,
+			TypeLabel:        typeLabel,
+			MaterialIcon:     matIcon,
+			IconColorClass:   colorClass,
+			IsImage:          classifyFileType(ext) == "image",
+		}
+
+		if entry.IsDir() {
+			folders = append(folders, fileObj)
+		} else {
+			files = append(files, fileObj)
+		}
 	}
 
-	// Sort folders first, then files alphabetically
+	// Sort folders alphabetically
+	sort.Slice(folders, func(i, j int) bool {
+		return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
+	})
+
+	// Sort files alphabetically
 	sort.Slice(files, func(i, j int) bool {
-		if files[i].IsDir != files[j].IsDir {
-			return files[i].IsDir
-		}
 		return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name)
 	})
+
+	if viewMode == "" {
+		viewMode = "list"
+	}
 
 	return PageData{
 		Path:        filepath.ToSlash(relPath),
 		Breadcrumbs: buildBreadcrumbs(relPath),
+		Folders:     folders,
 		Files:       files,
+		ViewMode:    viewMode,
 	}, nil
+}
+
+func getFileInfoMeta(name string, isDir bool, ext string) (typeLabel, icon, colorClass string) {
+	if isDir {
+		return "Carpeta", "folder", "text-primary dark:text-primary-fixed-dim"
+	}
+
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".bmp", ".ico":
+		return strings.ToUpper(strings.TrimPrefix(ext, ".")) + " Image", "image", "text-secondary dark:text-secondary-fixed-dim"
+	case ".pdf":
+		return "PDF Document", "picture_as_pdf", "text-error dark:text-error-container"
+	case ".xlsx", ".xls", ".csv":
+		return "Hoja de Cálculo", "table_chart", "text-emerald-600 dark:text-emerald-400"
+	case ".doc", ".docx", ".odt":
+		return "Documento de Texto", "article", "text-blue-600 dark:text-blue-400"
+	case ".mp4", ".mov", ".webm", ".mkv":
+		return "Archivo de Video", "movie", "text-purple-600 dark:text-purple-400"
+	case ".mp3", ".wav", ".ogg", ".flac", ".m4a":
+		return "Archivo de Audio", "audiotrack", "text-amber-600 dark:text-amber-400"
+	case ".zip", ".tar", ".gz", ".rar", ".7z":
+		return "Archivo Comprimido", "folder_zip", "text-orange-600 dark:text-orange-400"
+	case ".go":
+		return "Go Source Code", "code", "text-cyan-600 dark:text-cyan-400"
+	case ".js", ".ts", ".jsx", ".tsx":
+		return "JavaScript / TypeScript", "code", "text-yellow-600 dark:text-yellow-400"
+	case ".py":
+		return "Python Script", "code", "text-blue-600 dark:text-blue-400"
+	case ".html", ".htm":
+		return "HTML Document", "html", "text-orange-600 dark:text-orange-400"
+	case ".css":
+		return "CSS Stylesheet", "css", "text-blue-500 dark:text-blue-300"
+	case ".json":
+		return "JSON Document", "data_object", "text-teal-600 dark:text-teal-400"
+	case ".md", ".markdown":
+		return "Markdown Note", "description", "text-secondary dark:text-secondary-fixed-dim"
+	default:
+		return "Archivo", "description", "text-secondary dark:text-secondary-fixed-dim"
+	}
 }
 
 func buildBreadcrumbs(relPath string) []Breadcrumb {
@@ -213,7 +311,8 @@ func buildBreadcrumbs(relPath string) []Breadcrumb {
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	relPath := r.URL.Query().Get("path")
-	data, err := getPageData(relPath, "")
+	viewMode := r.URL.Query().Get("view")
+	data, err := getPageData(relPath, "", viewMode)
 	if err != nil {
 		http.Error(w, "Directory not found", http.StatusNotFound)
 		return
@@ -228,8 +327,9 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 func handleAPIFiles(w http.ResponseWriter, r *http.Request) {
 	relPath := r.URL.Query().Get("path")
 	query := r.URL.Query().Get("query")
+	viewMode := r.URL.Query().Get("view")
 
-	data, err := getPageData(relPath, query)
+	data, err := getPageData(relPath, query, viewMode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -241,6 +341,48 @@ func handleAPIFiles(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleAPIFileDetails(w http.ResponseWriter, r *http.Request) {
+	relPath := r.URL.Query().Get("path")
+	absPath, err := resolvePath(relPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(absPath))
+	typeLabel, matIcon, _ := getFileInfoMeta(info.Name(), info.IsDir(), ext)
+
+	parentDir := filepath.ToSlash(filepath.Dir(relPath))
+	if parentDir == "." || parentDir == "" {
+		parentDir = "/"
+	} else {
+		parentDir = "/" + parentDir
+	}
+
+	details := FileDetailsData{
+		Name:          filepath.Base(absPath),
+		RelPath:       filepath.ToSlash(relPath),
+		DirLocation:   parentDir,
+		TypeLabel:     typeLabel,
+		MaterialIcon:  matIcon,
+		FormattedSize: formatBytes(info.Size()),
+		CreatedDate:   info.ModTime().Format("02 Jan 2006"),
+		ModifiedDate:  info.ModTime().Format("02 Jan 2006, 15:04"),
+		IsImage:       classifyFileType(ext) == "image",
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "details_modal.html", details); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(100 << 20); err != nil { // 100 MB max memory limit
 		http.Error(w, "Error parsing form", http.StatusBadRequest)
@@ -248,6 +390,7 @@ func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	relPath := r.FormValue("path")
+	viewMode := r.FormValue("view")
 	targetDir, err := resolvePath(relPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -273,7 +416,7 @@ func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 		dst.Close()
 	}
 
-	data, err := getPageData(relPath, "")
+	data, err := getPageData(relPath, "", viewMode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -285,6 +428,7 @@ func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 
 func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 	relPath := r.FormValue("path")
+	viewMode := r.FormValue("view")
 	folderName := strings.TrimSpace(r.FormValue("name"))
 
 	if folderName == "" || strings.Contains(folderName, "/") || strings.Contains(folderName, "\\") {
@@ -304,7 +448,7 @@ func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := getPageData(relPath, "")
+	data, err := getPageData(relPath, "", viewMode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -316,6 +460,7 @@ func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 
 func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 	relPath := r.FormValue("path")
+	viewMode := r.FormValue("view")
 	filename := strings.TrimSpace(r.FormValue("filename"))
 	content := r.FormValue("content")
 	isBase64 := r.FormValue("is_base64") == "true"
@@ -352,7 +497,7 @@ func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := getPageData(relPath, "")
+	data, err := getPageData(relPath, "", viewMode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -364,6 +509,7 @@ func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 
 func handleAPIDelete(w http.ResponseWriter, r *http.Request) {
 	relPath := r.URL.Query().Get("path")
+	viewMode := r.URL.Query().Get("view")
 	if relPath == "" {
 		http.Error(w, "Path parameter required", http.StatusBadRequest)
 		return
@@ -385,7 +531,7 @@ func handleAPIDelete(w http.ResponseWriter, r *http.Request) {
 		parentRel = ""
 	}
 
-	data, err := getPageData(parentRel, "")
+	data, err := getPageData(parentRel, "", viewMode)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -416,6 +562,8 @@ func handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 		mimeType = "application/octet-stream"
 	}
 
+	_, matIcon, _ := getFileInfoMeta(info.Name(), false, ext)
+
 	preview := PreviewData{
 		Name:          filepath.Base(absPath),
 		RelPath:       filepath.ToSlash(relPath),
@@ -423,8 +571,9 @@ func handleAPIPreview(w http.ResponseWriter, r *http.Request) {
 		Extension:     ext,
 		MimeType:      mimeType,
 		FormattedSize: formatBytes(info.Size()),
-		ModTime:       info.ModTime().Format("02/01/2006 15:04"),
+		ModTime:       info.ModTime().Format("02 Jan 2006 15:04"),
 		LanguageClass: getLanguageClass(ext),
+		MaterialIcon:  matIcon,
 	}
 
 	if fileType == "code" || fileType == "markdown" {
@@ -480,7 +629,7 @@ func classifyFileType(ext string) string {
 		return "pdf"
 	case ".md", ".markdown":
 		return "markdown"
-	case ".txt", ".go", ".js", ".ts", ".jsx", ".tsx", ".css", ".html", ".json", ".xml", ".sh", ".py", ".yml", ".yaml", ".c", ".cpp", ".h", ".rs", ".sql", ".env", ".gitignore", ".mod", ".sum":
+	case ".txt", ".go", ".js", ".ts", ".jsx", ".tsx", ".css", ".html", ".json", ".xml", ".sh", ".py", ".yml", ".yaml", ".c", ".cpp", ".h", ".rs", ".sql", ".env", ".gitignore", ".mod", ".sum", ".toml":
 		return "code"
 	default:
 		return "binary"

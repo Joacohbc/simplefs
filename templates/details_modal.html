@@ -1,0 +1,64 @@
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-margin-desktop modal-backdrop bg-inverse-surface/40 dark:bg-black/60" id="details-modal-backdrop" onclick="if(event.target === this) closeDetailsModal()">
+  <!-- Modal Card (Material Design 3 Style) -->
+  <div class="bg-surface-container-low dark:bg-surface-container border border-outline-variant/30 rounded-3xl w-full max-w-[480px] shadow-2xl flex flex-col overflow-hidden transform transition-all duration-200 scale-100 animate-in fade-in zoom-in-95">
+    
+    <!-- Modal Header -->
+    <div class="p-6 flex items-center gap-4 border-b border-outline-variant/20">
+      <div class="w-12 h-12 rounded-2xl bg-secondary-container dark:bg-secondary-container/40 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-on-secondary-container text-3xl filled">{{ .MaterialIcon }}</span>
+      </div>
+      <div class="flex flex-col flex-1 min-w-0">
+        <h2 class="font-bold text-lg text-on-surface truncate" title="{{ .Name }}">{{ .Name }}</h2>
+        <span class="text-xs text-on-surface-variant truncate">{{ .TypeLabel }}</span>
+      </div>
+      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors" onclick="closeDetailsModal()" title="Cerrar" aria-label="Cerrar">
+        <span class="material-symbols-outlined text-xl">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body (Details) -->
+    <div class="p-6 flex flex-col gap-4">
+      {{ if .IsImage }}
+      <div class="w-full h-44 rounded-2xl overflow-hidden relative bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-center">
+        <img src="/download?path={{ .RelPath }}" alt="{{ .Name }}" class="max-h-full max-w-full object-contain">
+      </div>
+      {{ end }}
+
+      <div class="grid grid-cols-[100px_1fr] gap-y-3 items-center gap-x-4 text-sm bg-surface-container-high/40 dark:bg-surface-container-high/60 p-4 rounded-2xl border border-outline-variant/20">
+        <div class="font-medium text-xs text-on-surface-variant">Tamaño</div>
+        <div class="text-on-surface font-semibold font-mono text-xs">{{ .FormattedSize }}</div>
+        
+        <div class="font-medium text-xs text-on-surface-variant">Creado</div>
+        <div class="text-on-surface font-mono text-xs">{{ .CreatedDate }}</div>
+        
+        <div class="font-medium text-xs text-on-surface-variant">Modificado</div>
+        <div class="text-on-surface font-mono text-xs">{{ .ModifiedDate }}</div>
+        
+        <div class="font-medium text-xs text-on-surface-variant">Ubicación</div>
+        <div class="text-on-surface truncate font-mono text-xs" title="{{ .DirLocation }}">{{ .DirLocation }}</div>
+      </div>
+    </div>
+
+    <!-- Modal Actions -->
+    <div class="px-6 pb-6 flex justify-end gap-3">
+      <button class="px-5 py-2.5 rounded-full font-medium text-sm text-primary dark:text-primary-fixed-dim hover:bg-primary/10 dark:hover:bg-primary-fixed-dim/10 transition-colors" onclick="closeDetailsModal()">
+        Cerrar
+      </button>
+      <a href="/download?path={{ .RelPath }}" download class="px-5 py-2.5 rounded-full font-medium text-sm bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container hover:shadow-md transition-all flex items-center gap-2">
+        <span class="material-symbols-outlined text-lg">download</span>
+        Descargar
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  document.body.classList.add('overflow-hidden');
+
+  function closeDetailsModal() {
+    document.body.classList.remove('overflow-hidden');
+    const modal = document.getElementById('details-modal-backdrop');
+    if (modal) modal.remove();
+  }
+</script>

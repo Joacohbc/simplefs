@@ -1,11 +1,17 @@
 {
-  "mode": "local-cached",
-  "image": "devcontainer-cli/2ed879e27cfe:latest",
+  "mode": "custom",
+  "image": "devcontainer-cli/e76c642281a3:latest",
   "workspace": "simplefs",
   "dockerfile": {
     "modules": [
       {
         "id": "go"
+      },
+      {
+        "id": "nodejs"
+      },
+      {
+        "id": "pnpm"
       }
     ]
   },
@@ -17,5 +23,6 @@
     ]
   },
   "env": {},
-  "fingerprint": "2ed879e27cfe049476c11c9d2d58a0c51733c9b56b7c40b989f9a8dfb1f80b55"
+  "skills": {},
+  "fingerprint": "e76c642281a3b32c3bb8f7871f21b25fb5cdf0c9e9a78c8f1bf8875e5fc5ce49"
 }

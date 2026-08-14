@@ -1,117 +1,222 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SimpleFS - HTMX + Go File Server</title>
+  <title>simplefs - File Manager</title>
+  
+  <!-- Material Symbols Outlined & Inter Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  
+  <!-- Compiled Tailwind CSS -->
   <link rel="stylesheet" href="/static/style.css">
   
   <!-- HTMX 1.9.10 -->
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   
-  <!-- Highlight.js for Syntax Highlighting -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <!-- Highlight.js for Code Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-theme">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   
-  <!-- Marked for Markdown Rendering -->
+  <!-- Marked for Markdown Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Immediate Theme Check to Prevent FOUC -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    })();
+  </script>
 </head>
-<body>
-  <div class="container">
-    <!-- Header -->
-    <header>
-      <div class="logo-area">
-        <div class="logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-          </svg>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col">
+  
+  <!-- Top Navigation Bar (Stitch Style) -->
+  <header class="bg-surface-container-low/95 dark:bg-surface-container/95 backdrop-blur-md border-b border-outline-variant/30 sticky top-0 z-40 px-4 md:px-gutter py-3 transition-colors duration-200">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      
+      <!-- Brand Logo -->
+      <a href="/" class="flex items-center gap-2.5 group shrink-0" aria-label="SimpleFS Inicio">
+        <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm group-hover:scale-105 transition-transform">
+          <span class="material-symbols-outlined text-2xl filled">folder_open</span>
         </div>
-        <span class="logo-title">SimpleFS</span>
-        <span class="badge">Go + HTMX</span>
-      </div>
-      <div>
-        <span class="htmx-indicator spinner" id="global-spinner"></span>
-      </div>
-    </header>
+        <span class="font-bold text-xl tracking-tight text-primary dark:text-primary-fixed-dim">simplefs</span>
+      </a>
 
-    <!-- Toolbar -->
-    <div class="toolbar">
-      <div class="search-box">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <input type="text" 
-               name="query" 
-               placeholder="Buscar archivos por nombre..." 
-               hx-get="/api/files" 
-               hx-trigger="keyup changed delay:250ms, search" 
-               hx-target="#file-list-container" 
-               hx-include="[name='path']"
-               hx-indicator="#global-spinner">
+      <!-- Real-time Search Input -->
+      <div class="flex-1 max-w-xl mx-2">
+        <div class="relative w-full">
+          <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">search</span>
+          <input type="text" 
+                 name="query" 
+                 placeholder="Buscar archivos y carpetas..." 
+                 class="w-full bg-surface-container-high dark:bg-surface-container-high border-none rounded-full py-2 pl-10 pr-10 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus:ring-2 focus:ring-primary dark:focus:ring-primary-fixed-dim transition-all shadow-inner"
+                 hx-get="/api/files" 
+                 hx-trigger="keyup changed delay:200ms, search" 
+                 hx-target="#file-list-container" 
+                 hx-include="[name='path'], [name='view']"
+                 hx-indicator="#global-spinner"
+                 aria-label="Buscar archivos">
+          <span class="htmx-indicator spinner absolute right-3.5 top-1/2 -translate-y-1/2" id="global-spinner"></span>
+        </div>
       </div>
 
-      <div class="action-buttons">
-        <button class="btn btn-secondary" onclick="openClipboardModal()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          Pegar Portapapeles
+      <!-- Header Action Controls -->
+      <div class="flex items-center gap-2">
+        <!-- Theme Toggle (Light / Dark) -->
+        <button id="theme-toggle-btn" 
+                onclick="toggleTheme()" 
+                class="p-2 rounded-full hover:bg-surface-variant/50 text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors"
+                aria-label="Cambiar tema de color"
+                title="Cambiar Tema (Claro / Oscuro)">
+          <span class="material-symbols-outlined text-xl" id="theme-icon">dark_mode</span>
         </button>
 
-        <button class="btn btn-secondary" onclick="document.getElementById('folder-modal').style.display='flex'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          Nueva Carpeta
+        <!-- New Folder Shortcut -->
+        <button onclick="openFolderModal()" 
+                class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-container-high hover:bg-surface-container-highest text-on-surface hover:text-primary dark:hover:text-primary-fixed-dim transition-colors border border-outline-variant/30"
+                title="Crear nueva carpeta">
+          <span class="material-symbols-outlined text-base">create_new_folder</span>
+          <span>Carpeta</span>
+        </button>
+
+        <!-- Paste Clipboard Shortcut -->
+        <button onclick="openClipboardModal()" 
+                class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-container-high hover:bg-surface-container-highest text-on-surface hover:text-primary dark:hover:text-primary-fixed-dim transition-colors border border-outline-variant/30"
+                title="Pegar desde portapapeles">
+          <span class="material-symbols-outlined text-base">content_paste</span>
+          <span>Pegar</span>
         </button>
       </div>
+
     </div>
+  </header>
 
-    <!-- Dropzone for Uploads -->
+  <!-- Main Content Canvas -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-margin-desktop py-6 md:py-8 pb-32">
+    
+    <!-- Hidden Form Inputs for HTMX synchronization -->
+    <input type="hidden" name="path" id="current-path-input" value="{{ .Path }}">
+    <input type="hidden" name="view" id="current-view-input" value="{{ .ViewMode }}">
+
+    <!-- Hidden Native File Upload Input -->
     <form id="upload-form" 
           hx-post="/api/upload" 
           hx-target="#file-list-container" 
           hx-encoding="multipart/form-data" 
-          hx-indicator="#global-spinner">
-      <input type="hidden" name="path" id="current-path-input" value="{{ .Path }}">
-      <div class="dropzone" id="dropzone">
-        <input type="file" name="files" multiple onchange="this.form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))">
-        <div class="dropzone-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
-          </svg>
-        </div>
-        <div class="dropzone-text">Arrastra archivos aquí o haz clic para subir</div>
-        <div class="dropzone-subtext">Archivos, imágenes, documentos, código y multimedia</div>
-      </div>
+          hx-indicator="#global-spinner" 
+          class="hidden">
+      <input type="hidden" name="path" id="upload-form-path" value="{{ .Path }}">
+      <input type="hidden" name="view" id="upload-form-view" value="{{ .ViewMode }}">
+      <input type="file" id="global-file-picker" name="files" multiple onchange="submitUploadForm()">
     </form>
 
-    <!-- Dynamic File Listing Container -->
-    <div id="file-list-container">
+    <!-- Dynamic File List Area -->
+    <div id="file-list-container" class="transition-opacity duration-150">
       {{ template "file_list.html" . }}
+    </div>
+
+  </main>
+
+  <!-- Floating Action Button (FAB) with Speed Dial -->
+  <div class="fixed bottom-6 right-6 md:bottom-8 md:right-8 z-40 flex flex-col-reverse items-end gap-3" id="speed-dial-container">
+    
+    <!-- Main Primary FAB Button -->
+    <button onclick="toggleSpeedDial()" 
+            class="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-primary hover:bg-primary-container text-on-primary shadow-xl hover:shadow-2xl flex items-center justify-center transition-all duration-200 active:scale-95 group focus:outline-none focus:ring-4 focus:ring-primary/20"
+            aria-label="Menú de acciones rápidas"
+            title="Acciones">
+      <span class="material-symbols-outlined text-3xl fab-icon transition-transform duration-300">add</span>
+    </button>
+
+    <!-- Speed Dial Option 1: Upload Files -->
+    <div class="speed-dial-item flex items-center gap-2">
+      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">Subir Archivos</span>
+      <button onclick="triggerFileUpload()" 
+              class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
+              aria-label="Subir archivos">
+        <span class="material-symbols-outlined text-xl">upload_file</span>
+      </button>
+    </div>
+
+    <!-- Speed Dial Option 2: Paste from Clipboard -->
+    <div class="speed-dial-item flex items-center gap-2">
+      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">Pegar Portapapeles</span>
+      <button onclick="openClipboardModal(); closeSpeedDial()" 
+              class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
+              aria-label="Pegar desde portapapeles">
+        <span class="material-symbols-outlined text-xl">content_paste</span>
+      </button>
+    </div>
+
+    <!-- Speed Dial Option 3: New Folder -->
+    <div class="speed-dial-item flex items-center gap-2">
+      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">Nueva Carpeta</span>
+      <button onclick="openFolderModal(); closeSpeedDial()" 
+              class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
+              aria-label="Crear nueva carpeta">
+        <span class="material-symbols-outlined text-xl">create_new_folder</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Global Modal Container for Details and Previews -->
+  <div id="modal-container"></div>
+
+  <!-- New Folder Modal -->
+  <div id="folder-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop bg-inverse-surface/40 dark:bg-black/60 hidden" onclick="if(event.target===this) closeFolderModal()">
+    <div class="bg-surface-container-low dark:bg-surface-container border border-outline-variant/30 rounded-3xl w-full max-w-md shadow-2xl p-6 transform transition-all duration-200">
+      <div class="flex items-center justify-between mb-4 border-b border-outline-variant/20 pb-3">
+        <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">create_new_folder</span>
+          Nueva Carpeta
+        </h3>
+        <button onclick="closeFolderModal()" class="p-1 rounded-full text-on-surface-variant hover:bg-surface-variant/40" aria-label="Cerrar modal">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+      <form hx-post="/api/folder" 
+            hx-target="#file-list-container" 
+            hx-on::after-request="closeFolderModal(); this.reset()">
+        <input type="hidden" name="path" id="folder-modal-path" value="{{ .Path }}">
+        <input type="hidden" name="view" id="folder-modal-view" value="{{ .ViewMode }}">
+        <div class="mb-5">
+          <label class="block text-xs font-semibold text-on-surface-variant mb-1.5">Nombre de la carpeta</label>
+          <input type="text" 
+                 name="name" 
+                 class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none placeholder:text-on-surface-variant/60" 
+                 placeholder="Ej: Documentos, Proyectos..." 
+                 required autofocus>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="closeFolderModal()" class="px-4 py-2 rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-variant/30">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-full text-sm font-medium bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container transition-all shadow-sm">Crear Carpeta</button>
+        </div>
+      </form>
     </div>
   </div>
 
-  <!-- Modal Container for File Previews -->
-  <div id="modal-container"></div>
-
-  <!-- Modal for Paste / Create File from Clipboard (Text or Image) -->
-  <div id="clipboard-modal" class="modal-backdrop" style="display: none;">
-    <div class="modal-card" style="max-width: 750px; height: auto; max-height: 90vh;">
-      <div class="modal-header">
-        <div class="modal-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-color);">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          <span id="clipboard-modal-title">Crear Archivo desde Portapapeles</span>
-        </div>
-        <button class="modal-close" onclick="closeClipboardModal()">&times;</button>
+  <!-- Clipboard / Paste Modal -->
+  <div id="clipboard-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop bg-inverse-surface/40 dark:bg-black/60 hidden" onclick="if(event.target===this) closeClipboardModal()">
+    <div class="bg-surface-container-low dark:bg-surface-container border border-outline-variant/30 rounded-3xl w-full max-w-2xl shadow-2xl p-6 transform transition-all duration-200 max-h-[90vh] overflow-y-auto">
+      
+      <div class="flex items-center justify-between mb-4 border-b border-outline-variant/20 pb-3">
+        <h3 class="text-lg font-bold text-on-surface flex items-center gap-2" id="clipboard-modal-title">
+          <span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">content_paste</span>
+          Guardar desde Portapapeles
+        </h3>
+        <button onclick="closeClipboardModal()" class="p-1 rounded-full text-on-surface-variant hover:bg-surface-variant/40" aria-label="Cerrar modal">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
       </div>
 
       <form hx-post="/api/create-file" 
@@ -119,107 +224,166 @@
             hx-indicator="#global-spinner"
             hx-on::after-request="closeClipboardModal(); resetClipboardForm()">
         <input type="hidden" name="path" id="clipboard-path-input" value="{{ .Path }}">
+        <input type="hidden" name="view" id="clipboard-view-input" value="{{ .ViewMode }}">
         <input type="hidden" name="is_base64" id="clipboard-is-base64" value="false">
         <input type="hidden" name="content" id="clipboard-hidden-content" value="">
 
-        <div class="modal-body">
-          <!-- Filename Input & Extension Selector -->
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-              <label class="form-label" style="margin: 0;">Nombre del Archivo</label>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="pasteFromClipboard()">
-                📋 Pegar Texto
-              </button>
-            </div>
-            <input type="text" 
-                   id="clipboard-filename" 
-                   name="filename" 
-                   class="form-control" 
-                   placeholder="Ej: captura.png o snippet.go" 
-                   oninput="updateMiniPreview()"
-                   required>
-            
-            <!-- Quick Extension Pills -->
-            <div class="extension-pills" id="extension-pills">
-              <span class="extension-pill" onclick="setExtension('.png')">.png</span>
-              <span class="extension-pill" onclick="setExtension('.jpg')">.jpg</span>
-              <span class="extension-pill" onclick="setExtension('.webp')">.webp</span>
-              <span class="extension-pill" onclick="setExtension('.go')">.go</span>
-              <span class="extension-pill" onclick="setExtension('.md')">.md</span>
-              <span class="extension-pill" onclick="setExtension('.json')">.json</span>
-              <span class="extension-pill" onclick="setExtension('.js')">.js</span>
-              <span class="extension-pill" onclick="setExtension('.py')">.py</span>
-              <span class="extension-pill" onclick="setExtension('.txt')">.txt</span>
-              <span class="extension-pill" onclick="setExtension('.css')">.css</span>
-              <span class="extension-pill" onclick="setExtension('.html')">.html</span>
-              <span class="extension-pill" onclick="setExtension('.sh')">.sh</span>
-            </div>
+        <!-- Filename & Extension Pills -->
+        <div class="mb-4">
+          <div class="flex justify-between items-center mb-1.5">
+            <label class="text-xs font-semibold text-on-surface-variant">Nombre del Archivo</label>
+            <button type="button" onclick="pasteFromClipboard()" class="text-xs text-primary dark:text-primary-fixed-dim hover:underline flex items-center gap-1 font-medium">
+              <span class="material-symbols-outlined text-sm">content_paste</span>
+              Pegar Texto
+            </button>
           </div>
-
-          <!-- Text Mode Input -->
-          <div class="form-group" id="text-input-group">
-            <label class="form-label">Contenido de Texto / Código</label>
-            <textarea id="clipboard-content" 
-                      class="form-control" 
-                      rows="6" 
-                      placeholder="Pega aquí código, texto o presiona Ctrl+V para capturar imágenes..."
-                      oninput="updateMiniPreview()"></textarea>
-          </div>
-
-          <!-- Image Preview Mode Container -->
-          <div id="image-preview-group" style="display: none; text-align: center; margin-bottom: 1rem;">
-            <div class="image-preview-wrapper" style="max-height: 250px; padding: 1rem;">
-              <img id="pasted-image-preview" src="" alt="Vista previa de imagen pegada" class="preview-media-image" style="max-height: 220px;">
-            </div>
-          </div>
-
-          <!-- Live Mini Preview Metadata & Code Box -->
-          <div class="mini-preview-container">
-            <div class="mini-preview-meta">
-              <span>Mini Vista Previa</span>
-              <div id="mini-preview-stats">Líneas: 0 | Caracteres: 0 | Tamaño: 0 B</div>
-            </div>
-            <pre class="mini-preview-box" id="mini-preview-text-box"><code id="mini-preview-code" class="language-plaintext">// La vista previa aparecerá aquí al pegar texto o imágenes...</code></pre>
-          </div>
-
-          <!-- Submit Buttons -->
-          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
-            <button type="button" class="btn btn-secondary" onclick="closeClipboardModal()">Cancelar</button>
-            <button type="submit" class="btn btn-primary">Guardar Archivo</button>
+          <input type="text" 
+                 id="clipboard-filename" 
+                 name="filename" 
+                 class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl px-4 py-2 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none font-mono placeholder:text-on-surface-variant/60" 
+                 placeholder="ej: captura.png o snippet.go" 
+                 oninput="updateMiniPreview()"
+                 required>
+          
+          <!-- Extension Quick Selector Pills -->
+          <div class="flex flex-wrap gap-1.5 mt-2.5">
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.png')">.png</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.jpg')">.jpg</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.webp')">.webp</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.go')">.go</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.md')">.md</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.json')">.json</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.js')">.js</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.py')">.py</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.txt')">.txt</span>
+            <span class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.sh')">.sh</span>
           </div>
         </div>
+
+        <!-- Text Input Area -->
+        <div id="text-input-group" class="mb-4">
+          <label class="block text-xs font-semibold text-on-surface-variant mb-1.5">Contenido (Texto / Código)</label>
+          <textarea id="clipboard-content" 
+                    rows="5" 
+                    class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl p-3 text-xs font-mono text-on-surface focus:ring-2 focus:ring-primary focus:outline-none placeholder:text-on-surface-variant/60 leading-relaxed" 
+                    placeholder="Pega aquí código, texto o presiona Ctrl+V para capturar imágenes..."
+                    oninput="updateMiniPreview()"></textarea>
+        </div>
+
+        <!-- Image Preview Area -->
+        <div id="image-preview-group" class="hidden mb-4 text-center">
+          <div class="p-3 bg-surface-container-lowest dark:bg-surface-container-low rounded-2xl border border-outline-variant/30 flex items-center justify-center max-h-60 overflow-hidden">
+            <img id="pasted-image-preview" src="" alt="Vista previa" class="max-h-52 max-w-full rounded-lg object-contain">
+          </div>
+        </div>
+
+        <!-- Live Stats & Code Box -->
+        <div class="mb-5 bg-surface-container-lowest dark:bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/25">
+          <div class="flex justify-between items-center text-[11px] text-on-surface-variant font-mono mb-1.5">
+            <span class="font-semibold">Previsualización</span>
+            <span id="mini-preview-stats">Líneas: 0 | Caracteres: 0 | Tamaño: 0 B</span>
+          </div>
+          <pre class="max-h-32 overflow-auto font-mono text-xs p-2.5 rounded-lg bg-surface-container/70 dark:bg-surface-container-high/50 border border-outline-variant/20" id="mini-preview-text-box"><code id="mini-preview-code" class="language-plaintext">// La vista previa aparecerá aquí al pegar contenido...</code></pre>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="closeClipboardModal()" class="px-4 py-2 rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-variant/30">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-full text-sm font-medium bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container shadow-sm transition-all">Guardar Archivo</button>
+        </div>
       </form>
+
     </div>
   </div>
 
-  <!-- Modal for Creating Folder -->
-  <div id="folder-modal" class="modal-backdrop" style="display: none;">
-    <div class="modal-card" style="max-width: 400px; height: auto;">
-      <div class="modal-header">
-        <div class="modal-title">Crear Nueva Carpeta</div>
-        <button class="modal-close" onclick="document.getElementById('folder-modal').style.display='none'">&times;</button>
-      </div>
-      <form hx-post="/api/folder" hx-target="#file-list-container" hx-on::after-request="document.getElementById('folder-modal').style.display='none'; this.reset()">
-        <input type="hidden" name="path" value="{{ .Path }}">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Nombre de la carpeta</label>
-            <input type="text" name="name" class="form-control" placeholder="Ej: Documentos" required autofocus>
-          </div>
-          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('folder-modal').style.display='none'">Cancelar</button>
-            <button type="submit" class="btn btn-primary">Crear</button>
-          </div>
-        </div>
-      </form>
+  <!-- Drag and Drop Overlay Indicator -->
+  <div id="drag-overlay" class="fixed inset-0 z-50 bg-primary/20 dark:bg-primary/30 backdrop-blur-sm border-4 border-dashed border-primary flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200">
+    <div class="bg-surface-container-lowest dark:bg-surface-container p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-3 border border-outline-variant/30">
+      <span class="material-symbols-outlined text-6xl text-primary dark:text-primary-fixed-dim animate-bounce filled">cloud_upload</span>
+      <h2 class="text-xl font-bold text-on-surface">Suelta los archivos aquí para subirlos</h2>
+      <p class="text-sm text-on-surface-variant">Se guardarán en la carpeta actual</p>
     </div>
   </div>
 
+  <!-- Main Application Logic Scripts -->
   <script>
+    // Theme Management (Light / Dark)
+    function updateThemeUI() {
+      const isDark = document.documentElement.classList.contains('dark');
+      const icon = document.getElementById('theme-icon');
+      if (icon) {
+        icon.innerText = isDark ? 'light_mode' : 'dark_mode';
+        icon.setAttribute('title', isDark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
+      }
+      const hljsTheme = document.getElementById('hljs-theme');
+      if (hljsTheme) {
+        hljsTheme.href = isDark 
+          ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css'
+          : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      updateThemeUI();
+    }
+
+    // View Mode Management (Grid / List)
+    function switchViewMode(mode) {
+      localStorage.setItem('viewMode', mode);
+      const currentPath = document.getElementById('current-path-input').value;
+      const currentViewInput = document.getElementById('current-view-input');
+      if (currentViewInput) currentViewInput.value = mode;
+
+      htmx.ajax('GET', `/api/files?path=${encodeURIComponent(currentPath)}&view=${mode}`, {
+        target: '#file-list-container',
+        indicator: '#global-spinner'
+      });
+    }
+
+    // Speed Dial Toggle
+    function toggleSpeedDial() {
+      const container = document.getElementById('speed-dial-container');
+      container.classList.toggle('speed-dial-open');
+    }
+
+    function closeSpeedDial() {
+      const container = document.getElementById('speed-dial-container');
+      container.classList.remove('speed-dial-open');
+    }
+
+    // Modal Control Functions
+    function openFolderModal() {
+      const activePath = document.getElementById('active-path');
+      const pathVal = activePath ? activePath.getAttribute('data-path') : '';
+      document.getElementById('folder-modal-path').value = pathVal;
+      document.getElementById('folder-modal-view').value = localStorage.getItem('viewMode') || 'list';
+      document.getElementById('folder-modal').classList.remove('hidden');
+    }
+
+    function closeFolderModal() {
+      document.getElementById('folder-modal').classList.add('hidden');
+    }
+
+    function triggerFileUpload() {
+      closeSpeedDial();
+      const activePath = document.getElementById('active-path');
+      const pathVal = activePath ? activePath.getAttribute('data-path') : '';
+      document.getElementById('upload-form-path').value = pathVal;
+      document.getElementById('upload-form-view').value = localStorage.getItem('viewMode') || 'list';
+      document.getElementById('global-file-picker').click();
+    }
+
+    function submitUploadForm() {
+      const form = document.getElementById('upload-form');
+      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }
+
+    // Clipboard and Paste Handlers
     let isImageMode = false;
     let pastedDataUrl = '';
 
-    // Global Paste Listener (Ctrl+V / Cmd+V)
     window.addEventListener('paste', function(e) {
       const items = e.clipboardData && e.clipboardData.items;
       if (!items) return;
@@ -243,19 +407,16 @@
         pastedDataUrl = evt.target.result;
         isImageMode = true;
         
-        // Open modal
         openClipboardModal();
 
-        // Switch modal to Image Mode
-        document.getElementById('text-input-group').style.display = 'none';
-        document.getElementById('image-preview-group').style.display = 'block';
-        document.getElementById('mini-preview-text-box').style.display = 'none';
-        document.getElementById('clipboard-modal-title').innerText = 'Imagen pegada desde Portapapeles';
+        document.getElementById('text-input-group').classList.add('hidden');
+        document.getElementById('image-preview-group').classList.remove('hidden');
+        document.getElementById('mini-preview-text-box').classList.add('hidden');
+        document.getElementById('clipboard-modal-title').innerHTML = '<span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">image</span> Imagen del Portapapeles';
 
         const img = document.getElementById('pasted-image-preview');
         img.src = pastedDataUrl;
 
-        // Auto-generate filename
         const now = new Date();
         const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + '_' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
         const ext = file.type === 'image/jpeg' ? '.jpg' : file.type === 'image/webp' ? '.webp' : '.png';
@@ -264,53 +425,21 @@
         document.getElementById('clipboard-is-base64').value = 'true';
         document.getElementById('clipboard-hidden-content').value = pastedDataUrl;
 
-        // Calculate Image stats
         img.onload = function() {
           const bytes = Math.round((pastedDataUrl.length * 3) / 4);
           const sizeKb = (bytes / 1024).toFixed(1);
-          document.getElementById('mini-preview-stats').innerText = `Dimensiones: ${img.naturalWidth} x ${img.naturalHeight} px | Tipo: ${file.type} | Tamaño: ${sizeKb} KB`;
+          document.getElementById('mini-preview-stats').innerText = `Dimensiones: ${img.naturalWidth} x ${img.naturalHeight} px | ${file.type} | ${sizeKb} KB`;
         };
       };
       reader.readAsDataURL(file);
     }
 
-    // Update path input on HTMX swaps
-    document.body.addEventListener('htmx:afterSwap', function(evt) {
-      const activePath = document.getElementById('active-path');
-      if (activePath) {
-        const pathVal = activePath.getAttribute('data-path');
-        const currentPathInput = document.getElementById('current-path-input');
-        if (currentPathInput) currentPathInput.value = pathVal;
-
-        const clipboardPathInput = document.getElementById('clipboard-path-input');
-        if (clipboardPathInput) clipboardPathInput.value = pathVal;
-      }
-      initRichPreviews();
-    });
-
-    // Enriched Preview Initializer
-    function initRichPreviews() {
-      document.querySelectorAll('pre code').forEach((block) => {
-        if (window.hljs && !block.classList.contains('hljs')) {
-          hljs.highlightElement(block);
-        }
-      });
-
-      document.querySelectorAll('.markdown-body').forEach((container) => {
-        const rawContent = container.getAttribute('data-markdown');
-        if (rawContent && window.marked) {
-          container.innerHTML = marked.parse(rawContent);
-        }
-      });
-    }
-
-    // Clipboard Modal Handlers
     function openClipboardModal() {
       const activePath = document.getElementById('active-path');
-      if (activePath) {
-        document.getElementById('clipboard-path-input').value = activePath.getAttribute('data-path') || '';
-      }
-      document.getElementById('clipboard-modal').style.display = 'flex';
+      const pathVal = activePath ? activePath.getAttribute('data-path') : '';
+      document.getElementById('clipboard-path-input').value = pathVal;
+      document.getElementById('clipboard-view-input').value = localStorage.getItem('viewMode') || 'list';
+      document.getElementById('clipboard-modal').classList.remove('hidden');
       
       if (!isImageMode) {
         pasteFromClipboard();
@@ -318,17 +447,17 @@
     }
 
     function closeClipboardModal() {
-      document.getElementById('clipboard-modal').style.display = 'none';
+      document.getElementById('clipboard-modal').classList.add('hidden');
       resetClipboardForm();
     }
 
     function resetClipboardForm() {
       isImageMode = false;
       pastedDataUrl = '';
-      document.getElementById('text-input-group').style.display = 'block';
-      document.getElementById('image-preview-group').style.display = 'none';
-      document.getElementById('mini-preview-text-box').style.display = 'block';
-      document.getElementById('clipboard-modal-title').innerText = 'Crear Archivo desde Portapapeles';
+      document.getElementById('text-input-group').classList.remove('hidden');
+      document.getElementById('image-preview-group').classList.add('hidden');
+      document.getElementById('mini-preview-text-box').classList.remove('hidden');
+      document.getElementById('clipboard-modal-title').innerHTML = '<span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">content_paste</span> Guardar desde Portapapeles';
       document.getElementById('clipboard-is-base64').value = 'false';
       document.getElementById('clipboard-hidden-content').value = '';
       document.getElementById('clipboard-content').value = '';
@@ -339,8 +468,8 @@
     async function pasteFromClipboard() {
       try {
         if (navigator.clipboard && navigator.clipboard.read) {
-          const clipboardItems = await navigator.clipboard.read();
-          for (const item of clipboardItems) {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
             for (const type of item.types) {
               if (type.startsWith('image/')) {
                 const blob = await item.getType(type);
@@ -358,28 +487,17 @@
           }
         }
       } catch (err) {
-        console.log('Intento de lectura directa del portapapeles:', err);
+        console.log('Clipboard access info:', err);
       }
     }
 
     function setExtension(ext) {
       const input = document.getElementById('clipboard-filename');
       let val = input.value.trim();
-
       const lastDot = val.lastIndexOf('.');
-      if (lastDot > 0) {
-        val = val.substring(0, lastDot);
-      }
-
-      if (!val) {
-        val = isImageMode ? 'captura' : 'snippet';
-      }
+      if (lastDot > 0) val = val.substring(0, lastDot);
+      if (!val) val = isImageMode ? 'captura' : 'snippet';
       input.value = val + ext;
-
-      document.querySelectorAll('.extension-pill').forEach(pill => {
-        pill.classList.toggle('active', pill.innerText === ext);
-      });
-
       updateMiniPreview();
     }
 
@@ -394,19 +512,17 @@
       const codeBlock = document.getElementById('mini-preview-code');
       const stats = document.getElementById('mini-preview-stats');
 
-      // Update hidden content field
       document.getElementById('clipboard-hidden-content').value = content;
       document.getElementById('clipboard-is-base64').value = 'false';
 
       const lines = content ? content.split('\n').length : 0;
       const chars = content.length;
       const bytes = new Blob([content]).size;
-
       stats.innerText = `Líneas: ${lines} | Caracteres: ${chars} | Tamaño: ${bytes} B`;
 
       if (!content.trim()) {
         codeBlock.className = 'language-plaintext';
-        codeBlock.textContent = '// La vista previa aparecerá aquí al pegar texto o imágenes...';
+        codeBlock.textContent = '// La vista previa aparecerá aquí al pegar contenido...';
         return;
       }
 
@@ -435,31 +551,101 @@
       }
     }
 
-    // Copy to Clipboard Utility
-    function copyToClipboard(text, btnElement) {
-      navigator.clipboard.writeText(text).then(() => {
-        const originalText = btnElement.innerText;
-        btnElement.innerText = '¡Copiado!';
-        btnElement.classList.add('btn-success');
-        setTimeout(() => {
-          btnElement.innerText = originalText;
-          btnElement.classList.remove('btn-success');
-        }, 2000);
-      }).catch(err => {
-        console.error('Error al copiar:', err);
+    // Drag & Drop on Whole Window
+    let dragCounter = 0;
+    const dragOverlay = document.getElementById('drag-overlay');
+
+    window.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      dragOverlay.classList.remove('opacity-0');
+      dragOverlay.classList.add('opacity-100');
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dragOverlay.classList.remove('opacity-100');
+        dragOverlay.classList.add('opacity-0');
+      }
+    });
+
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dragOverlay.classList.remove('opacity-100');
+      dragOverlay.classList.add('opacity-0');
+
+      if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+        const fileInput = document.getElementById('global-file-picker');
+        fileInput.files = e.dataTransfer.files;
+        const activePath = document.getElementById('active-path');
+        const pathVal = activePath ? activePath.getAttribute('data-path') : '';
+        document.getElementById('upload-form-path').value = pathVal;
+        document.getElementById('upload-form-view').value = localStorage.getItem('viewMode') || 'list';
+        submitUploadForm();
+      }
+    });
+
+    // Close speed dial on outside click
+    document.addEventListener('click', (e) => {
+      const container = document.getElementById('speed-dial-container');
+      if (!container.contains(e.target)) {
+        closeSpeedDial();
+      }
+    });
+
+    // HTMX afterSwap synchronization
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+      const activePath = document.getElementById('active-path');
+      if (activePath) {
+        const pathVal = activePath.getAttribute('data-path');
+        const viewMode = localStorage.getItem('viewMode') || 'list';
+        
+        document.getElementById('current-path-input').value = pathVal;
+        document.getElementById('current-view-input').value = viewMode;
+        document.getElementById('upload-form-path').value = pathVal;
+        document.getElementById('upload-form-view').value = viewMode;
+        document.getElementById('clipboard-path-input').value = pathVal;
+        document.getElementById('clipboard-view-input').value = viewMode;
+        document.getElementById('folder-modal-path').value = pathVal;
+        document.getElementById('folder-modal-view').value = viewMode;
+      }
+      initRichHighlight();
+    });
+
+    function initRichHighlight() {
+      document.querySelectorAll('pre code').forEach((block) => {
+        if (window.hljs && !block.classList.contains('hljs-done')) {
+          hljs.highlightElement(block);
+          block.classList.add('hljs-done');
+        }
+      });
+      document.querySelectorAll('.markdown-content').forEach((container) => {
+        const rawContent = container.getAttribute('data-markdown');
+        if (rawContent && window.marked) {
+          container.innerHTML = marked.parse(rawContent);
+        }
       });
     }
 
-    // Drag & Drop effects
-    const dropzone = document.getElementById('dropzone');
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropzone.addEventListener(eventName, (e) => e.target.classList.add('dragover'), false);
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateThemeUI();
+      const savedView = localStorage.getItem('viewMode');
+      if (savedView && savedView === 'grid') {
+        const currentPath = document.getElementById('current-path-input').value;
+        htmx.ajax('GET', `/api/files?path=${encodeURIComponent(currentPath)}&view=grid`, {
+          target: '#file-list-container'
+        });
+      }
     });
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropzone.addEventListener(eventName, (e) => e.target.classList.remove('dragover'), false);
-    });
-
-    document.addEventListener('DOMContentLoaded', initRichPreviews);
   </script>
 </body>
 </html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Project_Brief_v2.pdf - simplefs</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-surface": "#1a1c1e",
+                "on-background": "#1a1c1e",
+                "on-tertiary": "#ffffff",
+                "primary-fixed-dim": "#a8c8ff",
+                "tertiary-container": "#6e548c",
+                "primary": "#00488d",
+                "on-error": "#ffffff",
+                "tertiary": "#553c73",
+                "on-secondary-fixed-variant": "#3c4858",
+                "on-secondary-container": "#596576",
+                "secondary-fixed": "#d7e3f8",
+                "inverse-on-surface": "#f0f0f3",
+                "error": "#ba1a1a",
+                "tertiary-fixed": "#efdbff",
+                "tertiary-fixed-dim": "#d9bafa",
+                "on-tertiary-fixed": "#270d43",
+                "surface-container-highest": "#e2e2e5",
+                "on-surface-variant": "#424752",
+                "secondary": "#535f70",
+                "inverse-surface": "#2f3133",
+                "on-secondary": "#ffffff",
+                "on-primary-container": "#cadcff",
+                "on-error-container": "#93000a",
+                "on-tertiary-fixed-variant": "#543b71",
+                "surface-container-low": "#f3f3f6",
+                "error-container": "#ffdad6",
+                "primary-fixed": "#d6e3ff",
+                "surface-container-high": "#e8e8ea",
+                "on-primary-fixed-variant": "#00468b",
+                "on-primary": "#ffffff",
+                "on-secondary-fixed": "#101c2b",
+                "surface-container": "#eeeef0",
+                "on-tertiary-container": "#e9d1ff",
+                "secondary-container": "#d7e3f8",
+                "background": "#f9f9fc",
+                "surface-bright": "#f9f9fc",
+                "inverse-primary": "#a8c8ff",
+                "primary-container": "#005fb8",
+                "surface-tint": "#005db5",
+                "outline": "#727783",
+                "secondary-fixed-dim": "#bbc7db",
+                "surface-dim": "#dadadc",
+                "surface": "#f9f9fc",
+                "surface-container-lowest": "#ffffff",
+                "outline-variant": "#c2c6d4",
+                "surface-variant": "#e2e2e5",
+                "on-primary-fixed": "#001b3d"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "lg": "24px",
+                "xs": "4px",
+                "gutter": "24px",
+                "sm": "8px",
+                "margin-desktop": "64px",
+                "md": "16px",
+                "margin-mobile": "16px",
+                "xl": "32px",
+                "base": "8px"
+        },
+        "fontFamily": {
+                "headline-lg-mobile": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Inter"
+                ],
+                "body-lg": [
+                        "Inter"
+                ],
+                "headline-lg": [
+                        "Inter"
+                ],
+                "label-lg": [
+                        "Inter"
+                ],
+                "title-lg": [
+                        "Inter"
+                ],
+                "body-md": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "headline-lg-mobile": [
+                        "28px",
+                        {
+                                "lineHeight": "36px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "label-sm": [
+                        "11px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.5px",
+                                "fontWeight": "500"
+                        }
+                ],
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-lg": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "40px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "label-lg": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "letterSpacing": "0.1px",
+                                "fontWeight": "500"
+                        }
+                ],
+                "title-lg": [
+                        "20px",
+                        {
+                                "lineHeight": "28px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-md": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        body {
+            background-color: #f9f9fc;
+        }
+        .dark body {
+            background-color: #1a1c1e;
+            color: #e2e2e5;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col bg-background dark:bg-background">
+<!-- TopNavBar -->
+<nav class="bg-surface dark:bg-surface-dim flex justify-between items-center px-gutter h-16 w-full max-w-full docked full-width top-0 z-50 shadow-sm dark:shadow-none bg-surface-container-low dark:bg-surface-container">
+<div class="flex items-center gap-4">
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">simplefs</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-surface-variant/50 dark:hover:bg-surface-variant/20 transition-colors Active: scale-95 duration-150 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col w-full max-w-screen-2xl mx-auto px-margin-mobile md:px-margin-desktop py-gutter">
+<!-- Breadcrumbs & File Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-xl gap-4">
+<div class="flex flex-col gap-2">
+<!-- Breadcrumbs -->
+<nav aria-label="Breadcrumb" class="flex text-on-surface-variant dark:text-surface-variant font-label-sm text-label-sm">
+<ol class="inline-flex items-center space-x-1 md:space-x-3">
+<li class="inline-flex items-center">
+<a class="inline-flex items-center hover:text-primary dark:hover:text-primary-fixed-dim transition-colors" href="#">
+                                Home
+                            </a>
+</li>
+<li>
+<div class="flex items-center">
+<span class="material-symbols-outlined text-sm mx-1">chevron_right</span>
+<a class="hover:text-primary dark:hover:text-primary-fixed-dim transition-colors" href="#">Documents</a>
+</div>
+</li>
+<li>
+<div class="flex items-center">
+<span class="material-symbols-outlined text-sm mx-1">chevron_right</span>
+<a class="hover:text-primary dark:hover:text-primary-fixed-dim transition-colors" href="#">Projects</a>
+</div>
+</li>
+</ol>
+</nav>
+<!-- File Name -->
+<div class="flex items-center gap-3 text-on-surface dark:text-on-surface">
+<span class="material-symbols-outlined text-4xl text-error dark:text-error-container" data-weight="fill" style="font-variation-settings: 'FILL' 1;">picture_as_pdf</span>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg">Project_Brief_v2.pdf</h1>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center gap-sm">
+<button class="h-10 px-4 flex items-center justify-center gap-2 rounded-lg border border-outline dark:border-outline-variant text-on-surface dark:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant/10 transition-colors font-label-lg text-label-lg">
+<span>Abrir con</span>
+<span class="material-symbols-outlined text-[18px]">arrow_drop_down</span>
+</button>
+<button class="h-10 px-4 flex items-center justify-center gap-2 rounded-lg bg-primary dark:bg-primary-container text-on-primary dark:text-on-primary-container hover:bg-primary/90 dark:hover:bg-primary-container/90 transition-colors font-label-lg text-label-lg">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>Descargar</span>
+</button>
+</div>
+</div>
+<!-- Document Viewer (Bento Grid Style) -->
+<div class="flex-1 w-full bg-surface-container-lowest dark:bg-surface-container-high rounded-xl border border-surface-variant dark:border-surface-variant/20 shadow-sm overflow-hidden flex flex-col relative">
+<!-- Viewer Toolbar -->
+<div class="h-12 border-b border-surface-variant dark:border-surface-variant/20 bg-surface dark:bg-surface-dim flex items-center justify-between px-4">
+<div class="flex items-center gap-2">
+<button class="p-1.5 rounded hover:bg-surface-variant dark:hover:bg-surface-variant/20 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">zoom_out</span>
+</button>
+<span class="font-label-sm text-label-sm text-on-surface-variant dark:text-on-surface-variant min-w-[48px] text-center">100%</span>
+<button class="p-1.5 rounded hover:bg-surface-variant dark:hover:bg-surface-variant/20 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">zoom_in</span>
+</button>
+</div>
+<div class="flex items-center gap-4 font-label-sm text-label-sm text-on-surface-variant dark:text-on-surface-variant">
+<span>Page 1 of 12</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-1.5 rounded hover:bg-surface-variant dark:hover:bg-surface-variant/20 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">print</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-variant dark:hover:bg-surface-variant/20 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+<!-- PDF Page Area (Mockup) -->
+<div class="flex-1 bg-surface-container dark:bg-surface-container-low overflow-auto p-8 flex justify-center items-start">
+<!-- Mock PDF Page -->
+<div class="w-full max-w-3xl bg-surface-container-lowest dark:bg-surface-container-lowest shadow-md dark:shadow-none min-h-[800px] p-12 flex flex-col gap-6 relative rounded-lg">
+<!-- Faint watermark/placeholder for document content -->
+<div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+<span class="material-symbols-outlined text-[200px]">description</span>
+</div>
+<div class="w-2/3 h-8 bg-surface-variant dark:bg-surface-variant/30 rounded animate-pulse"></div>
+<div class="w-full h-4 bg-surface-variant dark:bg-surface-variant/30 rounded animate-pulse mt-4"></div>
+<div class="w-full h-4 bg-surface-variant dark:bg-surface-variant/30 rounded animate-pulse"></div>
+<div class="w-5/6 h-4 bg-surface-variant dark:bg-surface-variant/30 rounded animate-pulse"></div>
+<div class="w-full h-64 bg-surface-variant dark:bg-surface-variant/20 rounded mt-8 animate-pulse flex items-center justify-center">
+<span class="material-symbols-outlined text-outline dark:text-outline-variant text-4xl">image</span>
+</div>
+<div class="w-full h-4 bg-surface-variant dark:bg-surface-variant/30 rounded animate-pulse mt-8"></div>
+<div class="w-full h-4 bg-surface-variant dark:bg-surface-variant/30 rounded animate-pulse"></div>
+<div class="w-4/5 h-4 bg-surface-variant dark:bg-surface-variant/30 rounded animate-pulse"></div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Hidden on desktop, shown on mobile for navigation if needed, though prompt said 'No sidebar', ensuring mobile nav exists for system consistency) -->
+<nav class="md:hidden bg-surface-container-low dark:bg-surface-container-lowest border-t border-outline-variant/30 shadow-lg dark:shadow-none fixed bottom-0 left-0 w-full z-50 flex justify-around items-center pb-safe h-20">
+<a class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary-fixed-dim text-on-secondary-container dark:text-on-secondary-fixed rounded-full px-5 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 tap-highlight-transparent active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="folder" data-weight="fill" style="font-variation-settings: 'FILL' 1;">folder</span>
+<span class="font-label-lg text-label-lg">Files</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant px-5 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 tap-highlight-transparent active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="history">history</span>
+<span class="font-label-lg text-label-lg">Recent</span>
+</a>
+</nav>
+</body></html>

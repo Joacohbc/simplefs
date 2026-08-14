@@ -9,6 +9,9 @@ simplefs
 # Devcontainer CLI
 .dc_simplefs/
 
+# Node & Package Managers
+node_modules/
+
 # Storage / Uploads
 uploads/*
 !uploads/.gitkeep

@@ -1,0 +1,17 @@
+{
+  "name": "simplefs",
+  "version": "1.0.0",
+  "description": "Minimalist, high-performance file server with HTMX, Tailwind CSS and Go",
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/input.css -o ./static/style.css --minify",
+    "dev:css": "tailwindcss -i ./src/input.css -o ./static/style.css --watch",
+    "build:go": "go build -o simplefs main.go",
+    "build": "pnpm run build:css && pnpm run build:go",
+    "start": "./simplefs"
+  },
+  "devDependencies": {
+    "@tailwindcss/container-queries": "^0.1.1",
+    "@tailwindcss/forms": "^0.5.10",
+    "tailwindcss": "^3.4.17"
+  }
+}

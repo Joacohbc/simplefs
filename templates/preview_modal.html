@@ -1,118 +1,308 @@
-<div class="modal-backdrop" onclick="if(event.target === this) this.remove()">
-  <div class="modal-card">
-    <!-- Modal Header -->
-    <div class="modal-header">
-      <div class="modal-title">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-color);">
-          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-          <polyline points="13 2 13 9 20 9"></polyline>
-        </svg>
-        <span>{{ .Name }}</span>
-      </div>
-      
-      <div style="display: flex; gap: 0.5rem; align-items: center;">
-        <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(window.location.origin + '/download?path={{ .RelPath }}', this)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          Copiar Enlace
-        </button>
-
-        <a href="/download?path={{ .RelPath }}" download class="btn btn-primary btn-sm">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Descargar
-        </a>
-
-        <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button>
-      </div>
-    </div>
-
-    <!-- Modal Body -->
-    <div class="modal-body">
-      <!-- Enriched Metadata Bar -->
-      <div class="preview-meta-bar">
-        <div class="meta-tags">
-          <span class="meta-tag" style="color: var(--accent-color); font-weight: 600;">{{ .MimeType }}</span>
-          <span class="meta-tag">{{ .FormattedSize }}</span>
-          {{ if .LineCount }}
-            <span class="meta-tag">{{ .LineCount }} líneas</span>
-          {{ end }}
+<div class="fixed inset-0 z-50 w-full h-full min-h-screen flex flex-col bg-surface text-on-surface animate-in fade-in duration-200" id="preview-modal">
+  <!-- Top Navigation & Toolbar (Stitch Style) -->
+  <header class="h-16 border-b border-outline-variant/30 bg-surface-container-low dark:bg-surface-container flex items-center justify-between px-4 md:px-gutter sticky top-0 z-20 shrink-0">
+    <div class="flex items-center gap-md min-w-0">
+      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors flex items-center justify-center" onclick="closePreviewModal()" title="Volver" aria-label="Volver">
+        <span class="material-symbols-outlined text-2xl">arrow_back</span>
+      </button>
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="material-symbols-outlined text-3xl filled {{ if eq .Type "pdf" }}text-error dark:text-error-container{{ else if eq .Type "image" }}text-emerald-500{{ else }}text-primary dark:text-primary-fixed-dim{{ end }}">{{ .MaterialIcon }}</span>
+        <div class="flex flex-col min-w-0">
+          <h1 class="font-semibold text-lg text-on-surface truncate" title="{{ .Name }}">{{ .Name }}</h1>
+          <span class="text-xs text-on-surface-variant">{{ .FormattedSize }} • {{ .ModTime }}</span>
         </div>
-        <div>Modificado: <strong>{{ .ModTime }}</strong></div>
-      </div>
-
-      <!-- Main Content Area -->
-      <div class="preview-content-area">
-        {{ if eq .Type "pdf" }}
-          <iframe src="/download?path={{ .RelPath }}#toolbar=1&navpanes=0" class="pdf-viewer"></iframe>
-
-        {{ else if eq .Type "image" }}
-          <div class="image-preview-wrapper">
-            <img src="/download?path={{ .RelPath }}" alt="{{ .Name }}" class="preview-media-image">
-          </div>
-
-        {{ else if eq .Type "video" }}
-          <div style="background: #000; border-radius: var(--radius-md); overflow: hidden; flex: 1; display: flex; align-items: center; border: 1px solid var(--border-color);">
-            <video controls style="width: 100%; max-height: 68vh;">
-              <source src="/download?path={{ .RelPath }}" type="{{ .MimeType }}">
-              Tu navegador no soporta reproducción de video.
-            </video>
-          </div>
-
-        {{ else if eq .Type "audio" }}
-          <div style="background: var(--bg-primary); padding: 3rem 2rem; border-radius: var(--radius-md); text-align: center; border: 1px solid var(--border-color); margin: auto; width: 100%; max-width: 500px;">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent-color); margin-bottom: 1rem;">
-              <path d="M9 18V5l12-2v13"></path>
-              <circle cx="6" cy="18" r="3"></circle>
-              <circle cx="18" cy="16" r="3"></circle>
-            </svg>
-            <p style="font-weight: 600; font-size: 1.1rem; margin-bottom: 1rem;">{{ .Name }}</p>
-            <audio controls style="width: 100%;">
-              <source src="/download?path={{ .RelPath }}" type="{{ .MimeType }}">
-              Tu navegador no soporta reproducción de audio.
-            </audio>
-          </div>
-
-        {{ else if eq .Type "markdown" }}
-          <div style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 0.5rem;">
-              <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(`{{ .Content }}`, this)">
-                Copiar Markdown
-              </button>
-            </div>
-            <div class="markdown-body" data-markdown="{{ .Content }}"></div>
-          </div>
-
-        {{ else if eq .Type "code" }}
-          <div class="preview-code-container">
-            <div style="display: flex; justify-content: space-between; align-items: center; background: #161b22; padding: 0.5rem 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.8rem; color: var(--text-muted);">
-              <span>Visor de Código ({{ .Extension }})</span>
-              <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(`{{ .Content }}`, this)">
-                Copiar Código
-              </button>
-            </div>
-            <pre><code class="{{ .LanguageClass }}">{{ .Content }}</code></pre>
-          </div>
-
-        {{ else }}
-          <div style="text-align: center; padding: 4rem 1rem; color: var(--text-muted); background: var(--bg-primary); border-radius: var(--radius-md); border: 1px solid var(--border-color); margin: auto; width: 100%; max-width: 500px;">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 1rem; opacity: 0.6;">
-              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-              <polyline points="13 2 13 9 20 9"></polyline>
-            </svg>
-            <p style="font-weight: 600; font-size: 1.1rem; color: var(--text-primary); margin-bottom: 0.5rem;">Archivo Binario / Sin vista previa directa</p>
-            <p style="font-size: 0.85rem; margin-bottom: 1.5rem;">Este tipo de archivo no dispone de un visor HTML embebido.</p>
-            <a href="/download?path={{ .RelPath }}" download class="btn btn-primary">
-              Descargar Archivo ({{ .FormattedSize }})
-            </a>
-          </div>
-        {{ end }}
       </div>
     </div>
-  </div>
+
+    <!-- Viewer Actions -->
+    <div class="flex items-center gap-1.5 md:gap-2">
+      
+      <!-- Image Zoom & Rotation Controls -->
+      {{ if eq .Type "image" }}
+      <div class="flex items-center gap-1 bg-surface-container-highest dark:bg-surface-container-high px-1.5 py-1 rounded-xl border border-outline-variant/20">
+        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="adjustImageZoom(-25)" title="Reducir zoom (Rueda del ratón abajo)" aria-label="Reducir zoom">
+          <span class="material-symbols-outlined text-base">zoom_out</span>
+        </button>
+        <button id="image-zoom-label" class="text-xs font-mono px-2 py-0.5 rounded hover:bg-surface-variant/40 text-on-surface transition-colors cursor-pointer" onclick="resetImageTransform()" title="Restablecer tamaño (100%)">
+          100%
+        </button>
+        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="adjustImageZoom(25)" title="Aumentar zoom (Rueda del ratón arriba)" aria-label="Aumentar zoom">
+          <span class="material-symbols-outlined text-base">zoom_in</span>
+        </button>
+        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors ml-0.5" onclick="resetImageTransform()" title="Ajustar a pantalla" aria-label="Ajustar a pantalla">
+          <span class="material-symbols-outlined text-base">fit_screen</span>
+        </button>
+        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="rotateImage()" title="Rotar 90°" aria-label="Rotar 90 grados">
+          <span class="material-symbols-outlined text-base">rotate_right</span>
+        </button>
+      </div>
+      {{ end }}
+
+      <!-- PDF Zoom Controls -->
+      {{ if eq .Type "pdf" }}
+      <div class="hidden sm:flex items-center gap-1 bg-surface-container-highest dark:bg-surface-container-high px-2 py-1 rounded-xl mr-1 border border-outline-variant/20">
+        <button class="p-1 rounded hover:bg-surface-variant/50 text-on-surface-variant" onclick="adjustPdfZoom(-10)" title="Reducir zoom" aria-label="Reducir zoom">
+          <span class="material-symbols-outlined text-lg">zoom_out</span>
+        </button>
+        <span id="pdf-zoom-label" class="text-xs font-mono px-2 text-on-surface-variant">100%</span>
+        <button class="p-1 rounded hover:bg-surface-variant/50 text-on-surface-variant" onclick="adjustPdfZoom(10)" title="Aumentar zoom" aria-label="Aumentar zoom">
+          <span class="material-symbols-outlined text-lg">zoom_in</span>
+        </button>
+      </div>
+      {{ end }}
+
+      <!-- Code & Markdown Copy Action -->
+      {{ if or (eq .Type "code") (eq .Type "markdown") }}
+      <button class="p-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant flex items-center gap-1 text-sm font-medium transition-colors" onclick="copyPreviewText(this)" title="Copiar contenido" aria-label="Copiar contenido">
+        <span class="material-symbols-outlined text-xl">content_copy</span>
+        <span class="hidden sm:inline">Copiar</span>
+      </button>
+      {{ end }}
+
+      <button class="p-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant flex items-center justify-center transition-colors" onclick="window.print()" title="Imprimir" aria-label="Imprimir">
+        <span class="material-symbols-outlined text-xl">print</span>
+      </button>
+
+      <a href="/download?path={{ .RelPath }}" download class="h-9 md:h-10 px-3 md:px-4 rounded-full bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container flex items-center gap-1.5 md:gap-2 font-medium text-xs md:text-sm transition-all hover:shadow-md">
+        <span class="material-symbols-outlined text-lg">download</span>
+        <span class="hidden sm:inline">Descargar</span>
+      </a>
+
+      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors ml-0.5" onclick="closePreviewModal()" title="Cerrar" aria-label="Cerrar">
+        <span class="material-symbols-outlined text-2xl">close</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Document / Content Canvas -->
+  <main class="flex-1 overflow-hidden relative flex justify-center items-center bg-surface-container-lowest select-none" id="preview-canvas-container">
+    
+    {{ if eq .Type "image" }}
+      <!-- Zoomable & Pannable Image Viewport -->
+      <div id="image-viewport" 
+           class="w-full h-full flex items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing relative"
+           onmousedown="startImageDrag(event)"
+           onwheel="handleImageWheel(event)"
+           ondblclick="handleImageDblClick(event)">
+        
+        <!-- Background grid texture for transparent PNG/WebP -->
+        <div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(var(--color-outline-variant) 1px, transparent 1px); background-size: 20px 20px;"></div>
+        
+        <img id="zoomable-image" 
+             src="/download?path={{ .RelPath }}" 
+             alt="{{ .Name }}" 
+             draggable="false"
+             class="max-h-[85vh] max-w-[90vw] object-contain rounded-xl shadow-2xl transition-transform duration-75 ease-out select-none will-change-transform"
+             style="transform: translate(0px, 0px) scale(1) rotate(0deg);">
+      </div>
+
+    {{ else if eq .Type "video" }}
+      <div class="max-w-4xl w-full bg-surface-container-low dark:bg-surface-container rounded-3xl overflow-hidden border border-outline-variant/30 shadow-lg p-2 flex justify-center m-4">
+        <video controls autoplay class="w-full max-h-[75vh] rounded-2xl">
+          <source src="/download?path={{ .RelPath }}" type="{{ .MimeType }}">
+          Tu navegador no soporta reproducción de video.
+        </video>
+      </div>
+
+    {{ else if eq .Type "audio" }}
+      <div class="max-w-md w-full p-8 bg-surface-container-low dark:bg-surface-container rounded-3xl border border-outline-variant/30 shadow-xl flex flex-col items-center gap-6 m-4">
+        <div class="w-24 h-24 rounded-full bg-secondary-container flex items-center justify-center shadow-inner">
+          <span class="material-symbols-outlined text-5xl text-on-secondary-container filled">audiotrack</span>
+        </div>
+        <div class="text-center">
+          <h3 class="font-semibold text-lg text-on-surface">{{ .Name }}</h3>
+          <p class="text-xs text-on-surface-variant mt-1">{{ .FormattedSize }}</p>
+        </div>
+        <audio controls class="w-full">
+          <source src="/download?path={{ .RelPath }}" type="{{ .MimeType }}">
+          Tu navegador no soporta reproducción de audio.
+        </audio>
+      </div>
+
+    {{ else if eq .Type "pdf" }}
+      <div class="w-full h-full max-w-6xl flex-1 flex flex-col rounded-2xl overflow-hidden border border-outline-variant/30 shadow-lg bg-surface-container m-4">
+        <iframe id="pdf-frame" src="/download?path={{ .RelPath }}#view=FitH" class="w-full h-[82vh] rounded-2xl border-none"></iframe>
+      </div>
+
+    {{ else if eq .Type "markdown" }}
+      <div class="w-full h-full overflow-auto p-4 md:p-8 flex justify-center items-start">
+        <div class="max-w-4xl w-full bg-surface-container-low dark:bg-surface-container p-8 md:p-12 rounded-3xl border border-outline-variant/30 shadow-md">
+          <div class="markdown-content text-on-surface" id="markdown-viewer" data-markdown="{{ .Content }}"></div>
+        </div>
+      </div>
+
+    {{ else if eq .Type "code" }}
+      <div class="w-full h-full overflow-auto p-4 md:p-8 flex justify-center items-start">
+        <div class="max-w-5xl w-full bg-surface-container-low dark:bg-surface-container rounded-3xl border border-outline-variant/30 shadow-md overflow-hidden flex flex-col">
+          <div class="flex items-center justify-between px-6 py-3 bg-surface-container-high dark:bg-surface-container-highest border-b border-outline-variant/20 text-xs text-on-surface-variant font-mono">
+            <span>Líneas: {{ .LineCount }}</span>
+            <span>{{ .LanguageClass }}</span>
+          </div>
+          <pre class="p-6 overflow-auto font-mono text-sm leading-relaxed"><code class="{{ .LanguageClass }} hljs">{{ .Content }}</code></pre>
+        </div>
+      </div>
+
+    {{ else }}
+      <div class="max-w-md w-full p-8 bg-surface-container-low dark:bg-surface-container rounded-3xl border border-outline-variant/30 shadow-xl flex flex-col items-center gap-6 m-4 text-center">
+        <div class="w-20 h-20 rounded-full bg-surface-container-highest flex items-center justify-center">
+          <span class="material-symbols-outlined text-4xl text-on-surface-variant filled">draft</span>
+        </div>
+        <div>
+          <h3 class="font-semibold text-lg text-on-surface">{{ .Name }}</h3>
+          <p class="text-sm text-on-surface-variant mt-1">Este tipo de archivo no cuenta con vista previa en línea.</p>
+        </div>
+        <a href="/download?path={{ .RelPath }}" download class="px-6 py-3 rounded-full bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container flex items-center gap-2 font-medium shadow-md transition-all">
+          <span class="material-symbols-outlined">download</span>
+          Descargar Archivo ({{ .FormattedSize }})
+        </a>
+      </div>
+    {{ end }}
+
+  </main>
 </div>
+
+<script>
+  document.body.classList.add('overflow-hidden');
+
+  function closePreviewModal() {
+    document.body.classList.remove('overflow-hidden');
+    const modal = document.getElementById('preview-modal');
+    if (modal) modal.remove();
+  }
+
+  // --- Image Zoom & Pan Logic ---
+  let imgState = {
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    rotation: 0,
+    isDragging: false,
+    startX: 0,
+    startY: 0
+  };
+
+  function updateImageTransform(withAnimation = true) {
+    const img = document.getElementById('zoomable-image');
+    const label = document.getElementById('image-zoom-label');
+    if (!img) return;
+
+    if (withAnimation) {
+      img.classList.add('transition-transform', 'duration-150');
+    } else {
+      img.classList.remove('transition-transform', 'duration-150');
+    }
+
+    img.style.transform = `translate(${imgState.translateX}px, ${imgState.translateY}px) scale(${imgState.scale}) rotate(${imgState.rotation}deg)`;
+    if (label) {
+      label.innerText = Math.round(imgState.scale * 100) + '%';
+    }
+  }
+
+  function adjustImageZoom(deltaPercent) {
+    let newScale = imgState.scale + (deltaPercent / 100);
+    newScale = Math.max(0.2, Math.min(5, newScale));
+    imgState.scale = Math.round(newScale * 100) / 100;
+    if (imgState.scale === 1) {
+      imgState.translateX = 0;
+      imgState.translateY = 0;
+    }
+    updateImageTransform(true);
+  }
+
+  function rotateImage() {
+    imgState.rotation = (imgState.rotation + 90) % 360;
+    updateImageTransform(true);
+  }
+
+  function resetImageTransform() {
+    imgState.scale = 1;
+    imgState.translateX = 0;
+    imgState.translateY = 0;
+    imgState.rotation = 0;
+    updateImageTransform(true);
+  }
+
+  function handleImageWheel(e) {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+    let newScale = imgState.scale * zoomFactor;
+    newScale = Math.max(0.2, Math.min(5, newScale));
+    imgState.scale = Math.round(newScale * 100) / 100;
+    updateImageTransform(false);
+  }
+
+  function handleImageDblClick(e) {
+    if (imgState.scale !== 1) {
+      resetImageTransform();
+    } else {
+      imgState.scale = 2;
+      updateImageTransform(true);
+    }
+  }
+
+  function startImageDrag(e) {
+    if (e.button !== 0) return; // Only primary mouse button
+    imgState.isDragging = true;
+    imgState.startX = e.clientX - imgState.translateX;
+    imgState.startY = e.clientY - imgState.translateY;
+
+    const onMouseMove = (moveEvent) => {
+      if (!imgState.isDragging) return;
+      imgState.translateX = moveEvent.clientX - imgState.startX;
+      imgState.translateY = moveEvent.clientY - imgState.startY;
+      updateImageTransform(false);
+    };
+
+    const onMouseUp = () => {
+      imgState.isDragging = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
+  // --- PDF Zoom Logic ---
+  let currentPdfZoom = 100;
+  function adjustPdfZoom(delta) {
+    currentPdfZoom = Math.max(50, Math.min(200, currentPdfZoom + delta));
+    const label = document.getElementById('pdf-zoom-label');
+    if (label) label.innerText = currentPdfZoom + '%';
+    const frame = document.getElementById('pdf-frame');
+    if (frame) {
+      const currentSrc = frame.src.split('#')[0];
+      frame.src = currentSrc + '#zoom=' + currentPdfZoom;
+    }
+  }
+
+  // --- Copy Text Logic ---
+  function copyPreviewText(btn) {
+    const code = document.querySelector('#preview-modal pre code');
+    const md = document.getElementById('markdown-viewer');
+    const textToCopy = code ? code.innerText : (md ? md.getAttribute('data-markdown') : '');
+    
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<span class="material-symbols-outlined text-emerald-500 text-xl">check</span><span class="hidden sm:inline text-emerald-500">Copiado</span>';
+        setTimeout(() => { btn.innerHTML = orig; }, 2000);
+      });
+    }
+  }
+
+  // Trigger markdown & highlight rendering if not yet applied
+  (function() {
+    const mdContainer = document.getElementById('markdown-viewer');
+    if (mdContainer && window.marked) {
+      const raw = mdContainer.getAttribute('data-markdown');
+      if (raw) mdContainer.innerHTML = marked.parse(raw);
+    }
+    document.querySelectorAll('#preview-modal pre code').forEach(block => {
+      if (window.hljs && !block.classList.contains('hljs-done')) {
+        hljs.highlightElement(block);
+        block.classList.add('hljs-done');
+      }
+    });
+  })();
+</script>

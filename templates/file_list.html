@@ -1,115 +1,215 @@
 <div id="active-path" data-path="{{ .Path }}"></div>
 
-<!-- Breadcrumbs Navigation -->
-<div class="breadcrumb-container">
-  <a class="breadcrumb-item" 
-     hx-get="/api/files?path=" 
-     hx-target="#file-list-container" 
-     hx-indicator="#global-spinner">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-    </svg>
-    Inicio
-  </a>
+<!-- Breadcrumb Navigation (Stitch Style) -->
+<nav class="flex items-center gap-1 text-sm text-on-surface-variant mb-xl overflow-x-auto whitespace-nowrap pb-2 no-scrollbar" aria-label="Breadcrumb">
+  <button class="hover:text-primary dark:hover:text-primary-fixed-dim transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-surface-container-high dark:hover:bg-surface-container-high font-medium text-xs md:text-sm"
+          hx-get="/api/files?path=&view={{ .ViewMode }}"
+          hx-target="#file-list-container"
+          hx-indicator="#global-spinner">
+    <span class="material-symbols-outlined filled text-lg">home</span>
+    <span>Inicio</span>
+  </button>
 
   {{ range .Breadcrumbs }}
-    <span class="breadcrumb-separator">/</span>
-    <a class="breadcrumb-item" 
-       hx-get="/api/files?path={{ .Path }}" 
-       hx-target="#file-list-container" 
-       hx-indicator="#global-spinner">
+    <span class="material-symbols-outlined text-xs text-outline opacity-60">chevron_right</span>
+    <button class="hover:text-primary dark:hover:text-primary-fixed-dim transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-surface-container-high dark:hover:bg-surface-container-high font-medium text-xs md:text-sm"
+            hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}"
+            hx-target="#file-list-container"
+            hx-indicator="#global-spinner">
       {{ .Name }}
-    </a>
+    </button>
   {{ end }}
-</div>
+</nav>
 
-<!-- Table View -->
-<div class="file-table-wrapper">
-  <table class="file-table">
-    <thead>
-      <tr>
-        <th>Nombre</th>
-        <th>Tamaño</th>
-        <th>Modificado</th>
-        <th style="text-align: right;">Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ if not .Files }}
-      <tr>
-        <td colspan="4">
-          <div class="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            </svg>
-            <p>Esta carpeta está vacía</p>
-          </div>
-        </td>
-      </tr>
-      {{ else }}
+<!-- Folders Section (Stitch Style Cards) -->
+{{ if .Folders }}
+<section class="mb-xl">
+  <div class="flex items-center justify-between mb-md">
+    <h2 class="text-base md:text-lg font-bold text-on-surface flex items-center gap-2">
+      <span class="material-symbols-outlined filled text-primary dark:text-primary-fixed-dim text-xl">folder_open</span>
+      Carpetas ({{ len .Folders }})
+    </h2>
+  </div>
+  
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-md">
+    {{ range .Folders }}
+    <div class="group relative flex items-center justify-between p-md bg-surface-container-low dark:bg-surface-container rounded-2xl hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-all border border-outline-variant/30 hover:border-primary/40 hover:shadow-sm">
+      <button class="flex items-center gap-md flex-1 min-w-0 text-left cursor-pointer"
+              hx-get="/api/files?path={{ .RelPath }}&view={{ $.ViewMode }}"
+              hx-target="#file-list-container"
+              hx-indicator="#global-spinner">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 dark:bg-primary-container/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+          <span class="material-symbols-outlined filled text-primary dark:text-primary-fixed-dim text-2xl">folder</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-sm text-on-surface truncate group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</p>
+          <p class="text-xs text-on-surface-variant">{{ .ItemCount }} elementos</p>
+        </div>
+      </button>
+
+      <button class="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-error-container hover:text-error transition-all text-on-surface-variant"
+              hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}"
+              hx-confirm="¿Seguro que deseas eliminar la carpeta '{{ .Name }}' y todo su contenido?"
+              hx-target="#file-list-container"
+              hx-indicator="#global-spinner"
+              title="Eliminar carpeta">
+        <span class="material-symbols-outlined text-lg">delete</span>
+      </button>
+    </div>
+    {{ end }}
+  </div>
+</section>
+{{ end }}
+
+<!-- Files Section -->
+<section>
+  <div class="flex items-center justify-between mb-md">
+    <h2 class="text-base md:text-lg font-bold text-on-surface flex items-center gap-2">
+      <span class="material-symbols-outlined filled text-secondary dark:text-secondary-fixed-dim text-xl">description</span>
+      Archivos ({{ len .Files }})
+    </h2>
+
+    <!-- View Mode Switcher (Grid / List) -->
+    <div class="flex items-center gap-1 bg-surface-container-low dark:bg-surface-container p-1 rounded-xl border border-outline-variant/30 text-on-surface-variant">
+      <button class="p-1.5 rounded-lg transition-colors {{ if eq .ViewMode "list" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high{{ end }}"
+              onclick="switchViewMode('list')"
+              title="Vista en Lista">
+        <span class="material-symbols-outlined text-lg">view_list</span>
+      </button>
+      <button class="p-1.5 rounded-lg transition-colors {{ if eq .ViewMode "grid" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high{{ end }}"
+              onclick="switchViewMode('grid')"
+              title="Vista en Cuadrícula">
+        <span class="material-symbols-outlined text-lg">grid_view</span>
+      </button>
+    </div>
+  </div>
+
+  {{ if and (not .Files) (not .Folders) }}
+    <div class="flex flex-col items-center justify-center p-12 bg-surface-container-low dark:bg-surface-container rounded-3xl border border-dashed border-outline-variant text-center my-4">
+      <div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-3 text-outline">
+        <span class="material-symbols-outlined text-4xl">folder_off</span>
+      </div>
+      <h3 class="font-semibold text-base text-on-surface">Esta carpeta está vacía</h3>
+      <p class="text-xs text-on-surface-variant max-w-sm mt-1">Usa el botón flotante (+) o arrastra archivos aquí para comenzar a subir contenido.</p>
+    </div>
+  {{ else if not .Files }}
+    <div class="p-8 text-center bg-surface-container-lowest dark:bg-surface-container-low rounded-2xl border border-outline-variant/20 text-on-surface-variant text-sm">
+      No hay archivos en este nivel.
+    </div>
+  {{ else }}
+
+    {{ if eq .ViewMode "grid" }}
+      <!-- GRID VIEW (Stitch Screen 3) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-md">
         {{ range .Files }}
-        <tr>
-          <td>
-            {{ if .IsDir }}
-              <a class="file-name-cell" 
-                 hx-get="/api/files?path={{ .RelPath }}" 
-                 hx-target="#file-list-container" 
-                 hx-indicator="#global-spinner">
-                <span class="file-icon folder">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path>
-                  </svg>
-                </span>
-                <span>{{ .Name }}</span>
-              </a>
-            {{ else }}
-              <div class="file-name-cell" 
-                   hx-get="/api/preview?path={{ .RelPath }}" 
-                   hx-target="#modal-container" 
-                   hx-indicator="#global-spinner">
-                <span class="file-icon file">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                    <polyline points="13 2 13 9 20 9"></polyline>
-                  </svg>
-                </span>
-                <span>{{ .Name }}</span>
-              </div>
-            {{ end }}
-          </td>
-          <td style="color: var(--text-muted); font-size: 0.85rem;">
-            {{ if .IsDir }}--{{ else }}{{ .FormattedSize }}{{ end }}
-          </td>
-          <td style="color: var(--text-muted); font-size: 0.85rem;">
-            {{ .FormattedTime }}
-          </td>
-          <td style="text-align: right;">
-            <div style="display: flex; gap: 0.4rem; justify-content: flex-end;">
-              {{ if not .IsDir }}
-                <a href="/download?path={{ .RelPath }}" download class="btn btn-secondary btn-sm" title="Descargar">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                </a>
+        <div class="group relative bg-surface-container-low dark:bg-surface-container rounded-2xl p-3 border border-outline-variant/30 hover:border-primary/40 hover:shadow-md transition-all flex flex-col justify-between">
+          
+          <!-- Clickable Area for Preview -->
+          <div class="cursor-pointer flex flex-col items-center text-center w-full"
+               hx-get="/api/preview?path={{ .RelPath }}"
+               hx-target="#modal-container"
+               hx-indicator="#global-spinner">
+            
+            <div class="w-full aspect-square bg-surface-container-lowest dark:bg-surface-container-low rounded-xl flex items-center justify-center mb-2 overflow-hidden border border-outline-variant/20">
+              {{ if .IsImage }}
+                <img src="/download?path={{ .RelPath }}" alt="{{ .Name }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+              {{ else }}
+                <span class="material-symbols-outlined text-4xl filled {{ .IconColorClass }} group-hover:scale-110 transition-transform">{{ .MaterialIcon }}</span>
               {{ end }}
-              <button class="btn btn-danger btn-sm" 
-                      hx-delete="/api/delete?path={{ .RelPath }}" 
-                      hx-confirm="¿Estás seguro de que deseas eliminar '{{ .Name }}'?" 
-                      hx-target="#file-list-container" 
-                      hx-indicator="#global-spinner" 
+            </div>
+
+            <p class="font-medium text-xs text-on-surface truncate w-full px-1 group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5">{{ .FormattedSize }} • {{ .FormattedMod }}</p>
+          </div>
+
+          <!-- Action Buttons (Hover Toolbar) -->
+          <div class="flex items-center justify-center gap-1 mt-2 pt-2 border-t border-outline-variant/20 opacity-80 group-hover:opacity-100 transition-opacity">
+            <button class="p-1 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
+                    hx-get="/api/file-details?path={{ .RelPath }}"
+                    hx-target="#modal-container"
+                    hx-indicator="#global-spinner"
+                    title="Detalles">
+              <span class="material-symbols-outlined text-base">info</span>
+            </button>
+            <a href="/download?path={{ .RelPath }}" download
+               class="p-1 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
+               title="Descargar">
+              <span class="material-symbols-outlined text-base">download</span>
+            </a>
+            <button class="p-1 rounded-full hover:bg-error-container hover:text-error transition-colors text-on-surface-variant"
+                    hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}"
+                    hx-confirm="¿Seguro que deseas eliminar '{{ .Name }}'?"
+                    hx-target="#file-list-container"
+                    hx-indicator="#global-spinner"
+                    title="Eliminar">
+              <span class="material-symbols-outlined text-base">delete</span>
+            </button>
+          </div>
+
+        </div>
+        {{ end }}
+      </div>
+
+    {{ else }}
+      <!-- LIST VIEW (Stitch Screen 4 Refined) -->
+      <div class="bg-surface-container-low dark:bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/30 shadow-sm">
+        <div class="hidden sm:grid grid-cols-[1fr_130px_130px_90px_110px] gap-md px-lg py-2.5 border-b border-outline-variant/30 font-semibold text-xs text-on-surface-variant bg-surface-container-high/50 dark:bg-surface-container-high/30">
+          <span>Nombre</span>
+          <span>Creado</span>
+          <span>Modificado</span>
+          <span class="text-right">Tamaño</span>
+          <span class="text-center">Acciones</span>
+        </div>
+
+        <div class="divide-y divide-outline-variant/20">
+          {{ range .Files }}
+          <div class="group grid grid-cols-1 sm:grid-cols-[1fr_130px_130px_90px_110px] items-center gap-2 sm:gap-md px-md sm:px-lg py-3 hover:bg-surface-container-high/60 dark:hover:bg-surface-container-high/40 transition-colors">
+            
+            <!-- File Icon & Name (Click to Preview) -->
+            <div class="flex items-center gap-3 min-w-0 cursor-pointer"
+                 hx-get="/api/preview?path={{ .RelPath }}"
+                 hx-target="#modal-container"
+                 hx-indicator="#global-spinner">
+              <div class="w-8 h-8 rounded-lg bg-surface-container-highest/60 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-xl filled {{ .IconColorClass }}">{{ .MaterialIcon }}</span>
+              </div>
+              <span class="font-medium text-sm text-on-surface truncate group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</span>
+            </div>
+
+            <!-- Metadata Columns -->
+            <span class="hidden sm:inline text-xs text-on-surface-variant font-mono">{{ .FormattedCreated }}</span>
+            <span class="hidden sm:inline text-xs text-on-surface-variant font-mono">{{ .FormattedMod }}</span>
+            <span class="hidden sm:inline text-xs text-on-surface-variant font-mono text-right">{{ .FormattedSize }}</span>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-end sm:justify-center gap-1">
+              <button class="p-1.5 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
+                      hx-get="/api/file-details?path={{ .RelPath }}"
+                      hx-target="#modal-container"
+                      hx-indicator="#global-spinner"
+                      title="Detalles">
+                <span class="material-symbols-outlined text-lg">info</span>
+              </button>
+              <a href="/download?path={{ .RelPath }}" download
+                 class="p-1.5 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
+                 title="Descargar">
+                <span class="material-symbols-outlined text-lg">download</span>
+              </a>
+              <button class="p-1.5 rounded-full hover:bg-error-container hover:text-error transition-colors text-on-surface-variant"
+                      hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}"
+                      hx-confirm="¿Seguro que deseas eliminar '{{ .Name }}'?"
+                      hx-target="#file-list-container"
+                      hx-indicator="#global-spinner"
                       title="Eliminar">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
+                <span class="material-symbols-outlined text-lg">delete</span>
               </button>
             </div>
-          </td>
-        </tr>
-        {{ end }}
-      {{ end }}
-    </tbody>
-  </table>
-</div>
+
+          </div>
+          {{ end }}
+        </div>
+      </div>
+    {{ end }}
+
+  {{ end }}
+</section>
