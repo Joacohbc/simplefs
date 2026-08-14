@@ -51,6 +51,13 @@ typography:
     fontSize: "0.75rem"
     fontWeight: 500
     letterSpacing: "0.05em"
+  mono:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+    fontSize: "0.75rem"
+    fontWeight: 400
+  icon:
+    fontFamily: "Material Symbols Outlined"
+    fontSize: "1.5rem"
 rounded:
   sm: "8px"
   md: "12px"

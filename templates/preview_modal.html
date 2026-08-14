@@ -85,9 +85,6 @@
            onwheel="handleImageWheel(event)"
            ondblclick="handleImageDblClick(event)">
         
-        <!-- Background grid texture for transparent PNG/WebP -->
-        <div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(var(--color-outline-variant) 1px, transparent 1px); background-size: 20px 20px;"></div>
-        
         <img id="zoomable-image" 
              src="/download?path={{ .RelPath }}" 
              alt="{{ .Name }}" 

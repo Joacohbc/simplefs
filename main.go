@@ -47,6 +47,7 @@ type Breadcrumb struct {
 
 type PageData struct {
 	Path        string
+	Query       string
 	Breadcrumbs []Breadcrumb
 	Folders     []FileInfo
 	Files       []FileInfo
@@ -236,6 +237,7 @@ func getPageData(relPath, query, viewMode string) (PageData, error) {
 
 	return PageData{
 		Path:        filepath.ToSlash(relPath),
+		Query:       query,
 		Breadcrumbs: buildBreadcrumbs(relPath),
 		Folders:     folders,
 		Files:       files,
