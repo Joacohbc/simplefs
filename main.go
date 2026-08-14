@@ -48,6 +48,8 @@ type Breadcrumb struct {
 type PageData struct {
 	Path        string
 	Query       string
+	SortBy      string // "name", "created", "modified", "size"
+	SortOrder   string // "asc", "desc"
 	Breadcrumbs []Breadcrumb
 	Folders     []FileInfo
 	Files       []FileInfo
@@ -187,7 +189,7 @@ func resolvePath(rel string) (string, error) {
 	return targetPath, nil
 }
 
-func getPageData(relPath, query, viewMode string) (PageData, error) {
+func getPageData(relPath, query, viewMode, sortBy, sortOrder string) (PageData, error) {
 	absPath, err := resolvePath(relPath)
 	if err != nil {
 		return PageData{}, err
@@ -258,15 +260,21 @@ func getPageData(relPath, query, viewMode string) (PageData, error) {
 		}
 	}
 
-	// Sort folders alphabetically
-	sort.Slice(folders, func(i, j int) bool {
-		return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
-	})
+	// Normalize sorting params
+	if sortBy == "" {
+		sortBy = "name"
+	}
+	if sortOrder == "" {
+		sortOrder = "asc"
+	}
+	sortBy = strings.ToLower(sortBy)
+	sortOrder = strings.ToLower(sortOrder)
 
-	// Sort files alphabetically
-	sort.Slice(files, func(i, j int) bool {
-		return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name)
-	})
+	// Sort folders
+	sortFolders(folders, sortBy, sortOrder)
+
+	// Sort files
+	sortFiles(files, sortBy, sortOrder)
 
 	if viewMode == "" {
 		viewMode = "list"
@@ -275,11 +283,55 @@ func getPageData(relPath, query, viewMode string) (PageData, error) {
 	return PageData{
 		Path:        filepath.ToSlash(relPath),
 		Query:       query,
+		SortBy:      sortBy,
+		SortOrder:   sortOrder,
 		Breadcrumbs: buildBreadcrumbs(relPath),
 		Folders:     folders,
 		Files:       files,
 		ViewMode:    viewMode,
 	}, nil
+}
+
+func sortFolders(folders []FileInfo, sortBy, sortOrder string) {
+	isDesc := sortOrder == "desc"
+	sort.Slice(folders, func(i, j int) bool {
+		var less bool
+		switch sortBy {
+		case "size":
+			less = folders[i].ItemCount < folders[j].ItemCount
+		case "created", "modified":
+			less = folders[i].ModTime.Before(folders[j].ModTime)
+		case "name":
+			fallthrough
+		default:
+			less = strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
+		}
+		if isDesc {
+			return !less
+		}
+		return less
+	})
+}
+
+func sortFiles(files []FileInfo, sortBy, sortOrder string) {
+	isDesc := sortOrder == "desc"
+	sort.Slice(files, func(i, j int) bool {
+		var less bool
+		switch sortBy {
+		case "size":
+			less = files[i].Size < files[j].Size
+		case "created", "modified":
+			less = files[i].ModTime.Before(files[j].ModTime)
+		case "name":
+			fallthrough
+		default:
+			less = strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name)
+		}
+		if isDesc {
+			return !less
+		}
+		return less
+	})
 }
 
 func getFileInfoMeta(name string, isDir bool, ext string) (typeLabel, icon, colorClass string) {
@@ -351,7 +403,10 @@ func buildBreadcrumbs(relPath string) []Breadcrumb {
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	relPath := r.URL.Query().Get("path")
 	viewMode := r.URL.Query().Get("view")
-	data, err := getPageData(relPath, "", viewMode)
+	sortBy := r.URL.Query().Get("sort")
+	sortOrder := r.URL.Query().Get("order")
+
+	data, err := getPageData(relPath, "", viewMode, sortBy, sortOrder)
 	if err != nil {
 		http.Error(w, "Directory not found", http.StatusNotFound)
 		return
@@ -367,8 +422,10 @@ func handleAPIFiles(w http.ResponseWriter, r *http.Request) {
 	relPath := r.URL.Query().Get("path")
 	query := r.URL.Query().Get("query")
 	viewMode := r.URL.Query().Get("view")
+	sortBy := r.URL.Query().Get("sort")
+	sortOrder := r.URL.Query().Get("order")
 
-	data, err := getPageData(relPath, query, viewMode)
+	data, err := getPageData(relPath, query, viewMode, sortBy, sortOrder)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -432,6 +489,9 @@ func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 
 	relPath := r.FormValue("path")
 	viewMode := r.FormValue("view")
+	sortBy := r.FormValue("sort")
+	sortOrder := r.FormValue("order")
+
 	targetDir, err := resolvePath(relPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -463,7 +523,7 @@ func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 		dst.Close()
 	}
 
-	data, err := getPageData(relPath, "", viewMode)
+	data, err := getPageData(relPath, "", viewMode, sortBy, sortOrder)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -476,6 +536,8 @@ func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 	relPath := r.FormValue("path")
 	viewMode := r.FormValue("view")
+	sortBy := r.FormValue("sort")
+	sortOrder := r.FormValue("order")
 	folderName := strings.TrimSpace(r.FormValue("name"))
 
 	// Strict filename sanitization
@@ -502,7 +564,7 @@ func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := getPageData(relPath, "", viewMode)
+	data, err := getPageData(relPath, "", viewMode, sortBy, sortOrder)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -515,6 +577,8 @@ func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 	relPath := r.FormValue("path")
 	viewMode := r.FormValue("view")
+	sortBy := r.FormValue("sort")
+	sortOrder := r.FormValue("order")
 	filename := strings.TrimSpace(r.FormValue("filename"))
 	content := r.FormValue("content")
 	isBase64 := r.FormValue("is_base64") == "true"
@@ -558,7 +622,7 @@ func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := getPageData(relPath, "", viewMode)
+	data, err := getPageData(relPath, "", viewMode, sortBy, sortOrder)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -571,6 +635,8 @@ func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 func handleAPIDelete(w http.ResponseWriter, r *http.Request) {
 	relPath := strings.TrimSpace(r.URL.Query().Get("path"))
 	viewMode := r.URL.Query().Get("view")
+	sortBy := r.URL.Query().Get("sort")
+	sortOrder := r.URL.Query().Get("order")
 
 	cleanRel := filepath.Clean(filepath.FromSlash(relPath))
 	if relPath == "" || cleanRel == "." || cleanRel == "/" || cleanRel == "" {
@@ -604,7 +670,7 @@ func handleAPIDelete(w http.ResponseWriter, r *http.Request) {
 		parentRel = ""
 	}
 
-	data, err := getPageData(parentRel, "", viewMode)
+	data, err := getPageData(parentRel, "", viewMode, sortBy, sortOrder)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

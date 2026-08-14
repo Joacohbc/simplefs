@@ -1,21 +1,26 @@
-<!-- Breadcrumb Navigation Bar -->
+<!-- Breadcrumb Navigation Bar with Browser History Push -->
 <nav class="flex items-center gap-2 text-xs md:text-sm text-on-surface-variant mb-6 overflow-x-auto whitespace-nowrap py-1" aria-label="Ruta de navegación">
-  <a href="/" 
+  <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}" 
      class="flex items-center gap-1.5 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors py-1 px-2 rounded-lg hover:bg-surface-container-high/50" 
-     hx-get="/api/files?path=&view={{ .ViewMode }}" 
+     hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}" 
+     hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}"
      hx-target="#file-list-container" 
      hx-indicator="#global-spinner"
      id="active-path"
-     data-path="{{ .Path }}">
+     data-path="{{ .Path }}"
+     data-sort="{{ .SortBy }}"
+     data-order="{{ .SortOrder }}"
+     data-view="{{ .ViewMode }}">
     <span class="material-symbols-outlined text-lg filled">home</span>
     <span class="font-medium">Inicio</span>
   </a>
 
   {{ range .Breadcrumbs }}
     <span class="material-symbols-outlined text-sm text-outline-variant/60">chevron_right</span>
-    <a href="/?path={{ .Path }}&view={{ $.ViewMode }}" 
+    <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}" 
        class="hover:text-primary dark:hover:text-primary-fixed-dim transition-colors py-1 px-2 rounded-lg hover:bg-surface-container-high/50 font-medium"
-       hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}" 
+       hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}" 
+       hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}"
        hx-target="#file-list-container" 
        hx-indicator="#global-spinner">
       {{ .Name }}
@@ -36,7 +41,8 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-md">
     {{ range .Folders }}
     <div class="group bg-surface-container-low dark:bg-surface-container hover:bg-surface-container-high dark:hover:bg-surface-container-high/80 rounded-2xl p-md border border-outline-variant/30 hover:border-primary/40 transition-all flex items-center justify-between cursor-pointer shadow-sm hover:shadow-md"
-         hx-get="/api/files?path={{ .RelPath }}&view={{ $.ViewMode }}" 
+         hx-get="/api/files?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}" 
+         hx-push-url="/?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}"
          hx-target="#file-list-container" 
          hx-indicator="#global-spinner"
          role="button"
@@ -55,7 +61,7 @@
 
       <!-- Action Button (Delete Folder) -->
       <button class="p-1.5 rounded-full hover:bg-error-container hover:text-error text-on-surface-variant/70 hover:opacity-100 transition-all opacity-0 group-hover:opacity-100 shrink-0" 
-              hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}" 
+              hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}" 
               hx-confirm="¿Seguro que deseas eliminar la carpeta '{{ .Name }}' y todo su contenido?"
               hx-target="#file-list-container"
               hx-indicator="#global-spinner"
@@ -73,26 +79,49 @@
 
 <!-- Files Section -->
 <section aria-label="Sección de Archivos">
-  <div class="flex items-center justify-between mb-md">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-md">
     <h2 class="text-base md:text-lg font-bold text-on-surface flex items-center gap-2">
       <span class="material-symbols-outlined filled text-secondary dark:text-secondary-fixed-dim text-xl">description</span>
       Archivos ({{ len .Files }})
     </h2>
 
-    <!-- View Mode Switcher (Grid / List) -->
-    <div class="flex items-center gap-1 bg-surface-container-low dark:bg-surface-container p-1 rounded-xl border border-outline-variant/30 text-on-surface-variant" role="group" aria-label="Modo de visualización">
-      <button class="p-1.5 rounded-lg transition-colors {{ if eq .ViewMode "list" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high{{ end }}"
-              onclick="switchViewMode('list')"
-              title="Vista en Lista"
-              aria-label="Cambiar a vista en lista">
-        <span class="material-symbols-outlined text-lg">view_list</span>
-      </button>
-      <button class="p-1.5 rounded-lg transition-colors {{ if eq .ViewMode "grid" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high{{ end }}"
-              onclick="switchViewMode('grid')"
-              title="Vista en Cuadrícula"
-              aria-label="Cambiar a vista en cuadrícula">
-        <span class="material-symbols-outlined text-lg">grid_view</span>
-      </button>
+    <!-- Controls Toolbar (Sort & View Mode Switcher) -->
+    <div class="flex items-center gap-2">
+      
+      <!-- Sort Selector Dropdown -->
+      <div class="flex items-center gap-1 bg-surface-container-low dark:bg-surface-container py-1 px-2 rounded-xl border border-outline-variant/30 text-on-surface-variant text-xs">
+        <span class="material-symbols-outlined text-base text-on-surface-variant">sort</span>
+        <label for="sort-selector" class="sr-only">Ordenar por</label>
+        <select id="sort-selector" 
+                onchange="applySort(this.value)" 
+                class="bg-transparent border-none text-xs font-medium text-on-surface focus:ring-0 cursor-pointer pr-4 py-0.5">
+          <option value="name:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "name") (eq .SortOrder "asc") }}selected{{ end }}>Nombre (A-Z)</option>
+          <option value="name:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "name") (eq .SortOrder "desc") }}selected{{ end }}>Nombre (Z-A)</option>
+          <option value="modified:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "modified") (eq .SortOrder "desc") }}selected{{ end }}>Modificado (Más reciente)</option>
+          <option value="modified:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "modified") (eq .SortOrder "asc") }}selected{{ end }}>Modificado (Más antiguo)</option>
+          <option value="created:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "created") (eq .SortOrder "desc") }}selected{{ end }}>Creado (Más reciente)</option>
+          <option value="created:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "created") (eq .SortOrder "asc") }}selected{{ end }}>Creado (Más antiguo)</option>
+          <option value="size:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "size") (eq .SortOrder "desc") }}selected{{ end }}>Tamaño (Mayor primero)</option>
+          <option value="size:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "size") (eq .SortOrder "asc") }}selected{{ end }}>Tamaño (Menor primero)</option>
+        </select>
+      </div>
+
+      <!-- View Mode Switcher (Grid / List) -->
+      <div class="flex items-center gap-1 bg-surface-container-low dark:bg-surface-container p-1 rounded-xl border border-outline-variant/30 text-on-surface-variant" role="group" aria-label="Modo de visualización">
+        <button class="p-1.5 rounded-lg transition-colors {{ if eq .ViewMode "list" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high{{ end }}"
+                onclick="switchViewMode('list')"
+                title="Vista en Lista"
+                aria-label="Cambiar a vista en lista">
+          <span class="material-symbols-outlined text-lg">view_list</span>
+        </button>
+        <button class="p-1.5 rounded-lg transition-colors {{ if eq .ViewMode "grid" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high{{ end }}"
+                onclick="switchViewMode('grid')"
+                title="Vista en Cuadrícula"
+                aria-label="Cambiar a vista en cuadrícula">
+          <span class="material-symbols-outlined text-lg">grid_view</span>
+        </button>
+      </div>
+
     </div>
   </div>
 
@@ -165,7 +194,7 @@
               <span class="material-symbols-outlined text-base">download</span>
             </a>
             <button class="p-1.5 rounded-full hover:bg-error-container hover:text-error transition-colors text-on-surface-variant"
-                    hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}"
+                    hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}"
                     hx-confirm="¿Seguro que deseas eliminar '{{ .Name }}'?"
                     hx-target="#file-list-container"
                     hx-indicator="#global-spinner"
@@ -180,19 +209,64 @@
       </div>
 
     {{ else }}
-      <!-- LIST VIEW (Stitch Screen 4 Refined) -->
+      <!-- LIST VIEW (Stitch Screen 4 Refined with Interactive Sorting Headers) -->
       <div class="bg-surface-container-low dark:bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/30 shadow-sm">
-        <div class="hidden sm:grid grid-cols-[1fr_130px_130px_90px_110px] gap-md px-lg py-2.5 border-b border-outline-variant/30 font-semibold text-xs text-on-surface-variant bg-surface-container-high/50 dark:bg-surface-container-high/30">
-          <span>Nombre</span>
-          <span>Creado</span>
-          <span>Modificado</span>
-          <span class="text-right">Tamaño</span>
+        <div class="hidden sm:grid grid-cols-[1fr_130px_130px_100px_110px] gap-md px-lg py-2.5 border-b border-outline-variant/30 font-semibold text-xs text-on-surface-variant bg-surface-container-high/50 dark:bg-surface-container-high/30 select-none">
+          
+          <!-- Sort Column: Name -->
+          <button type="button" 
+                  onclick="toggleColumnSort('name')"
+                  class="flex items-center gap-1 text-left hover:text-primary dark:hover:text-primary-fixed-dim transition-colors {{ if eq .SortBy "name" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
+            <span>Nombre</span>
+            {{ if eq .SortBy "name" }}
+              <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
+            {{ else }}
+              <span class="material-symbols-outlined text-sm opacity-40">unfold_more</span>
+            {{ end }}
+          </button>
+
+          <!-- Sort Column: Created -->
+          <button type="button" 
+                  onclick="toggleColumnSort('created')"
+                  class="flex items-center gap-1 text-left hover:text-primary dark:hover:text-primary-fixed-dim transition-colors {{ if eq .SortBy "created" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
+            <span>Creado</span>
+            {{ if eq .SortBy "created" }}
+              <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
+            {{ else }}
+              <span class="material-symbols-outlined text-sm opacity-40">unfold_more</span>
+            {{ end }}
+          </button>
+
+          <!-- Sort Column: Modified -->
+          <button type="button" 
+                  onclick="toggleColumnSort('modified')"
+                  class="flex items-center gap-1 text-left hover:text-primary dark:hover:text-primary-fixed-dim transition-colors {{ if eq .SortBy "modified" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
+            <span>Modificado</span>
+            {{ if eq .SortBy "modified" }}
+              <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
+            {{ else }}
+              <span class="material-symbols-outlined text-sm opacity-40">unfold_more</span>
+            {{ end }}
+          </button>
+
+          <!-- Sort Column: Size -->
+          <button type="button" 
+                  onclick="toggleColumnSort('size')"
+                  class="flex items-center justify-end gap-1 text-right hover:text-primary dark:hover:text-primary-fixed-dim transition-colors {{ if eq .SortBy "size" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
+            <span>Tamaño</span>
+            {{ if eq .SortBy "size" }}
+              <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
+            {{ else }}
+              <span class="material-symbols-outlined text-sm opacity-40">unfold_more</span>
+            {{ end }}
+          </button>
+
           <span class="text-center">Acciones</span>
         </div>
 
         <div class="divide-y divide-outline-variant/20">
           {{ range .Files }}
-          <div class="group grid grid-cols-1 sm:grid-cols-[1fr_130px_130px_90px_110px] items-center gap-2 sm:gap-md px-md sm:px-lg py-3 hover:bg-surface-container-high/60 dark:hover:bg-surface-container-high/40 transition-colors"
+          <div class="group grid grid-cols-1 sm:grid-cols-[1fr_130px_130px_100px_110px] items-center gap-2 sm:gap-md px-md sm:px-lg py-3 hover:bg-surface-container-high/60 dark:hover:bg-surface-container-high/40 transition-colors"
                data-name="{{ .Name }}">
             
             <!-- File Icon & Name (Click to Preview) -->
@@ -231,7 +305,7 @@
                 <span class="material-symbols-outlined text-lg">download</span>
               </a>
               <button class="p-1.5 rounded-full hover:bg-error-container hover:text-error transition-colors text-on-surface-variant"
-                      hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}"
+                      hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}"
                       hx-confirm="¿Seguro que deseas eliminar '{{ .Name }}'?"
                       hx-target="#file-list-container"
                       hx-indicator="#global-spinner"

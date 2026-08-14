@@ -47,7 +47,12 @@
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
       
       <!-- Brand Logo -->
-      <a href="/" class="flex items-center gap-2.5 group shrink-0" aria-label="SimpleFS Inicio">
+      <a href="/" 
+         hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}" 
+         hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}"
+         hx-target="#file-list-container"
+         class="flex items-center gap-2.5 group shrink-0" 
+         aria-label="SimpleFS Inicio">
         <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm group-hover:scale-105 transition-transform">
           <span class="material-symbols-outlined text-2xl filled">folder_open</span>
         </div>
@@ -67,7 +72,7 @@
                  hx-get="/api/files" 
                  hx-trigger="keyup changed delay:200ms, search" 
                  hx-target="#file-list-container" 
-                 hx-include="[name='path'], [name='view']"
+                 hx-include="[name='path'], [name='view'], [name='sort'], [name='order']"
                  hx-indicator="#global-spinner"
                  aria-label="Buscar archivos y carpetas">
           <span class="htmx-indicator spinner absolute right-3.5 top-1/2 -translate-y-1/2" id="global-spinner"></span>
@@ -113,6 +118,8 @@
     <!-- Hidden Form Inputs for HTMX synchronization -->
     <input type="hidden" name="path" id="current-path-input" value="{{ .Path }}">
     <input type="hidden" name="view" id="current-view-input" value="{{ .ViewMode }}">
+    <input type="hidden" name="sort" id="current-sort-input" value="{{ .SortBy }}">
+    <input type="hidden" name="order" id="current-order-input" value="{{ .SortOrder }}">
 
     <!-- Hidden Native File Upload Input -->
     <form id="upload-form" 
@@ -123,6 +130,8 @@
           class="hidden">
       <input type="hidden" name="path" id="upload-form-path" value="{{ .Path }}">
       <input type="hidden" name="view" id="upload-form-view" value="{{ .ViewMode }}">
+      <input type="hidden" name="sort" id="upload-form-sort" value="{{ .SortBy }}">
+      <input type="hidden" name="order" id="upload-form-order" value="{{ .SortOrder }}">
       <input type="file" id="global-file-picker" name="files" multiple onchange="submitUploadForm()" aria-label="Subir archivos">
     </form>
 
@@ -198,6 +207,8 @@
             hx-on::after-request="closeFolderModal(); this.reset()">
         <input type="hidden" name="path" id="folder-modal-path" value="{{ .Path }}">
         <input type="hidden" name="view" id="folder-modal-view" value="{{ .ViewMode }}">
+        <input type="hidden" name="sort" id="folder-modal-sort" value="{{ .SortBy }}">
+        <input type="hidden" name="order" id="folder-modal-order" value="{{ .SortOrder }}">
         <div class="mb-5">
           <label for="new-folder-name-input" class="block text-xs font-semibold text-on-surface-variant mb-1.5">Nombre de la carpeta</label>
           <input type="text" 
@@ -235,6 +246,8 @@
             hx-on::after-request="closeClipboardModal(); resetClipboardForm()">
         <input type="hidden" name="path" id="clipboard-path-input" value="{{ .Path }}">
         <input type="hidden" name="view" id="clipboard-view-input" value="{{ .ViewMode }}">
+        <input type="hidden" name="sort" id="clipboard-sort-input" value="{{ .SortBy }}">
+        <input type="hidden" name="order" id="clipboard-order-input" value="{{ .SortOrder }}">
         <input type="hidden" name="is_base64" id="clipboard-is-base64" value="false">
         <input type="hidden" name="content" id="clipboard-hidden-content" value="">
 
@@ -339,17 +352,57 @@
       updateThemeUI();
     }
 
-    // View Mode Management (Grid / List)
-    function switchViewMode(mode) {
-      localStorage.setItem('viewMode', mode);
-      const currentPath = document.getElementById('current-path-input').value;
-      const currentViewInput = document.getElementById('current-view-input');
-      if (currentViewInput) currentViewInput.value = mode;
+    // Navigation and Query Parameter State Synchronization
+    function getCurrentParams() {
+      const activePath = document.getElementById('active-path');
+      const path = activePath ? (activePath.getAttribute('data-path') || '') : (document.getElementById('current-path-input').value || '');
+      const view = activePath ? (activePath.getAttribute('data-view') || localStorage.getItem('viewMode') || 'list') : (document.getElementById('current-view-input').value || 'list');
+      const sort = activePath ? (activePath.getAttribute('data-sort') || 'name') : (document.getElementById('current-sort-input').value || 'name');
+      const order = activePath ? (activePath.getAttribute('data-order') || 'asc') : (document.getElementById('current-order-input').value || 'asc');
+      const query = document.getElementById('global-search-input') ? document.getElementById('global-search-input').value : '';
+      return { path, view, sort, order, query };
+    }
 
-      htmx.ajax('GET', `/api/files?path=${encodeURIComponent(currentPath)}&view=${mode}`, {
+    function navigateWithParams(params, pushState = true) {
+      const p = { ...getCurrentParams(), ...params };
+      document.getElementById('current-path-input').value = p.path;
+      document.getElementById('current-view-input').value = p.view;
+      document.getElementById('current-sort-input').value = p.sort;
+      document.getElementById('current-order-input').value = p.order;
+
+      const queryString = `path=${encodeURIComponent(p.path)}&view=${encodeURIComponent(p.view)}&sort=${encodeURIComponent(p.sort)}&order=${encodeURIComponent(p.order)}${p.query ? '&query=' + encodeURIComponent(p.query) : ''}`;
+      const url = `/api/files?${queryString}`;
+      const pushUrl = `/?${queryString}`;
+
+      htmx.ajax('GET', url, {
         target: '#file-list-container',
         indicator: '#global-spinner'
       });
+
+      if (pushState) {
+        history.pushState(p, '', pushUrl);
+      }
+    }
+
+    // View Mode Management (Grid / List)
+    function switchViewMode(mode) {
+      localStorage.setItem('viewMode', mode);
+      navigateWithParams({ view: mode });
+    }
+
+    // Sorting Handlers
+    function applySort(val) {
+      const [sort, order] = val.split(':');
+      navigateWithParams({ sort, order });
+    }
+
+    function toggleColumnSort(columnName) {
+      const current = getCurrentParams();
+      let newOrder = 'asc';
+      if (current.sort === columnName) {
+        newOrder = current.order === 'asc' ? 'desc' : 'asc';
+      }
+      navigateWithParams({ sort: columnName, order: newOrder });
     }
 
     // Speed Dial Toggle
@@ -365,18 +418,17 @@
     function closeSpeedDial() {
       const container = document.getElementById('speed-dial-container');
       const mainBtn = document.getElementById('fab-main-btn');
-      container.classList.remove('speed-dial-open');
-      if (mainBtn) {
-        mainBtn.setAttribute('aria-expanded', 'false');
-      }
+      if (container) container.classList.remove('speed-dial-open');
+      if (mainBtn) mainBtn.setAttribute('aria-expanded', 'false');
     }
 
     // Modal Control Functions
     function openFolderModal() {
-      const activePath = document.getElementById('active-path');
-      const pathVal = activePath ? activePath.getAttribute('data-path') : '';
-      document.getElementById('folder-modal-path').value = pathVal;
-      document.getElementById('folder-modal-view').value = localStorage.getItem('viewMode') || 'list';
+      const current = getCurrentParams();
+      document.getElementById('folder-modal-path').value = current.path;
+      document.getElementById('folder-modal-view').value = current.view;
+      document.getElementById('folder-modal-sort').value = current.sort;
+      document.getElementById('folder-modal-order').value = current.order;
       document.getElementById('folder-modal').classList.remove('hidden');
       document.body.classList.add('overflow-hidden');
     }
@@ -388,10 +440,11 @@
 
     function triggerFileUpload() {
       closeSpeedDial();
-      const activePath = document.getElementById('active-path');
-      const pathVal = activePath ? activePath.getAttribute('data-path') : '';
-      document.getElementById('upload-form-path').value = pathVal;
-      document.getElementById('upload-form-view').value = localStorage.getItem('viewMode') || 'list';
+      const current = getCurrentParams();
+      document.getElementById('upload-form-path').value = current.path;
+      document.getElementById('upload-form-view').value = current.view;
+      document.getElementById('upload-form-sort').value = current.sort;
+      document.getElementById('upload-form-order').value = current.order;
       document.getElementById('global-file-picker').click();
     }
 
@@ -455,10 +508,11 @@
     }
 
     function openClipboardModal() {
-      const activePath = document.getElementById('active-path');
-      const pathVal = activePath ? activePath.getAttribute('data-path') : '';
-      document.getElementById('clipboard-path-input').value = pathVal;
-      document.getElementById('clipboard-view-input').value = localStorage.getItem('viewMode') || 'list';
+      const current = getCurrentParams();
+      document.getElementById('clipboard-path-input').value = current.path;
+      document.getElementById('clipboard-view-input').value = current.view;
+      document.getElementById('clipboard-sort-input').value = current.sort;
+      document.getElementById('clipboard-order-input').value = current.order;
       document.getElementById('clipboard-modal').classList.remove('hidden');
       document.body.classList.add('overflow-hidden');
       
@@ -609,10 +663,11 @@
       if (e.dataTransfer && e.dataTransfer.files.length > 0) {
         const fileInput = document.getElementById('global-file-picker');
         fileInput.files = e.dataTransfer.files;
-        const activePath = document.getElementById('active-path');
-        const pathVal = activePath ? activePath.getAttribute('data-path') : '';
-        document.getElementById('upload-form-path').value = pathVal;
-        document.getElementById('upload-form-view').value = localStorage.getItem('viewMode') || 'list';
+        const current = getCurrentParams();
+        document.getElementById('upload-form-path').value = current.path;
+        document.getElementById('upload-form-view').value = current.view;
+        document.getElementById('upload-form-sort').value = current.sort;
+        document.getElementById('upload-form-order').value = current.order;
         submitUploadForm();
       }
     });
@@ -656,21 +711,50 @@
       }
     });
 
+    // Browser History popstate Handler (Back / Forward)
+    window.addEventListener('popstate', function(e) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const path = urlParams.get('path') || '';
+      const view = urlParams.get('view') || localStorage.getItem('viewMode') || 'list';
+      const sort = urlParams.get('sort') || 'name';
+      const order = urlParams.get('order') || 'asc';
+      const query = urlParams.get('query') || '';
+
+      if (document.getElementById('global-search-input')) {
+        document.getElementById('global-search-input').value = query;
+      }
+
+      navigateWithParams({ path, view, sort, order, query }, false);
+    });
+
     // HTMX afterSwap synchronization
     document.body.addEventListener('htmx:afterSwap', function(evt) {
       const activePath = document.getElementById('active-path');
       if (activePath) {
-        const pathVal = activePath.getAttribute('data-path');
-        const viewMode = localStorage.getItem('viewMode') || 'list';
+        const pathVal = activePath.getAttribute('data-path') || '';
+        const viewVal = activePath.getAttribute('data-view') || localStorage.getItem('viewMode') || 'list';
+        const sortVal = activePath.getAttribute('data-sort') || 'name';
+        const orderVal = activePath.getAttribute('data-order') || 'asc';
         
         document.getElementById('current-path-input').value = pathVal;
-        document.getElementById('current-view-input').value = viewMode;
+        document.getElementById('current-view-input').value = viewVal;
+        document.getElementById('current-sort-input').value = sortVal;
+        document.getElementById('current-order-input').value = orderVal;
+
         document.getElementById('upload-form-path').value = pathVal;
-        document.getElementById('upload-form-view').value = viewMode;
+        document.getElementById('upload-form-view').value = viewVal;
+        document.getElementById('upload-form-sort').value = sortVal;
+        document.getElementById('upload-form-order').value = orderVal;
+
         document.getElementById('clipboard-path-input').value = pathVal;
-        document.getElementById('clipboard-view-input').value = viewMode;
+        document.getElementById('clipboard-view-input').value = viewVal;
+        document.getElementById('clipboard-sort-input').value = sortVal;
+        document.getElementById('clipboard-order-input').value = orderVal;
+
         document.getElementById('folder-modal-path').value = pathVal;
-        document.getElementById('folder-modal-view').value = viewMode;
+        document.getElementById('folder-modal-view').value = viewVal;
+        document.getElementById('folder-modal-sort').value = sortVal;
+        document.getElementById('folder-modal-order').value = orderVal;
       }
       initRichHighlight();
     });
@@ -694,12 +778,12 @@
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
       updateThemeUI();
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlView = urlParams.get('view');
       const savedView = localStorage.getItem('viewMode');
-      if (savedView && savedView === 'grid') {
-        const currentPath = document.getElementById('current-path-input').value;
-        htmx.ajax('GET', `/api/files?path=${encodeURIComponent(currentPath)}&view=grid`, {
-          target: '#file-list-container'
-        });
+      if (!urlView && savedView && savedView === 'grid') {
+        const current = getCurrentParams();
+        navigateWithParams({ view: 'grid' }, false);
       }
     });
   </script>
