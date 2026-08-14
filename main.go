@@ -121,30 +121,67 @@ func main() {
 
 	absStorage, _ := filepath.Abs(storageDir)
 	addr := ":" + port
+
+	server := &http.Server{
+		Addr:           addr,
+		Handler:        securityHeadersMiddleware(mux),
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
+	}
+
 	log.Printf("🚀 SimpleFS running at http://localhost%s serving directory: %s", addr, absStorage)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server stopped: %v", err)
 	}
 }
 
-// Security: Resolve relative path safely inside storageDir
+// Security Middleware: Injects standard defensive headers
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-src 'self'; object-src 'none';")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Security: Resolve relative path safely inside storageDir with symlink boundary check
 func resolvePath(rel string) (string, error) {
+	absBase, err := filepath.Abs(storageDir)
+	if err != nil {
+		return "", fmt.Errorf("storage directory error: %w", err)
+	}
+	if evalBase, err := filepath.EvalSymlinks(absBase); err == nil {
+		absBase = evalBase
+	}
+
 	cleanRel := filepath.Clean(filepath.FromSlash(rel))
-	if cleanRel == "." || cleanRel == "/" {
+	if cleanRel == "." || cleanRel == "/" || cleanRel == "" {
 		cleanRel = ""
 	}
 	if strings.HasPrefix(cleanRel, "..") {
 		return "", fmt.Errorf("invalid path access")
 	}
 
-	absBase, err := filepath.Abs(storageDir)
-	if err != nil {
-		return "", err
+	targetPath := filepath.Join(absBase, cleanRel)
+
+	// Boundary check with filepath.Rel
+	relFromBase, err := filepath.Rel(absBase, targetPath)
+	if err != nil || strings.HasPrefix(relFromBase, "..") || relFromBase == ".." {
+		return "", fmt.Errorf("access denied")
 	}
 
-	targetPath := filepath.Join(absBase, cleanRel)
-	if !strings.HasPrefix(targetPath, absBase) {
-		return "", fmt.Errorf("access denied")
+	// If target exists, evaluate symlinks to ensure the real target is within absBase
+	if evalTarget, err := filepath.EvalSymlinks(targetPath); err == nil {
+		evalRel, err := filepath.Rel(absBase, evalTarget)
+		if err != nil || strings.HasPrefix(evalRel, "..") || evalRel == ".." {
+			return "", fmt.Errorf("symlink target outside storage root")
+		}
+		return evalTarget, nil
 	}
 
 	return targetPath, nil
@@ -386,8 +423,10 @@ func handleAPIFileDetails(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(100 << 20); err != nil { // 100 MB max memory limit
-		http.Error(w, "Error parsing form", http.StatusBadRequest)
+	// Defend against DoS with max 100 MB request limit
+	r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, "Upload payload too large or invalid form", http.StatusBadRequest)
 		return
 	}
 
@@ -401,12 +440,18 @@ func handleAPIUpload(w http.ResponseWriter, r *http.Request) {
 
 	files := r.MultipartForm.File["files"]
 	for _, fileHeader := range files {
+		// Clean and secure uploaded filename
+		cleanFilename := filepath.Base(filepath.Clean(fileHeader.Filename))
+		if cleanFilename == "" || cleanFilename == "." || cleanFilename == ".." {
+			continue
+		}
+
 		file, err := fileHeader.Open()
 		if err != nil {
 			continue
 		}
 
-		dstPath := filepath.Join(targetDir, filepath.Base(fileHeader.Filename))
+		dstPath := filepath.Join(targetDir, cleanFilename)
 		dst, err := os.Create(dstPath)
 		if err != nil {
 			file.Close()
@@ -433,7 +478,14 @@ func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 	viewMode := r.FormValue("view")
 	folderName := strings.TrimSpace(r.FormValue("name"))
 
-	if folderName == "" || strings.Contains(folderName, "/") || strings.Contains(folderName, "\\") {
+	// Strict filename sanitization
+	if folderName == "" || strings.Contains(folderName, "/") || strings.Contains(folderName, "\\") || strings.Contains(folderName, "..") {
+		http.Error(w, "Invalid folder name", http.StatusBadRequest)
+		return
+	}
+
+	cleanFolderName := filepath.Base(filepath.Clean(folderName))
+	if cleanFolderName == "" || cleanFolderName == "." || cleanFolderName == ".." {
 		http.Error(w, "Invalid folder name", http.StatusBadRequest)
 		return
 	}
@@ -444,7 +496,7 @@ func handleAPIFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newFolderDir := filepath.Join(targetDir, folderName)
+	newFolderDir := filepath.Join(targetDir, cleanFolderName)
 	if err := os.MkdirAll(newFolderDir, 0755); err != nil {
 		http.Error(w, "Failed to create folder", http.StatusInternalServerError)
 		return
@@ -467,12 +519,19 @@ func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 	content := r.FormValue("content")
 	isBase64 := r.FormValue("is_base64") == "true"
 
-	if filename == "" || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+	// Strict filename sanitization
+	if filename == "" || strings.Contains(filename, "/") || strings.Contains(filename, "\\") || strings.Contains(filename, "..") {
 		http.Error(w, "Invalid filename", http.StatusBadRequest)
 		return
 	}
 
-	targetFile, err := resolvePath(filepath.Join(relPath, filename))
+	cleanFilename := filepath.Base(filepath.Clean(filename))
+	if cleanFilename == "" || cleanFilename == "." || cleanFilename == ".." {
+		http.Error(w, "Invalid filename", http.StatusBadRequest)
+		return
+	}
+
+	targetFile, err := resolvePath(filepath.Join(relPath, cleanFilename))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -510,16 +569,28 @@ func handleAPICreateFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAPIDelete(w http.ResponseWriter, r *http.Request) {
-	relPath := r.URL.Query().Get("path")
+	relPath := strings.TrimSpace(r.URL.Query().Get("path"))
 	viewMode := r.URL.Query().Get("view")
-	if relPath == "" {
-		http.Error(w, "Path parameter required", http.StatusBadRequest)
+
+	cleanRel := filepath.Clean(filepath.FromSlash(relPath))
+	if relPath == "" || cleanRel == "." || cleanRel == "/" || cleanRel == "" {
+		http.Error(w, "Cannot delete root directory", http.StatusForbidden)
 		return
 	}
 
 	absPath, err := resolvePath(relPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Double-check target is not the base storage directory
+	absBase, _ := filepath.Abs(storageDir)
+	if absBaseEval, err := filepath.EvalSymlinks(absBase); err == nil {
+		absBase = absBaseEval
+	}
+	if absPath == absBase {
+		http.Error(w, "Cannot delete root directory", http.StatusForbidden)
 		return
 	}
 
@@ -610,10 +681,16 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ext := filepath.Ext(absPath)
+	ext := strings.ToLower(filepath.Ext(absPath))
+	filename := filepath.Base(absPath)
 	mimeType := mime.TypeByExtension(ext)
 	if mimeType != "" {
 		w.Header().Set("Content-Type", mimeType)
+	}
+
+	// Prevent browser execution of potentially active types (HTML, SVG, XML) by forcing attachment
+	if r.URL.Query().Get("download") == "true" || ext == ".html" || ext == ".htm" || ext == ".svg" || ext == ".xml" {
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	}
 
 	http.ServeFile(w, r, absPath)

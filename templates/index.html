@@ -22,6 +22,9 @@
   
   <!-- Marked for Markdown Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- DOMPurify for XSS Sanitization -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
 
   <!-- Immediate Theme Check to Prevent FOUC -->
   <script>
@@ -682,7 +685,8 @@
       document.querySelectorAll('.markdown-content').forEach((container) => {
         const rawContent = container.getAttribute('data-markdown');
         if (rawContent && window.marked) {
-          container.innerHTML = marked.parse(rawContent);
+          const parsed = marked.parse(rawContent);
+          container.innerHTML = window.DOMPurify ? DOMPurify.sanitize(parsed) : parsed;
         }
       });
     }

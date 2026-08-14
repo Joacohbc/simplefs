@@ -293,7 +293,10 @@
     const mdContainer = document.getElementById('markdown-viewer');
     if (mdContainer && window.marked) {
       const raw = mdContainer.getAttribute('data-markdown');
-      if (raw) mdContainer.innerHTML = marked.parse(raw);
+      if (raw) {
+        const parsed = marked.parse(raw);
+        mdContainer.innerHTML = window.DOMPurify ? DOMPurify.sanitize(parsed) : parsed;
+      }
     }
     document.querySelectorAll('#preview-modal pre code').forEach(block => {
       if (window.hljs && !block.classList.contains('hljs-done')) {
