@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"simplefs/internal/handlers"
+	"simplefs/internal/i18n"
 	"simplefs/internal/middleware"
 	"simplefs/internal/storage"
 )
@@ -27,7 +28,9 @@ func main() {
 		log.Fatalf("Failed to initialize storage directory: %v", err)
 	}
 
-	templateEngine, err := template.ParseFS(embeddedAssets, "templates/*.html")
+	templateEngine, err := template.New("").Funcs(template.FuncMap{
+		"T": i18n.T,
+	}).ParseFS(embeddedAssets, "templates/*.html")
 	if err != nil {
 		log.Fatalf("Failed to parse templates: %v", err)
 	}

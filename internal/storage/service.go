@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"simplefs/internal/filetype"
+	"simplefs/internal/i18n"
 	"simplefs/internal/models"
 )
 
@@ -62,7 +63,7 @@ func (s *Service) ResolvePath(relativePath string) (string, error) {
 	return targetPath, nil
 }
 
-func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder string) (models.PageData, error) {
+func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder, lang string) (models.PageData, error) {
 	absolutePath, err := s.ResolvePath(relativePath)
 	if err != nil {
 		return models.PageData{}, err
@@ -76,6 +77,7 @@ func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, 
 	var folders []models.FileInfo
 	var files []models.FileInfo
 	searchLower := strings.ToLower(searchQuery)
+	normalizedLang := i18n.NormalizeLang(lang)
 
 	for _, entry := range entries {
 		name := entry.Name()
@@ -108,8 +110,8 @@ func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, 
 			Size:             entryInfo.Size(),
 			FormattedSize:    FormatBytes(entryInfo.Size()),
 			ModTime:          entryInfo.ModTime(),
-			FormattedMod:     entryInfo.ModTime().Format("02 Jan 2006"),
-			FormattedCreated: entryInfo.ModTime().Format("02 Jan 2006"),
+			FormattedMod:     i18n.FormatDate(entryInfo.ModTime(), normalizedLang),
+			FormattedCreated: i18n.FormatDate(entryInfo.ModTime(), normalizedLang),
 			ItemCount:        childCount,
 			TypeLabel:        typeDef.Label,
 			MaterialIcon:     typeDef.Icon,
@@ -141,10 +143,11 @@ func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, 
 		Folders:     folders,
 		Files:       files,
 		ViewMode:    viewMode,
+		Lang:        normalizedLang,
 	}, nil
 }
 
-func (s *Service) GetFileDetails(relativePath string) (models.FileDetailsData, error) {
+func (s *Service) GetFileDetails(relativePath, lang string) (models.FileDetailsData, error) {
 	absolutePath, err := s.ResolvePath(relativePath)
 	if err != nil {
 		return models.FileDetailsData{}, err
@@ -157,6 +160,7 @@ func (s *Service) GetFileDetails(relativePath string) (models.FileDetailsData, e
 
 	extension := filepath.Ext(absolutePath)
 	typeDef := filetype.Resolve(extension, fileInfo.IsDir())
+	normalizedLang := i18n.NormalizeLang(lang)
 
 	parentDirectory := filepath.ToSlash(filepath.Dir(relativePath))
 	if parentDirectory == "." || parentDirectory == "" {
@@ -172,13 +176,14 @@ func (s *Service) GetFileDetails(relativePath string) (models.FileDetailsData, e
 		TypeLabel:     typeDef.Label,
 		MaterialIcon:  typeDef.Icon,
 		FormattedSize: FormatBytes(fileInfo.Size()),
-		CreatedDate:   fileInfo.ModTime().Format("02 Jan 2006"),
-		ModifiedDate:  fileInfo.ModTime().Format("02 Jan 2006, 15:04"),
+		CreatedDate:   i18n.FormatDate(fileInfo.ModTime(), normalizedLang),
+		ModifiedDate:  i18n.FormatDateTime(fileInfo.ModTime(), normalizedLang),
 		IsImage:       typeDef.Category == filetype.CategoryImage,
+		Lang:          normalizedLang,
 	}, nil
 }
 
-func (s *Service) GetFilePreview(relativePath string) (models.PreviewData, error) {
+func (s *Service) GetFilePreview(relativePath, lang string) (models.PreviewData, error) {
 	absolutePath, err := s.ResolvePath(relativePath)
 	if err != nil {
 		return models.PreviewData{}, err
@@ -191,6 +196,7 @@ func (s *Service) GetFilePreview(relativePath string) (models.PreviewData, error
 
 	extension := filepath.Ext(absolutePath)
 	typeDef := filetype.Resolve(extension, false)
+	normalizedLang := i18n.NormalizeLang(lang)
 
 	preview := models.PreviewData{
 		Name:          filepath.Base(absolutePath),
@@ -199,9 +205,10 @@ func (s *Service) GetFilePreview(relativePath string) (models.PreviewData, error
 		Extension:     strings.ToLower(extension),
 		MimeType:      typeDef.MimeType,
 		FormattedSize: FormatBytes(fileInfo.Size()),
-		ModTime:       fileInfo.ModTime().Format("02 Jan 2006 15:04"),
+		ModTime:       i18n.FormatDateTime(fileInfo.ModTime(), normalizedLang),
 		LanguageClass: typeDef.LanguageClass,
 		MaterialIcon:  typeDef.Icon,
+		Lang:          normalizedLang,
 	}
 
 	isTextual := typeDef.Category == filetype.CategoryCode || typeDef.Category == filetype.CategoryMarkdown
@@ -210,13 +217,21 @@ func (s *Service) GetFilePreview(relativePath string) (models.PreviewData, error
 	}
 
 	if fileInfo.Size() > maxInlinePreviewBytes {
-		preview.Content = "[Archivo demasiado grande para vista previa en texto]"
+		if normalizedLang == i18n.LangEN {
+			preview.Content = "[File too large for inline text preview]"
+		} else {
+			preview.Content = "[Archivo demasiado grande para vista previa en texto]"
+		}
 		return preview, nil
 	}
 
 	fileContent, err := os.ReadFile(absolutePath)
 	if err != nil {
-		preview.Content = "[Error al leer el archivo]"
+		if normalizedLang == i18n.LangEN {
+			preview.Content = "[Error reading file]"
+		} else {
+			preview.Content = "[Error al leer el archivo]"
+		}
 		return preview, nil
 	}
 

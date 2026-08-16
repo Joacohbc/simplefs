@@ -2,7 +2,7 @@
   <!-- Top Navigation & Toolbar (Stitch Style) -->
   <header class="h-16 border-b border-outline-variant/30 bg-surface-container-low dark:bg-surface-container flex items-center justify-between px-4 md:px-gutter sticky top-0 z-20 shrink-0">
     <div class="flex items-center gap-md min-w-0">
-      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors flex items-center justify-center" onclick="closePreviewModal()" title="Volver" aria-label="Volver">
+      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors flex items-center justify-center" onclick="closePreviewModal()" title="{{ T .Lang "preview.back" }}" aria-label="{{ T .Lang "preview.back" }}">
         <span class="material-symbols-outlined text-2xl">arrow_back</span>
       </button>
       <div class="flex items-center gap-3 min-w-0">
@@ -20,19 +20,19 @@
       <!-- Image Zoom & Rotation Controls -->
       {{ if eq .Type "image" }}
       <div class="flex items-center gap-1 bg-surface-container-highest dark:bg-surface-container-high px-1.5 py-1 rounded-xl border border-outline-variant/20">
-        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="adjustImageZoom(-25)" title="Reducir zoom (Rueda del ratón abajo)" aria-label="Reducir zoom">
+        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="adjustImageZoom(-25)" title="{{ T .Lang "preview.zoom_out" }}" aria-label="{{ T .Lang "preview.zoom_out" }}">
           <span class="material-symbols-outlined text-base">zoom_out</span>
         </button>
-        <button id="image-zoom-label" class="text-xs font-mono px-2 py-0.5 rounded hover:bg-surface-variant/40 text-on-surface transition-colors cursor-pointer" onclick="resetImageTransform()" title="Restablecer tamaño (100%)">
+        <button id="image-zoom-label" class="text-xs font-mono px-2 py-0.5 rounded hover:bg-surface-variant/40 text-on-surface transition-colors cursor-pointer" onclick="resetImageTransform()" title="100%">
           100%
         </button>
-        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="adjustImageZoom(25)" title="Aumentar zoom (Rueda del ratón arriba)" aria-label="Aumentar zoom">
+        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="adjustImageZoom(25)" title="{{ T .Lang "preview.zoom_in" }}" aria-label="{{ T .Lang "preview.zoom_in" }}">
           <span class="material-symbols-outlined text-base">zoom_in</span>
         </button>
-        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors ml-0.5" onclick="resetImageTransform()" title="Ajustar a pantalla" aria-label="Ajustar a pantalla">
+        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors ml-0.5" onclick="resetImageTransform()" title="{{ T .Lang "preview.fit_screen" }}" aria-label="{{ T .Lang "preview.fit_screen" }}">
           <span class="material-symbols-outlined text-base">fit_screen</span>
         </button>
-        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="rotateImage()" title="Rotar 90°" aria-label="Rotar 90 grados">
+        <button class="p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors" onclick="rotateImage()" title="{{ T .Lang "preview.rotate" }}" aria-label="{{ T .Lang "preview.rotate" }}">
           <span class="material-symbols-outlined text-base">rotate_right</span>
         </button>
       </div>
@@ -41,11 +41,11 @@
       <!-- PDF Zoom Controls -->
       {{ if eq .Type "pdf" }}
       <div class="hidden sm:flex items-center gap-1 bg-surface-container-highest dark:bg-surface-container-high px-2 py-1 rounded-xl mr-1 border border-outline-variant/20">
-        <button class="p-1 rounded hover:bg-surface-variant/50 text-on-surface-variant" onclick="adjustPdfZoom(-10)" title="Reducir zoom" aria-label="Reducir zoom">
+        <button class="p-1 rounded hover:bg-surface-variant/50 text-on-surface-variant" onclick="adjustPdfZoom(-10)" title="{{ T .Lang "preview.zoom_out" }}" aria-label="{{ T .Lang "preview.zoom_out" }}">
           <span class="material-symbols-outlined text-lg">zoom_out</span>
         </button>
         <span id="pdf-zoom-label" class="text-xs font-mono px-2 text-on-surface-variant">100%</span>
-        <button class="p-1 rounded hover:bg-surface-variant/50 text-on-surface-variant" onclick="adjustPdfZoom(10)" title="Aumentar zoom" aria-label="Aumentar zoom">
+        <button class="p-1 rounded hover:bg-surface-variant/50 text-on-surface-variant" onclick="adjustPdfZoom(10)" title="{{ T .Lang "preview.zoom_in" }}" aria-label="{{ T .Lang "preview.zoom_in" }}">
           <span class="material-symbols-outlined text-lg">zoom_in</span>
         </button>
       </div>
@@ -53,22 +53,22 @@
 
       <!-- Code & Markdown Copy Action -->
       {{ if or (eq .Type "code") (eq .Type "markdown") }}
-      <button class="p-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant flex items-center gap-1 text-sm font-medium transition-colors" onclick="copyPreviewText(this)" title="Copiar contenido" aria-label="Copiar contenido">
+      <button class="p-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant flex items-center gap-1 text-sm font-medium transition-colors" onclick="copyPreviewText(this)" title="{{ T .Lang "preview.copy" }}" aria-label="{{ T .Lang "preview.copy" }}">
         <span class="material-symbols-outlined text-xl">content_copy</span>
-        <span class="hidden sm:inline">Copiar</span>
+        <span class="hidden sm:inline">{{ T .Lang "preview.copy" }}</span>
       </button>
       {{ end }}
 
-      <button class="p-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant flex items-center justify-center transition-colors" onclick="window.print()" title="Imprimir" aria-label="Imprimir">
+      <button class="p-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant flex items-center justify-center transition-colors" onclick="window.print()" title="{{ T .Lang "preview.print" }}" aria-label="{{ T .Lang "preview.print" }}">
         <span class="material-symbols-outlined text-xl">print</span>
       </button>
 
       <a href="/download?path={{ .RelPath }}" download class="h-9 md:h-10 px-3 md:px-4 rounded-full bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container flex items-center gap-1.5 md:gap-2 font-medium text-xs md:text-sm transition-all hover:shadow-md">
         <span class="material-symbols-outlined text-lg">download</span>
-        <span class="hidden sm:inline">Descargar</span>
+        <span class="hidden sm:inline">{{ T .Lang "details.download" }}</span>
       </a>
 
-      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors ml-0.5" onclick="closePreviewModal()" title="Cerrar" aria-label="Cerrar">
+      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors ml-0.5" onclick="closePreviewModal()" title="{{ T .Lang "details.close" }}" aria-label="{{ T .Lang "details.close" }}">
         <span class="material-symbols-outlined text-2xl">close</span>
       </button>
     </div>
@@ -97,7 +97,7 @@
       <div class="max-w-4xl w-full bg-surface-container-low dark:bg-surface-container rounded-3xl overflow-hidden border border-outline-variant/30 shadow-lg p-2 flex justify-center m-4">
         <video controls autoplay class="w-full max-h-[75vh] rounded-2xl">
           <source src="/download?path={{ .RelPath }}" type="{{ .MimeType }}">
-          Tu navegador no soporta reproducción de video.
+          {{ T .Lang "preview.video_unsupported" }}
         </video>
       </div>
 
@@ -112,7 +112,7 @@
         </div>
         <audio controls class="w-full">
           <source src="/download?path={{ .RelPath }}" type="{{ .MimeType }}">
-          Tu navegador no soporta reproducción de audio.
+          {{ T .Lang "preview.audio_unsupported" }}
         </audio>
       </div>
 
@@ -132,7 +132,7 @@
       <div class="w-full h-full overflow-auto p-4 md:p-8 flex justify-center items-start">
         <div class="max-w-5xl w-full bg-surface-container-low dark:bg-surface-container rounded-3xl border border-outline-variant/30 shadow-md overflow-hidden flex flex-col">
           <div class="flex items-center justify-between px-6 py-3 bg-surface-container-high dark:bg-surface-container-highest border-b border-outline-variant/20 text-xs text-on-surface-variant font-mono">
-            <span>Líneas: {{ .LineCount }}</span>
+            <span>{{ T .Lang "preview.lines" .LineCount }}</span>
             <span>{{ .LanguageClass }}</span>
           </div>
           <pre class="p-6 overflow-auto font-mono text-sm leading-relaxed"><code class="{{ .LanguageClass }} hljs">{{ .Content }}</code></pre>
@@ -146,11 +146,11 @@
         </div>
         <div>
           <h3 class="font-semibold text-lg text-on-surface">{{ .Name }}</h3>
-          <p class="text-sm text-on-surface-variant mt-1">Este tipo de archivo no cuenta con vista previa en línea.</p>
+          <p class="text-sm text-on-surface-variant mt-1">{{ T .Lang "preview.unsupported" }}</p>
         </div>
         <a href="/download?path={{ .RelPath }}" download class="px-6 py-3 rounded-full bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container flex items-center gap-2 font-medium shadow-md transition-all">
           <span class="material-symbols-outlined">download</span>
-          Descargar Archivo ({{ .FormattedSize }})
+          {{ T .Lang "preview.download_to_view" }} ({{ .FormattedSize }})
         </a>
       </div>
     {{ end }}
@@ -282,7 +282,7 @@
     if (textToCopy) {
       navigator.clipboard.writeText(textToCopy).then(() => {
         const orig = btn.innerHTML;
-        btn.innerHTML = '<span class="material-symbols-outlined text-emerald-500 text-xl">check</span><span class="hidden sm:inline text-emerald-500">Copiado</span>';
+        btn.innerHTML = '<span class="material-symbols-outlined text-emerald-500 text-xl">check</span><span class="hidden sm:inline text-emerald-500">{{ T .Lang "preview.copied" }}</span>';
         setTimeout(() => { btn.innerHTML = orig; }, 2000);
       });
     }

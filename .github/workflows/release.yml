@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: go.sum
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build frontend assets (vendor and css)
+        run: |
+          pnpm run build:vendor
+          pnpm run build:css
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # GoReleaser overwrites the release's prerelease flag from the tag name.
+      # Re-apply the value chosen in the GitHub UI so the manual checkbox wins.
+      - name: Restore pre-release flag from the GitHub release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release edit "${{ github.event.release.tag_name }}"
+          --repo "${{ github.repository }}"
+          --prerelease=${{ github.event.release.prerelease }}

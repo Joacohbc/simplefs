@@ -32,6 +32,7 @@ type PageData struct {
 	Folders     []FileInfo
 	Files       []FileInfo
 	ViewMode    string
+	Lang        string
 }
 
 type PreviewData struct {
@@ -46,6 +47,7 @@ type PreviewData struct {
 	LineCount     int
 	LanguageClass string
 	MaterialIcon  string
+	Lang          string
 }
 
 type FileDetailsData struct {
@@ -58,4 +60,6 @@ type FileDetailsData struct {
 	CreatedDate   string
 	ModifiedDate  string
 	IsImage       bool
+	Lang          string
 }
+

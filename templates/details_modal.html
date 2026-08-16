@@ -11,7 +11,7 @@
         <h2 class="font-bold text-lg text-on-surface truncate" title="{{ .Name }}">{{ .Name }}</h2>
         <span class="text-xs text-on-surface-variant truncate">{{ .TypeLabel }}</span>
       </div>
-      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors" onclick="closeDetailsModal()" title="Cerrar" aria-label="Cerrar">
+      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors" onclick="closeDetailsModal()" title="{{ T .Lang "details.close" }}" aria-label="{{ T .Lang "details.close" }}">
         <span class="material-symbols-outlined text-xl">close</span>
       </button>
     </div>
@@ -25,16 +25,16 @@
       {{ end }}
 
       <div class="grid grid-cols-[100px_1fr] gap-y-3 items-center gap-x-4 text-sm bg-surface-container-high/40 dark:bg-surface-container-high/60 p-4 rounded-2xl border border-outline-variant/20">
-        <div class="font-medium text-xs text-on-surface-variant">Tamaño</div>
+        <div class="font-medium text-xs text-on-surface-variant">{{ T .Lang "details.size" }}</div>
         <div class="text-on-surface font-semibold font-mono text-xs">{{ .FormattedSize }}</div>
         
-        <div class="font-medium text-xs text-on-surface-variant">Creado</div>
+        <div class="font-medium text-xs text-on-surface-variant">{{ T .Lang "details.created" }}</div>
         <div class="text-on-surface font-mono text-xs">{{ .CreatedDate }}</div>
         
-        <div class="font-medium text-xs text-on-surface-variant">Modificado</div>
+        <div class="font-medium text-xs text-on-surface-variant">{{ T .Lang "details.modified" }}</div>
         <div class="text-on-surface font-mono text-xs">{{ .ModifiedDate }}</div>
         
-        <div class="font-medium text-xs text-on-surface-variant">Ubicación</div>
+        <div class="font-medium text-xs text-on-surface-variant">{{ T .Lang "details.location" }}</div>
         <div class="text-on-surface truncate font-mono text-xs" title="{{ .DirLocation }}">{{ .DirLocation }}</div>
       </div>
     </div>
@@ -42,11 +42,11 @@
     <!-- Modal Actions -->
     <div class="px-6 pb-6 flex justify-end gap-3">
       <button class="px-5 py-2.5 rounded-full font-medium text-sm text-primary dark:text-primary-fixed-dim hover:bg-primary/10 dark:hover:bg-primary-fixed-dim/10 transition-colors" onclick="closeDetailsModal()">
-        Cerrar
+        {{ T .Lang "details.close" }}
       </button>
       <a href="/download?path={{ .RelPath }}" download class="px-5 py-2.5 rounded-full font-medium text-sm bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container hover:shadow-md transition-all flex items-center gap-2">
         <span class="material-symbols-outlined text-lg">download</span>
-        Descargar
+        {{ T .Lang "details.download" }}
       </a>
     </div>
 

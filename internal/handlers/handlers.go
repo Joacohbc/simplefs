@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"simplefs/internal/i18n"
 	"simplefs/internal/storage"
 )
 
@@ -39,13 +40,28 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, embeddedAssets embed.FS) {
 	mux.HandleFunc("GET /download", h.Download)
 }
 
+func (h *Handler) setLangCookie(w http.ResponseWriter, r *http.Request) string {
+	lang := i18n.ResolveLang(r)
+	if queryLang := r.URL.Query().Get("lang"); queryLang != "" {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "lang",
+			Value:    lang,
+			Path:     "/",
+			MaxAge:   365 * 24 * 3600,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
+	return lang
+}
+
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
 	relativePath := r.URL.Query().Get("path")
 	viewMode := r.URL.Query().Get("view")
 	sortBy := r.URL.Query().Get("sort")
 	sortOrder := r.URL.Query().Get("order")
 
-	pageData, err := h.storageService.GetDirectoryPage(relativePath, "", viewMode, sortBy, sortOrder)
+	pageData, err := h.storageService.GetDirectoryPage(relativePath, "", viewMode, sortBy, sortOrder, lang)
 	if err != nil {
 		http.Error(w, "Directory not found", http.StatusNotFound)
 		return
@@ -58,13 +74,14 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
 	relativePath := r.URL.Query().Get("path")
 	searchQuery := r.URL.Query().Get("query")
 	viewMode := r.URL.Query().Get("view")
 	sortBy := r.URL.Query().Get("sort")
 	sortOrder := r.URL.Query().Get("order")
 
-	pageData, err := h.storageService.GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder)
+	pageData, err := h.storageService.GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder, lang)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -77,8 +94,9 @@ func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) FileDetails(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
 	relativePath := r.URL.Query().Get("path")
-	detailsData, err := h.storageService.GetFileDetails(relativePath)
+	detailsData, err := h.storageService.GetFileDetails(relativePath, lang)
 	if err != nil {
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
@@ -97,6 +115,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lang := h.setLangCookie(w, r)
 	relativePath := r.FormValue("path")
 	viewMode := r.FormValue("view")
 	sortBy := r.FormValue("sort")
@@ -113,10 +132,11 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		fileStream.Close()
 	}
 
-	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder)
+	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
 }
 
 func (h *Handler) Folder(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
 	relativePath := r.FormValue("path")
 	viewMode := r.FormValue("view")
 	sortBy := r.FormValue("sort")
@@ -128,10 +148,11 @@ func (h *Handler) Folder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder)
+	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
 }
 
 func (h *Handler) CreateFile(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
 	relativePath := r.FormValue("path")
 	viewMode := r.FormValue("view")
 	sortBy := r.FormValue("sort")
@@ -162,10 +183,11 @@ func (h *Handler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder)
+	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
 	relativePath := r.URL.Query().Get("path")
 	viewMode := r.URL.Query().Get("view")
 	sortBy := r.URL.Query().Get("sort")
@@ -177,12 +199,13 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	parentPath := extractParentPath(relativePath)
-	h.renderFileList(w, parentPath, "", viewMode, sortBy, sortOrder)
+	h.renderFileList(w, parentPath, "", viewMode, sortBy, sortOrder, lang)
 }
 
 func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
 	relativePath := r.URL.Query().Get("path")
-	previewData, err := h.storageService.GetFilePreview(relativePath)
+	previewData, err := h.storageService.GetFilePreview(relativePath, lang)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -214,8 +237,8 @@ func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, filePath)
 }
 
-func (h *Handler) renderFileList(w http.ResponseWriter, path, query, view, sort, order string) {
-	pageData, err := h.storageService.GetDirectoryPage(path, query, view, sort, order)
+func (h *Handler) renderFileList(w http.ResponseWriter, path, query, view, sort, order, lang string) {
+	pageData, err := h.storageService.GetDirectoryPage(path, query, view, sort, order, lang)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -237,3 +260,4 @@ func extractParentPath(relativePath string) string {
 	}
 	return parent[:lastSlash]
 }
+

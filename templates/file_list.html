@@ -1,26 +1,27 @@
 <!-- Breadcrumb Navigation Bar with Browser History Push -->
-<nav class="flex items-center gap-2 text-xs md:text-sm text-on-surface-variant mb-6 overflow-x-auto whitespace-nowrap py-1" aria-label="Ruta de navegación">
-  <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}" 
+<nav class="flex items-center gap-2 text-xs md:text-sm text-on-surface-variant mb-6 overflow-x-auto whitespace-nowrap py-1" aria-label="{{ T .Lang "nav.home" }}">
+  <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
      class="flex items-center gap-1.5 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors py-1 px-2 rounded-lg hover:bg-surface-container-high/50" 
-     hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}" 
-     hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}"
+     hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
+     hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
      hx-target="#file-list-container" 
      hx-indicator="#global-spinner"
      id="active-path"
      data-path="{{ .Path }}"
      data-sort="{{ .SortBy }}"
      data-order="{{ .SortOrder }}"
-     data-view="{{ .ViewMode }}">
+     data-view="{{ .ViewMode }}"
+     data-lang="{{ .Lang }}">
     <span class="material-symbols-outlined text-lg filled">home</span>
-    <span class="font-medium">Inicio</span>
+    <span class="font-medium">{{ T .Lang "nav.home" }}</span>
   </a>
 
   {{ range .Breadcrumbs }}
     <span class="material-symbols-outlined text-sm text-outline-variant/60">chevron_right</span>
-    <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}" 
+    <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
        class="hover:text-primary dark:hover:text-primary-fixed-dim transition-colors py-1 px-2 rounded-lg hover:bg-surface-container-high/50 font-medium"
-       hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}" 
-       hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}"
+       hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
+       hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
        hx-target="#file-list-container" 
        hx-indicator="#global-spinner">
       {{ .Name }}
@@ -30,45 +31,45 @@
 
 <!-- Folders Section -->
 {{ if .Folders }}
-<section class="mb-8" aria-label="Sección de Carpetas">
+<section class="mb-8" aria-label="{{ T .Lang "folders.title" (len .Folders) }}">
   <div class="flex items-center justify-between mb-md">
     <h2 class="text-base md:text-lg font-bold text-on-surface flex items-center gap-2">
       <span class="material-symbols-outlined filled text-primary dark:text-primary-fixed-dim text-xl">folder</span>
-      Carpetas ({{ len .Folders }})
+      {{ T .Lang "folders.title" (len .Folders) }}
     </h2>
   </div>
 
-  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-md">
+  <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-md">
     {{ range .Folders }}
-    <div class="group bg-surface-container-low dark:bg-surface-container hover:bg-surface-container-high dark:hover:bg-surface-container-high/80 rounded-2xl p-md border border-outline-variant/30 hover:border-primary/40 transition-all flex items-center justify-between cursor-pointer shadow-sm hover:shadow-md"
-         hx-get="/api/files?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}" 
-         hx-push-url="/?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}"
+    <div class="group bg-surface-container-low dark:bg-surface-container hover:bg-surface-container-high dark:hover:bg-surface-container-high/80 rounded-2xl p-2.5 sm:p-md border border-outline-variant/30 hover:border-primary/40 active:bg-surface-container-high transition-all flex items-center justify-between cursor-pointer shadow-sm hover:shadow-md"
+         hx-get="/api/files?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
+         hx-push-url="/?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
          hx-target="#file-list-container" 
          hx-indicator="#global-spinner"
          role="button"
          tabindex="0"
-         aria-label="Abrir carpeta {{ .Name }}">
+         aria-label="{{ .Name }}">
       
-      <div class="flex items-center gap-md min-w-0">
-        <div class="w-10 h-10 rounded-xl bg-primary/10 dark:bg-primary-container/30 flex items-center justify-center text-primary dark:text-primary-fixed-dim shrink-0 group-hover:scale-105 transition-transform">
-          <span class="material-symbols-outlined text-2xl filled">folder</span>
+      <div class="flex items-center gap-2 sm:gap-md min-w-0">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary/10 dark:bg-primary-container/30 flex items-center justify-center text-primary dark:text-primary-fixed-dim shrink-0 group-hover:scale-105 transition-transform">
+          <span class="material-symbols-outlined text-xl sm:text-2xl filled">folder</span>
         </div>
         <div class="flex flex-col min-w-0">
-          <span class="font-semibold text-sm text-on-surface truncate group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</span>
-          <span class="text-xs text-on-surface-variant font-mono">{{ .ItemCount }} elementos</span>
+          <span class="font-semibold text-xs sm:text-sm text-on-surface truncate group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</span>
+          <span class="text-[11px] sm:text-xs text-on-surface-variant font-mono">{{ T $.Lang "folders.item_count" .ItemCount }}</span>
         </div>
       </div>
 
       <!-- Action Button (Delete Folder) -->
-      <button class="p-1.5 rounded-full hover:bg-error-container hover:text-error text-on-surface-variant/70 hover:opacity-100 transition-all opacity-0 group-hover:opacity-100 shrink-0" 
-              hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}" 
-              hx-confirm="¿Seguro que deseas eliminar la carpeta '{{ .Name }}' y todo su contenido?"
+      <button class="p-1 sm:p-1.5 rounded-full hover:bg-error-container hover:text-error text-on-surface-variant/70 hover:opacity-100 transition-all opacity-0 group-hover:opacity-100 shrink-0" 
+              hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
+              hx-confirm="{{ T $.Lang "folders.delete_confirm" .Name }}"
               hx-target="#file-list-container"
               hx-indicator="#global-spinner"
               onclick="event.stopPropagation()"
-              title="Eliminar carpeta"
-              aria-label="Eliminar carpeta {{ .Name }}">
-        <span class="material-symbols-outlined text-lg">delete</span>
+              title="{{ T $.Lang "files.actions.delete" .Name }}"
+              aria-label="{{ T $.Lang "files.actions.delete" .Name }}">
+        <span class="material-symbols-outlined text-base sm:text-lg">delete</span>
       </button>
 
     </div>
@@ -78,46 +79,46 @@
 {{ end }}
 
 <!-- Files Section -->
-<section aria-label="Sección de Archivos">
+<section aria-label="{{ T .Lang "files.title" (len .Files) }}">
   <div class="flex flex-wrap items-center justify-between gap-3 mb-md">
     <h2 class="text-base md:text-lg font-bold text-on-surface flex items-center gap-2">
       <span class="material-symbols-outlined filled text-secondary dark:text-secondary-fixed-dim text-xl">description</span>
-      Archivos ({{ len .Files }})
+      {{ T .Lang "files.title" (len .Files) }}
     </h2>
 
     <!-- Controls Toolbar (Sort & View Mode Switcher) -->
     <div class="flex items-center gap-2">
       
       <!-- Sort Selector Dropdown -->
-      <div class="flex items-center gap-1 bg-surface-container-low dark:bg-surface-container py-1 px-2 rounded-xl border border-outline-variant/30 text-on-surface-variant text-xs">
-        <span class="material-symbols-outlined text-base text-on-surface-variant">sort</span>
-        <label for="sort-selector" class="sr-only">Ordenar por</label>
+      <div class="h-9 px-2.5 bg-surface-container-low dark:bg-surface-container rounded-xl border border-outline-variant/30 text-on-surface-variant flex items-center gap-1.5 shadow-sm">
+        <span class="material-symbols-outlined text-lg text-on-surface-variant shrink-0">sort</span>
+        <label for="sort-selector" class="sr-only">{{ T .Lang "sort.label" }}</label>
         <select id="sort-selector" 
                 onchange="applySort(this.value)" 
-                class="bg-transparent border-none text-xs font-medium text-on-surface focus:ring-0 cursor-pointer pr-4 py-0.5">
-          <option value="name:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "name") (eq .SortOrder "asc") }}selected{{ end }}>Nombre (A-Z)</option>
-          <option value="name:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "name") (eq .SortOrder "desc") }}selected{{ end }}>Nombre (Z-A)</option>
-          <option value="modified:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "modified") (eq .SortOrder "desc") }}selected{{ end }}>Modificado (Más reciente)</option>
-          <option value="modified:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "modified") (eq .SortOrder "asc") }}selected{{ end }}>Modificado (Más antiguo)</option>
-          <option value="created:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "created") (eq .SortOrder "desc") }}selected{{ end }}>Creado (Más reciente)</option>
-          <option value="created:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "created") (eq .SortOrder "asc") }}selected{{ end }}>Creado (Más antiguo)</option>
-          <option value="size:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "size") (eq .SortOrder "desc") }}selected{{ end }}>Tamaño (Mayor primero)</option>
-          <option value="size:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "size") (eq .SortOrder "asc") }}selected{{ end }}>Tamaño (Menor primero)</option>
+                class="bg-transparent border-none text-xs font-medium text-on-surface focus:ring-0 cursor-pointer pl-0.5 pr-6 py-0 h-full leading-none">
+          <option value="name:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "name") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.name_asc" }}</option>
+          <option value="name:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "name") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.name_desc" }}</option>
+          <option value="modified:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "modified") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.modified_desc" }}</option>
+          <option value="modified:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "modified") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.modified_asc" }}</option>
+          <option value="created:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "created") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.created_desc" }}</option>
+          <option value="created:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "created") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.created_asc" }}</option>
+          <option value="size:desc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "size") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.size_desc" }}</option>
+          <option value="size:asc" class="bg-surface-container text-on-surface" {{ if and (eq .SortBy "size") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.size_asc" }}</option>
         </select>
       </div>
 
       <!-- View Mode Switcher (Grid / List) -->
-      <div class="flex items-center gap-1 bg-surface-container-low dark:bg-surface-container p-1 rounded-xl border border-outline-variant/30 text-on-surface-variant" role="group" aria-label="Modo de visualización">
-        <button class="p-1.5 rounded-lg transition-colors {{ if eq .ViewMode "list" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high{{ end }}"
+      <div class="h-9 p-1 bg-surface-container-low dark:bg-surface-container rounded-xl border border-outline-variant/30 text-on-surface-variant flex items-center gap-1 shadow-sm" role="group" aria-label="{{ T .Lang "view.list" }}">
+        <button class="h-full px-2 rounded-lg flex items-center justify-center transition-colors {{ if eq .ViewMode "list" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high text-on-surface-variant{{ end }}"
                 onclick="switchViewMode('list')"
-                title="Vista en Lista"
-                aria-label="Cambiar a vista en lista">
+                title="{{ T .Lang "view.list" }}"
+                aria-label="{{ T .Lang "view.list" }}">
           <span class="material-symbols-outlined text-lg">view_list</span>
         </button>
-        <button class="p-1.5 rounded-lg transition-colors {{ if eq .ViewMode "grid" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high{{ end }}"
+        <button class="h-full px-2 rounded-lg flex items-center justify-center transition-colors {{ if eq .ViewMode "grid" }}bg-primary text-on-primary shadow-sm{{ else }}hover:bg-surface-container-high text-on-surface-variant{{ end }}"
                 onclick="switchViewMode('grid')"
-                title="Vista en Cuadrícula"
-                aria-label="Cambiar a vista en cuadrícula">
+                title="{{ T .Lang "view.grid" }}"
+                aria-label="{{ T .Lang "view.grid" }}">
           <span class="material-symbols-outlined text-lg">grid_view</span>
         </button>
       </div>
@@ -131,26 +132,26 @@
         <div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-3 text-outline">
           <span class="material-symbols-outlined text-4xl">search_off</span>
         </div>
-        <h3 class="font-semibold text-base text-on-surface">No se encontraron resultados para "{{ .Query }}"</h3>
-        <p class="text-xs text-on-surface-variant max-w-sm mt-1 mb-4">Intenta buscar con otros términos o limpia la barra de búsqueda.</p>
+        <h3 class="font-semibold text-base text-on-surface">{{ T .Lang "empty.search_title" .Query }}</h3>
+        <p class="text-xs text-on-surface-variant max-w-sm mt-1 mb-4">{{ T .Lang "empty.search_desc" }}</p>
       </div>
     {{ else }}
       <div class="flex flex-col items-center justify-center p-12 bg-surface-container-low dark:bg-surface-container rounded-3xl border border-dashed border-outline-variant/40 text-center my-4">
         <div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-3 text-outline">
           <span class="material-symbols-outlined text-4xl">folder_off</span>
         </div>
-        <h3 class="font-semibold text-base text-on-surface">Esta carpeta está vacía</h3>
-        <p class="text-xs text-on-surface-variant max-w-sm mt-1">Usa el botón flotante (+) o arrastra archivos aquí para comenzar a subir contenido.</p>
+        <h3 class="font-semibold text-base text-on-surface">{{ T .Lang "empty.folder_title" }}</h3>
+        <p class="text-xs text-on-surface-variant max-w-sm mt-1">{{ T .Lang "empty.folder_desc" }}</p>
       </div>
     {{ end }}
   {{ else if not .Files }}
     <div class="p-8 text-center bg-surface-container-lowest dark:bg-surface-container-low rounded-2xl border border-outline-variant/20 text-on-surface-variant text-sm">
-      No hay archivos en este nivel.
+      {{ T .Lang "empty.no_files" }}
     </div>
   {{ else }}
 
     {{ if eq .ViewMode "grid" }}
-      <!-- GRID VIEW (Stitch Screen 3) -->
+      <!-- GRID VIEW -->
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-md">
         {{ range .Files }}
         <div class="group relative bg-surface-container-low dark:bg-surface-container rounded-2xl p-3 border border-outline-variant/30 hover:border-primary/40 hover:shadow-md transition-all flex flex-col justify-between"
@@ -158,12 +159,12 @@
           
           <!-- Clickable Area for Preview -->
           <div class="cursor-pointer flex flex-col items-center text-center w-full"
-               hx-get="/api/preview?path={{ .RelPath }}"
+               hx-get="/api/preview?path={{ .RelPath }}&lang={{ $.Lang }}"
                hx-target="#modal-container"
                hx-indicator="#global-spinner"
                role="button"
                tabindex="0"
-               aria-label="Previsualizar {{ .Name }}">
+               aria-label="{{ T $.Lang "files.actions.preview" .Name }}">
             
             <div class="w-full aspect-square bg-surface-container-lowest dark:bg-surface-container-low rounded-xl flex items-center justify-center mb-2 overflow-hidden border border-outline-variant/20">
               {{ if .IsImage }}
@@ -180,26 +181,26 @@
           <!-- Action Buttons (Hover Toolbar) -->
           <div class="flex items-center justify-center gap-1 mt-2 pt-2 border-t border-outline-variant/20 opacity-80 group-hover:opacity-100 transition-opacity">
             <button class="p-1.5 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
-                    hx-get="/api/file-details?path={{ .RelPath }}"
+                    hx-get="/api/file-details?path={{ .RelPath }}&lang={{ $.Lang }}"
                     hx-target="#modal-container"
                     hx-indicator="#global-spinner"
-                    title="Detalles"
-                    aria-label="Detalles de {{ .Name }}">
+                    title="{{ T $.Lang "files.actions.details" .Name }}"
+                    aria-label="{{ T $.Lang "files.actions.details" .Name }}">
               <span class="material-symbols-outlined text-base">info</span>
             </button>
             <a href="/download?path={{ .RelPath }}" download
                class="p-1.5 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
-               title="Descargar"
-               aria-label="Descargar {{ .Name }}">
+               title="{{ T $.Lang "files.actions.download" .Name }}"
+               aria-label="{{ T $.Lang "files.actions.download" .Name }}">
               <span class="material-symbols-outlined text-base">download</span>
             </a>
             <button class="p-1.5 rounded-full hover:bg-error-container hover:text-error transition-colors text-on-surface-variant"
-                    hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}"
-                    hx-confirm="¿Seguro que deseas eliminar '{{ .Name }}'?"
+                    hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                    hx-confirm="{{ T $.Lang "files.delete_confirm" .Name }}"
                     hx-target="#file-list-container"
                     hx-indicator="#global-spinner"
-                    title="Eliminar"
-                    aria-label="Eliminar {{ .Name }}">
+                    title="{{ T $.Lang "files.actions.delete" .Name }}"
+                    aria-label="{{ T $.Lang "files.actions.delete" .Name }}">
               <span class="material-symbols-outlined text-base">delete</span>
             </button>
           </div>
@@ -209,7 +210,7 @@
       </div>
 
     {{ else }}
-      <!-- LIST VIEW (Stitch Screen 4 Refined with Interactive Sorting Headers) -->
+      <!-- LIST VIEW -->
       <div class="bg-surface-container-low dark:bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/30 shadow-sm">
         <div class="hidden sm:grid grid-cols-[1fr_130px_130px_100px_110px] gap-md px-lg py-2.5 border-b border-outline-variant/30 font-semibold text-xs text-on-surface-variant bg-surface-container-high/50 dark:bg-surface-container-high/30 select-none">
           
@@ -217,7 +218,7 @@
           <button type="button" 
                   onclick="toggleColumnSort('name')"
                   class="flex items-center gap-1 text-left hover:text-primary dark:hover:text-primary-fixed-dim transition-colors {{ if eq .SortBy "name" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
-            <span>Nombre</span>
+            <span>{{ T .Lang "table.name" }}</span>
             {{ if eq .SortBy "name" }}
               <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
             {{ else }}
@@ -229,7 +230,7 @@
           <button type="button" 
                   onclick="toggleColumnSort('created')"
                   class="flex items-center gap-1 text-left hover:text-primary dark:hover:text-primary-fixed-dim transition-colors {{ if eq .SortBy "created" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
-            <span>Creado</span>
+            <span>{{ T .Lang "table.created" }}</span>
             {{ if eq .SortBy "created" }}
               <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
             {{ else }}
@@ -241,7 +242,7 @@
           <button type="button" 
                   onclick="toggleColumnSort('modified')"
                   class="flex items-center gap-1 text-left hover:text-primary dark:hover:text-primary-fixed-dim transition-colors {{ if eq .SortBy "modified" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
-            <span>Modificado</span>
+            <span>{{ T .Lang "table.modified" }}</span>
             {{ if eq .SortBy "modified" }}
               <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
             {{ else }}
@@ -253,7 +254,7 @@
           <button type="button" 
                   onclick="toggleColumnSort('size')"
                   class="flex items-center justify-end gap-1 text-right hover:text-primary dark:hover:text-primary-fixed-dim transition-colors {{ if eq .SortBy "size" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
-            <span>Tamaño</span>
+            <span>{{ T .Lang "table.size" }}</span>
             {{ if eq .SortBy "size" }}
               <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
             {{ else }}
@@ -261,56 +262,71 @@
             {{ end }}
           </button>
 
-          <span class="text-center">Acciones</span>
+          <span class="text-center">{{ T .Lang "table.actions" }}</span>
         </div>
 
         <div class="divide-y divide-outline-variant/20">
           {{ range .Files }}
-          <div class="group grid grid-cols-1 sm:grid-cols-[1fr_130px_130px_100px_110px] items-center gap-2 sm:gap-md px-md sm:px-lg py-3 hover:bg-surface-container-high/60 dark:hover:bg-surface-container-high/40 transition-colors"
+          <div class="group flex sm:grid sm:grid-cols-[1fr_130px_130px_100px_110px] items-center justify-between gap-3 sm:gap-md px-3.5 sm:px-lg py-2.5 sm:py-3 hover:bg-surface-container-high/60 dark:hover:bg-surface-container-high/40 active:bg-surface-container-high/80 transition-colors"
                data-name="{{ .Name }}">
             
-            <!-- File Icon & Name (Click to Preview) -->
-            <div class="flex items-center gap-3 min-w-0 cursor-pointer"
-                 hx-get="/api/preview?path={{ .RelPath }}"
+            <!-- File Icon, Name & Mobile Subtitle (Click to Preview) -->
+            <div class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer select-none"
+                 hx-get="/api/preview?path={{ .RelPath }}&lang={{ $.Lang }}"
                  hx-target="#modal-container"
                  hx-indicator="#global-spinner"
                  role="button"
                  tabindex="0"
-                 aria-label="Previsualizar {{ .Name }}">
-              <div class="w-8 h-8 rounded-lg bg-surface-container-highest/60 flex items-center justify-center shrink-0">
-                <span class="material-symbols-outlined text-xl filled {{ .IconColorClass }}">{{ .MaterialIcon }}</span>
+                 aria-label="{{ T $.Lang "files.actions.preview" .Name }}">
+              <div class="w-10 h-10 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-surface-container-highest/70 dark:bg-surface-container-highest/50 flex items-center justify-center shrink-0 overflow-hidden border border-outline-variant/20 group-hover:scale-105 transition-transform">
+                {{ if .IsImage }}
+                  <img src="/download?path={{ .RelPath }}" alt="{{ .Name }}" class="w-full h-full object-cover">
+                {{ else }}
+                  <span class="material-symbols-outlined text-2xl sm:text-xl filled {{ .IconColorClass }}">{{ .MaterialIcon }}</span>
+                {{ end }}
               </div>
-              <span class="font-medium text-sm text-on-surface truncate group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</span>
+              <div class="flex flex-col min-w-0">
+                <span class="font-medium text-sm text-on-surface truncate group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</span>
+                <!-- Secondary metadata line visible on mobile -->
+                <div class="flex sm:hidden items-center gap-1.5 text-xs text-on-surface-variant font-mono mt-0.5">
+                  <span>{{ .FormattedSize }}</span>
+                  <span class="text-outline-variant/60">•</span>
+                  <span>{{ .FormattedMod }}</span>
+                </div>
+              </div>
             </div>
 
-            <!-- Metadata Columns -->
+            <!-- Desktop Metadata Columns -->
             <span class="hidden sm:inline text-xs text-on-surface-variant font-mono">{{ .FormattedCreated }}</span>
             <span class="hidden sm:inline text-xs text-on-surface-variant font-mono">{{ .FormattedMod }}</span>
             <span class="hidden sm:inline text-xs text-on-surface-variant font-mono text-right">{{ .FormattedSize }}</span>
 
             <!-- Actions -->
-            <div class="flex items-center justify-end sm:justify-center gap-1">
-              <button class="p-1.5 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
-                      hx-get="/api/file-details?path={{ .RelPath }}"
+            <div class="flex items-center justify-end sm:justify-center gap-0.5 sm:gap-1 shrink-0">
+              <button class="p-2 sm:p-1.5 rounded-full hover:bg-surface-variant/50 hover:text-primary active:scale-95 transition-all text-on-surface-variant"
+                      hx-get="/api/file-details?path={{ .RelPath }}&lang={{ $.Lang }}"
                       hx-target="#modal-container"
                       hx-indicator="#global-spinner"
-                      title="Detalles"
-                      aria-label="Detalles de {{ .Name }}">
+                      onclick="event.stopPropagation()"
+                      title="{{ T $.Lang "files.actions.details" .Name }}"
+                      aria-label="{{ T $.Lang "files.actions.details" .Name }}">
                 <span class="material-symbols-outlined text-lg">info</span>
               </button>
               <a href="/download?path={{ .RelPath }}" download
-                 class="p-1.5 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
-                 title="Descargar"
-                 aria-label="Descargar {{ .Name }}">
+                 class="p-2 sm:p-1.5 rounded-full hover:bg-surface-variant/50 hover:text-primary active:scale-95 transition-all text-on-surface-variant"
+                 onclick="event.stopPropagation()"
+                 title="{{ T $.Lang "files.actions.download" .Name }}"
+                 aria-label="{{ T $.Lang "files.actions.download" .Name }}">
                 <span class="material-symbols-outlined text-lg">download</span>
               </a>
-              <button class="p-1.5 rounded-full hover:bg-error-container hover:text-error transition-colors text-on-surface-variant"
-                      hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}"
-                      hx-confirm="¿Seguro que deseas eliminar '{{ .Name }}'?"
+              <button class="p-2 sm:p-1.5 rounded-full hover:bg-error-container hover:text-error active:scale-95 transition-all text-on-surface-variant"
+                      hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                      hx-confirm="{{ T $.Lang "files.delete_confirm" .Name }}"
                       hx-target="#file-list-container"
                       hx-indicator="#global-spinner"
-                      title="Eliminar"
-                      aria-label="Eliminar {{ .Name }}">
+                      onclick="event.stopPropagation()"
+                      title="{{ T $.Lang "files.actions.delete" .Name }}"
+                      aria-label="{{ T $.Lang "files.actions.delete" .Name }}">
                 <span class="material-symbols-outlined text-lg">delete</span>
               </button>
             </div>

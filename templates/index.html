@@ -3,28 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>simplefs - File Manager</title>
+  <title>{{ T .Lang "app.title" }}</title>
   
   <!-- Material Symbols Outlined & Inter Typography -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <!-- Material Symbols Outlined & Inter Typography -->
+  <link rel="stylesheet" href="/static/vendor/fontsource-inter/index.css">
+  <link rel="stylesheet" href="/static/vendor/material-symbols/outlined.css">
   
   <!-- Compiled Tailwind CSS -->
   <link rel="stylesheet" href="/static/style.css">
   
   <!-- HTMX 1.9.10 -->
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="/static/vendor/htmx.min.js"></script>
   
   <!-- Highlight.js for Code Highlighting -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-theme">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" href="/static/vendor/github-dark.min.css" id="hljs-theme">
+  <script src="/static/vendor/highlight.min.js"></script>
   
   <!-- Marked for Markdown Parsing -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/static/vendor/marked.min.js"></script>
   
   <!-- DOMPurify for XSS Sanitization -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+  <script src="/static/vendor/purify.min.js"></script>
 
   <!-- Immediate Theme Check to Prevent FOUC -->
   <script>
@@ -47,12 +47,12 @@
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
       
       <!-- Brand Logo -->
-      <a href="/" 
-         hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}" 
-         hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}"
+      <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
+         hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
+         hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
          hx-target="#file-list-container"
          class="flex items-center gap-2.5 group shrink-0" 
-         aria-label="SimpleFS Inicio">
+         aria-label="SimpleFS">
         <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm group-hover:scale-105 transition-transform">
           <span class="material-symbols-outlined text-2xl filled">folder_open</span>
         </div>
@@ -62,50 +62,65 @@
       <!-- Real-time Search Input -->
       <div class="flex-1 max-w-xl mx-2">
         <div class="relative w-full">
-          <label for="global-search-input" class="sr-only">Buscar archivos y carpetas</label>
+          <label for="global-search-input" class="sr-only">{{ T .Lang "header.search_placeholder" }}</label>
           <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl pointer-events-none">search</span>
           <input type="text" 
                  id="global-search-input"
                  name="query" 
-                 placeholder="Buscar archivos y carpetas..." 
+                 placeholder="{{ T .Lang "header.search_placeholder" }}" 
                  class="w-full bg-surface-container-high dark:bg-surface-container-high border-none rounded-full py-2 pl-10 pr-10 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus:ring-2 focus:ring-primary dark:focus:ring-primary-fixed-dim transition-all shadow-inner"
                  hx-get="/api/files" 
                  hx-trigger="keyup changed delay:200ms, search" 
                  hx-target="#file-list-container" 
-                 hx-include="[name='path'], [name='view'], [name='sort'], [name='order']"
+                 hx-include="[name='path'], [name='view'], [name='sort'], [name='order'], [name='lang']"
                  hx-indicator="#global-spinner"
-                 aria-label="Buscar archivos y carpetas">
+                 aria-label="{{ T .Lang "header.search_placeholder" }}">
           <span class="htmx-indicator spinner absolute right-3.5 top-1/2 -translate-y-1/2" id="global-spinner"></span>
         </div>
       </div>
 
       <!-- Header Action Controls -->
       <div class="flex items-center gap-2">
+        
+        <!-- Language Switcher Pill (ES / EN) -->
+        <div class="flex items-center bg-surface-container-high dark:bg-surface-container-high rounded-full p-0.5 border border-outline-variant/30 text-xs font-semibold" role="group" aria-label="{{ T .Lang "header.lang_switch" }}">
+          <button onclick="switchLanguage('es')" 
+                  class="px-2.5 py-1 rounded-full text-xs font-semibold transition-all {{ if eq .Lang "es" }}bg-primary text-on-primary shadow-sm{{ else }}text-on-surface-variant hover:text-on-surface{{ end }}"
+                  title="Español">
+            ES
+          </button>
+          <button onclick="switchLanguage('en')" 
+                  class="px-2.5 py-1 rounded-full text-xs font-semibold transition-all {{ if eq .Lang "en" }}bg-primary text-on-primary shadow-sm{{ else }}text-on-surface-variant hover:text-on-surface{{ end }}"
+                  title="English">
+            EN
+          </button>
+        </div>
+
         <!-- Theme Toggle (Light / Dark) -->
         <button id="theme-toggle-btn" 
                 onclick="toggleTheme()" 
                 class="p-2 rounded-full hover:bg-surface-variant/50 text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors"
-                aria-label="Cambiar tema de color"
-                title="Cambiar Tema (Claro / Oscuro)">
+                aria-label="{{ T .Lang "header.theme_toggle" }}"
+                title="{{ T .Lang "header.theme_toggle" }}">
           <span class="material-symbols-outlined text-xl" id="theme-icon">dark_mode</span>
         </button>
 
         <!-- New Folder Shortcut -->
         <button onclick="openFolderModal()" 
                 class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-container-high hover:bg-surface-container-highest text-on-surface hover:text-primary dark:hover:text-primary-fixed-dim transition-colors border border-outline-variant/30"
-                title="Crear nueva carpeta"
-                aria-label="Crear nueva carpeta">
+                title="{{ T .Lang "modal.folder.title" }}"
+                aria-label="{{ T .Lang "modal.folder.title" }}">
           <span class="material-symbols-outlined text-base">create_new_folder</span>
-          <span>Carpeta</span>
+          <span>{{ T .Lang "header.new_folder" }}</span>
         </button>
 
         <!-- Paste Clipboard Shortcut -->
         <button onclick="openClipboardModal()" 
                 class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-container-high hover:bg-surface-container-highest text-on-surface hover:text-primary dark:hover:text-primary-fixed-dim transition-colors border border-outline-variant/30"
-                title="Pegar desde portapapeles"
-                aria-label="Pegar desde portapapeles">
+                title="{{ T .Lang "modal.clipboard.title_text" }}"
+                aria-label="{{ T .Lang "modal.clipboard.title_text" }}">
           <span class="material-symbols-outlined text-base">content_paste</span>
-          <span>Pegar</span>
+          <span>{{ T .Lang "header.paste" }}</span>
         </button>
       </div>
 
@@ -120,6 +135,7 @@
     <input type="hidden" name="view" id="current-view-input" value="{{ .ViewMode }}">
     <input type="hidden" name="sort" id="current-sort-input" value="{{ .SortBy }}">
     <input type="hidden" name="order" id="current-order-input" value="{{ .SortOrder }}">
+    <input type="hidden" name="lang" id="current-lang-input" value="{{ .Lang }}">
 
     <!-- Hidden Native File Upload Input -->
     <form id="upload-form" 
@@ -132,7 +148,8 @@
       <input type="hidden" name="view" id="upload-form-view" value="{{ .ViewMode }}">
       <input type="hidden" name="sort" id="upload-form-sort" value="{{ .SortBy }}">
       <input type="hidden" name="order" id="upload-form-order" value="{{ .SortOrder }}">
-      <input type="file" id="global-file-picker" name="files" multiple onchange="submitUploadForm()" aria-label="Subir archivos">
+      <input type="hidden" name="lang" id="upload-form-lang" value="{{ .Lang }}">
+      <input type="file" id="global-file-picker" name="files" multiple onchange="submitUploadForm()" aria-label="{{ T .Lang "fab.upload" }}">
     </form>
 
     <!-- Dynamic File List Area -->
@@ -148,39 +165,39 @@
     <!-- Main Primary FAB Button -->
     <button onclick="toggleSpeedDial()" 
             class="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-primary hover:bg-primary-container text-on-primary shadow-xl hover:shadow-2xl flex items-center justify-center transition-all duration-200 active:scale-95 group focus:outline-none focus:ring-4 focus:ring-primary/20"
-            aria-label="Menú de acciones rápidas"
+            aria-label="{{ T .Lang "fab.actions" }}"
             aria-expanded="false"
             id="fab-main-btn"
-            title="Acciones">
+            title="{{ T .Lang "fab.actions" }}">
       <span class="material-symbols-outlined text-3xl fab-icon transition-transform duration-300">add</span>
     </button>
 
     <!-- Speed Dial Option 1: Upload Files -->
     <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">Subir Archivos</span>
+      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.upload" }}</span>
       <button onclick="triggerFileUpload()" 
               class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
-              aria-label="Subir archivos desde tu dispositivo">
+              aria-label="{{ T .Lang "fab.upload" }}">
         <span class="material-symbols-outlined text-xl">upload_file</span>
       </button>
     </div>
 
     <!-- Speed Dial Option 2: Paste from Clipboard -->
     <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">Pegar Portapapeles</span>
+      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.paste" }}</span>
       <button onclick="openClipboardModal(); closeSpeedDial()" 
               class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
-              aria-label="Pegar texto o captura desde el portapapeles">
+              aria-label="{{ T .Lang "fab.paste" }}">
         <span class="material-symbols-outlined text-xl">content_paste</span>
       </button>
     </div>
 
     <!-- Speed Dial Option 3: New Folder -->
     <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">Nueva Carpeta</span>
+      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.new_folder" }}</span>
       <button onclick="openFolderModal(); closeSpeedDial()" 
               class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
-              aria-label="Crear nueva carpeta en esta ubicación">
+              aria-label="{{ T .Lang "fab.new_folder" }}">
         <span class="material-symbols-outlined text-xl">create_new_folder</span>
       </button>
     </div>
@@ -196,9 +213,9 @@
       <div class="flex items-center justify-between mb-4 border-b border-outline-variant/20 pb-3">
         <h3 id="folder-modal-heading" class="text-lg font-bold text-on-surface flex items-center gap-2">
           <span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">create_new_folder</span>
-          Nueva Carpeta
+          {{ T .Lang "modal.folder.title" }}
         </h3>
-        <button onclick="closeFolderModal()" class="p-1 rounded-full text-on-surface-variant hover:bg-surface-variant/40" aria-label="Cerrar modal de carpeta">
+        <button onclick="closeFolderModal()" class="p-1 rounded-full text-on-surface-variant hover:bg-surface-variant/40" aria-label="{{ T .Lang "details.close" }}">
           <span class="material-symbols-outlined text-xl">close</span>
         </button>
       </div>
@@ -209,18 +226,19 @@
         <input type="hidden" name="view" id="folder-modal-view" value="{{ .ViewMode }}">
         <input type="hidden" name="sort" id="folder-modal-sort" value="{{ .SortBy }}">
         <input type="hidden" name="order" id="folder-modal-order" value="{{ .SortOrder }}">
+        <input type="hidden" name="lang" id="folder-modal-lang" value="{{ .Lang }}">
         <div class="mb-5">
-          <label for="new-folder-name-input" class="block text-xs font-semibold text-on-surface-variant mb-1.5">Nombre de la carpeta</label>
+          <label for="new-folder-name-input" class="block text-xs font-semibold text-on-surface-variant mb-1.5">{{ T .Lang "modal.folder.placeholder" }}</label>
           <input type="text" 
-                 id="new-folder-name-input"
+                 id="new-folder-name-input" 
                  name="name" 
                  class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none placeholder:text-on-surface-variant/60" 
-                 placeholder="Ej: Documentos, Proyectos..." 
+                 placeholder="{{ T .Lang "modal.folder.placeholder" }}" 
                  required autofocus>
         </div>
         <div class="flex justify-end gap-2">
-          <button type="button" onclick="closeFolderModal()" class="px-4 py-2 rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-variant/30">Cancelar</button>
-          <button type="submit" class="px-5 py-2 rounded-full text-sm font-medium bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container transition-all shadow-sm">Crear Carpeta</button>
+          <button type="button" onclick="closeFolderModal()" class="px-4 py-2 rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-variant/30">{{ T .Lang "modal.folder.cancel" }}</button>
+          <button type="submit" class="px-5 py-2 rounded-full text-sm font-medium bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container transition-all shadow-sm">{{ T .Lang "modal.folder.create" }}</button>
         </div>
       </form>
     </div>
@@ -233,39 +251,40 @@
       <div class="flex items-center justify-between mb-4 border-b border-outline-variant/20 pb-3">
         <h3 class="text-lg font-bold text-on-surface flex items-center gap-2" id="clipboard-modal-title">
           <span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">content_paste</span>
-          Guardar desde Portapapeles
+          {{ T .Lang "modal.clipboard.title_text" }}
         </h3>
-        <button onclick="closeClipboardModal()" class="p-1 rounded-full text-on-surface-variant hover:bg-surface-variant/40" aria-label="Cerrar modal de portapapeles">
+        <button onclick="closeClipboardModal()" class="p-1 rounded-full text-on-surface-variant hover:bg-surface-variant/40" aria-label="{{ T .Lang "details.close" }}">
           <span class="material-symbols-outlined text-xl">close</span>
         </button>
       </div>
 
       <form hx-post="/api/create-file" 
             hx-target="#file-list-container" 
-            hx-indicator="#global-spinner"
+            hx-indicator="#global-spinner" 
             hx-on::after-request="closeClipboardModal(); resetClipboardForm()">
         <input type="hidden" name="path" id="clipboard-path-input" value="{{ .Path }}">
         <input type="hidden" name="view" id="clipboard-view-input" value="{{ .ViewMode }}">
         <input type="hidden" name="sort" id="clipboard-sort-input" value="{{ .SortBy }}">
         <input type="hidden" name="order" id="clipboard-order-input" value="{{ .SortOrder }}">
+        <input type="hidden" name="lang" id="clipboard-modal-lang" value="{{ .Lang }}">
         <input type="hidden" name="is_base64" id="clipboard-is-base64" value="false">
         <input type="hidden" name="content" id="clipboard-hidden-content" value="">
 
         <!-- Filename & Extension Pills -->
         <div class="mb-4">
           <div class="flex justify-between items-center mb-1.5">
-            <label for="clipboard-filename" class="text-xs font-semibold text-on-surface-variant">Nombre del Archivo</label>
+            <label for="clipboard-filename" class="text-xs font-semibold text-on-surface-variant">{{ T .Lang "modal.clipboard.filename" }}</label>
             <button type="button" onclick="pasteFromClipboard()" class="text-xs text-primary dark:text-primary-fixed-dim hover:underline flex items-center gap-1 font-medium">
               <span class="material-symbols-outlined text-sm">content_paste</span>
-              Pegar Texto
+              {{ T .Lang "modal.clipboard.paste_btn" }}
             </button>
           </div>
           <input type="text" 
                  id="clipboard-filename" 
                  name="filename" 
                  class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl px-4 py-2 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none font-mono placeholder:text-on-surface-variant/60" 
-                 placeholder="ej: captura.png o snippet.go" 
-                 oninput="updateMiniPreview()"
+                 placeholder="{{ T .Lang "modal.clipboard.filename_placeholder" }}" 
+                 oninput="updateMiniPreview()" 
                  required>
           
           <!-- Extension Quick Selector Pills -->
@@ -285,34 +304,34 @@
 
         <!-- Text Input Area -->
         <div id="text-input-group" class="mb-4">
-          <label for="clipboard-content" class="block text-xs font-semibold text-on-surface-variant mb-1.5">Contenido (Texto / Código)</label>
+          <label for="clipboard-content" class="block text-xs font-semibold text-on-surface-variant mb-1.5">{{ T .Lang "modal.clipboard.content" }}</label>
           <textarea id="clipboard-content" 
                     rows="5" 
                     class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl p-3 text-xs font-mono text-on-surface focus:ring-2 focus:ring-primary focus:outline-none placeholder:text-on-surface-variant/60 leading-relaxed" 
-                    placeholder="Pega aquí código, texto o presiona Ctrl+V para capturar imágenes..."
+                    placeholder="..." 
                     oninput="updateMiniPreview()"></textarea>
         </div>
 
         <!-- Image Preview Area -->
         <div id="image-preview-group" class="hidden mb-4 text-center">
           <div class="p-3 bg-surface-container-lowest dark:bg-surface-container-low rounded-2xl border border-outline-variant/30 flex items-center justify-center max-h-60 overflow-hidden">
-            <img id="pasted-image-preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E" alt="Vista previa de imagen pegada" class="max-h-52 max-w-full rounded-lg object-contain">
+            <img id="pasted-image-preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E" alt="Preview" class="max-h-52 max-w-full rounded-lg object-contain">
           </div>
         </div>
 
         <!-- Live Stats & Code Box -->
         <div class="mb-5 bg-surface-container-lowest dark:bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/25">
           <div class="flex justify-between items-center text-xs text-on-surface-variant font-mono mb-1.5">
-            <span class="font-semibold">Previsualización</span>
+            <span class="font-semibold">{{ T .Lang "files.actions.preview" "" }}</span>
             <span id="mini-preview-stats">Líneas: 0 | Caracteres: 0 | Tamaño: 0 B</span>
           </div>
-          <pre class="max-h-32 overflow-auto font-mono text-xs p-2.5 rounded-lg bg-surface-container/70 dark:bg-surface-container-high/50 border border-outline-variant/20" id="mini-preview-text-box"><code id="mini-preview-code" class="language-plaintext">// La vista previa aparecerá aquí al pegar contenido...</code></pre>
+          <pre class="max-h-32 overflow-auto font-mono text-xs p-2.5 rounded-lg bg-surface-container/70 dark:bg-surface-container-high/50 border border-outline-variant/20" id="mini-preview-text-box"><code id="mini-preview-code" class="language-plaintext">// ...</code></pre>
         </div>
 
         <!-- Action Buttons -->
         <div class="flex justify-end gap-2">
-          <button type="button" onclick="closeClipboardModal()" class="px-4 py-2 rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-variant/30">Cancelar</button>
-          <button type="submit" class="px-5 py-2 rounded-full text-sm font-medium bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container shadow-sm transition-all">Guardar Archivo</button>
+          <button type="button" onclick="closeClipboardModal()" class="px-4 py-2 rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-variant/30">{{ T .Lang "modal.folder.cancel" }}</button>
+          <button type="submit" class="px-5 py-2 rounded-full text-sm font-medium bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container shadow-sm transition-all">{{ T .Lang "modal.clipboard.save_btn" }}</button>
         </div>
       </form>
 
@@ -323,8 +342,8 @@
   <div id="drag-overlay" class="fixed inset-0 z-50 bg-primary/20 dark:bg-primary/30 backdrop-blur-sm border-4 border-dashed border-primary flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200">
     <div class="bg-surface-container-lowest dark:bg-surface-container p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-3 border border-outline-variant/30 animate-pulse">
       <span class="material-symbols-outlined text-6xl text-primary dark:text-primary-fixed-dim filled">cloud_upload</span>
-      <h2 class="text-xl font-bold text-on-surface">Suelta los archivos aquí para subirlos</h2>
-      <p class="text-sm text-on-surface-variant">Se guardarán en la carpeta actual</p>
+      <h2 class="text-xl font-bold text-on-surface">{{ T .Lang "drag.title" }}</h2>
+      <p class="text-sm text-on-surface-variant">{{ T .Lang "drag.desc" }}</p>
     </div>
   </div>
 
@@ -336,7 +355,6 @@
       const icon = document.getElementById('theme-icon');
       if (icon) {
         icon.innerText = isDark ? 'light_mode' : 'dark_mode';
-        icon.setAttribute('title', isDark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
       }
       const hljsTheme = document.getElementById('hljs-theme');
       if (hljsTheme) {
@@ -352,25 +370,35 @@
       updateThemeUI();
     }
 
+    // Language Management (ES / EN)
+    function switchLanguage(lang) {
+      localStorage.setItem('simplefs_lang', lang);
+      document.cookie = `lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
+      const current = getCurrentParams();
+      window.location.href = `/?path=${encodeURIComponent(current.path)}&view=${encodeURIComponent(current.view)}&sort=${encodeURIComponent(current.sort)}&order=${encodeURIComponent(current.order)}&lang=${lang}`;
+    }
+
     // Navigation and Query Parameter State Synchronization
     function getCurrentParams() {
       const activePath = document.getElementById('active-path');
-      const path = activePath ? (activePath.getAttribute('data-path') || '') : (document.getElementById('current-path-input').value || '');
-      const view = activePath ? (activePath.getAttribute('data-view') || localStorage.getItem('viewMode') || 'list') : (document.getElementById('current-view-input').value || 'list');
-      const sort = activePath ? (activePath.getAttribute('data-sort') || 'name') : (document.getElementById('current-sort-input').value || 'name');
-      const order = activePath ? (activePath.getAttribute('data-order') || 'asc') : (document.getElementById('current-order-input').value || 'asc');
+      const path = activePath ? (activePath.getAttribute('data-path') || '') : (document.getElementById('current-path-input')?.value || '');
+      const view = activePath ? (activePath.getAttribute('data-view') || localStorage.getItem('viewMode') || 'list') : (document.getElementById('current-view-input')?.value || 'list');
+      const sort = activePath ? (activePath.getAttribute('data-sort') || 'name') : (document.getElementById('current-sort-input')?.value || 'name');
+      const order = activePath ? (activePath.getAttribute('data-order') || 'asc') : (document.getElementById('current-order-input')?.value || 'asc');
+      const lang = activePath ? (activePath.getAttribute('data-lang') || 'es') : (document.getElementById('current-lang-input')?.value || localStorage.getItem('simplefs_lang') || 'es');
       const query = document.getElementById('global-search-input') ? document.getElementById('global-search-input').value : '';
-      return { path, view, sort, order, query };
+      return { path, view, sort, order, query, lang };
     }
 
     function navigateWithParams(params, pushState = true) {
       const p = { ...getCurrentParams(), ...params };
-      document.getElementById('current-path-input').value = p.path;
-      document.getElementById('current-view-input').value = p.view;
-      document.getElementById('current-sort-input').value = p.sort;
-      document.getElementById('current-order-input').value = p.order;
+      if (document.getElementById('current-path-input')) document.getElementById('current-path-input').value = p.path;
+      if (document.getElementById('current-view-input')) document.getElementById('current-view-input').value = p.view;
+      if (document.getElementById('current-sort-input')) document.getElementById('current-sort-input').value = p.sort;
+      if (document.getElementById('current-order-input')) document.getElementById('current-order-input').value = p.order;
+      if (document.getElementById('current-lang-input')) document.getElementById('current-lang-input').value = p.lang;
 
-      const queryString = `path=${encodeURIComponent(p.path)}&view=${encodeURIComponent(p.view)}&sort=${encodeURIComponent(p.sort)}&order=${encodeURIComponent(p.order)}${p.query ? '&query=' + encodeURIComponent(p.query) : ''}`;
+      const queryString = `path=${encodeURIComponent(p.path)}&view=${encodeURIComponent(p.view)}&sort=${encodeURIComponent(p.sort)}&order=${encodeURIComponent(p.order)}&lang=${encodeURIComponent(p.lang)}${p.query ? '&query=' + encodeURIComponent(p.query) : ''}`;
       const url = `/api/files?${queryString}`;
       const pushUrl = `/?${queryString}`;
 
