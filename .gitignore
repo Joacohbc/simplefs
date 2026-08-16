@@ -28,3 +28,6 @@ static/vendor/
 .codex/
 .impeccable/
 stitch_designs/
+
+# Devcontainer config
+devcontainer.config.json
