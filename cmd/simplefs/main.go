@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"html/template"
 	"log"
 	"net/http"
@@ -13,10 +12,8 @@ import (
 	"simplefs/internal/i18n"
 	"simplefs/internal/middleware"
 	"simplefs/internal/storage"
+	"simplefs/web"
 )
-
-//go:embed templates/* static/*
-var embeddedAssets embed.FS
 
 func main() {
 	storageDirectory := os.Getenv("STORAGE_DIR")
@@ -30,7 +27,7 @@ func main() {
 
 	templateEngine, err := template.New("").Funcs(template.FuncMap{
 		"T": i18n.T,
-	}).ParseFS(embeddedAssets, "templates/*.html")
+	}).ParseFS(web.Assets, "templates/*.html")
 	if err != nil {
 		log.Fatalf("Failed to parse templates: %v", err)
 	}
@@ -39,7 +36,7 @@ func main() {
 	appHandler := handlers.NewHandler(storageService, templateEngine)
 
 	mux := http.NewServeMux()
-	appHandler.RegisterRoutes(mux, embeddedAssets)
+	appHandler.RegisterRoutes(mux, web.Assets)
 
 	port := os.Getenv("PORT")
 	if port == "" {

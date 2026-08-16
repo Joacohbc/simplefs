@@ -20,7 +20,8 @@ uploads/*
 .DS_Store
 .idea/
 .vscode/
-static/vendor/
+web/static/*
+!web/static/.gitkeep
 
 # Agent & Design folders
 .agents/

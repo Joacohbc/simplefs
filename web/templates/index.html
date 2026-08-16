@@ -5,26 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ T .Lang "app.title" }}</title>
   
-  <!-- Material Symbols Outlined & Inter Typography -->
-  <!-- Material Symbols Outlined & Inter Typography -->
-  <link rel="stylesheet" href="/static/vendor/fontsource-inter/index.css">
-  <link rel="stylesheet" href="/static/vendor/material-symbols/outlined.css">
+  <!-- Vendor Styles (Fonts, Icons, Highlight.js) -->
+  <link rel="stylesheet" href="/static/vendor.css">
   
   <!-- Compiled Tailwind CSS -->
   <link rel="stylesheet" href="/static/style.css">
   
-  <!-- HTMX 1.9.10 -->
-  <script src="/static/vendor/htmx.min.js"></script>
-  
-  <!-- Highlight.js for Code Highlighting -->
-  <link rel="stylesheet" href="/static/vendor/github-dark.min.css" id="hljs-theme">
-  <script src="/static/vendor/highlight.min.js"></script>
-  
-  <!-- Marked for Markdown Parsing -->
-  <script src="/static/vendor/marked.min.js"></script>
-  
-  <!-- DOMPurify for XSS Sanitization -->
-  <script src="/static/vendor/purify.min.js"></script>
+  <!-- Vendor Scripts (HTMX, Highlight.js, Marked, DOMPurify) -->
+  <script src="/static/vendor.js"></script>
 
   <!-- Immediate Theme Check to Prevent FOUC -->
   <script>
@@ -355,12 +343,6 @@
       const icon = document.getElementById('theme-icon');
       if (icon) {
         icon.innerText = isDark ? 'light_mode' : 'dark_mode';
-      }
-      const hljsTheme = document.getElementById('hljs-theme');
-      if (hljsTheme) {
-        hljsTheme.href = isDark 
-          ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css'
-          : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
       }
     }
 

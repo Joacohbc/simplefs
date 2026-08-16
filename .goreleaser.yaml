@@ -7,7 +7,7 @@ before:
 
 builds:
   - id: simplefs
-    main: ./main.go
+    main: ./cmd/simplefs/main.go
     binary: simplefs
     env:
       - CGO_ENABLED=0
