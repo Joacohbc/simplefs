@@ -21,3 +21,10 @@ uploads/*
 .idea/
 .vscode/
 static/vendor/
+
+# Agent & Design folders
+.agents/
+.claude/
+.codex/
+.impeccable/
+stitch_designs/
