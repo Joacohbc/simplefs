@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"simplefs/internal/i18n"
@@ -49,6 +51,7 @@ func (h *Handler) setLangCookie(w http.ResponseWriter, r *http.Request) string {
 			Path:     "/",
 			MaxAge:   365 * 24 * 3600,
 			SameSite: http.SameSiteLaxMode,
+			HttpOnly: true,
 		})
 	}
 	return lang
@@ -69,7 +72,8 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.templateEngine.ExecuteTemplate(w, "index.html", pageData); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("template render error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
@@ -83,13 +87,15 @@ func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
 
 	pageData, err := h.storageService.GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder, lang)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Printf("get directory error: %v", err)
+		http.Error(w, "Invalid path or directory not accessible", http.StatusBadRequest)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.templateEngine.ExecuteTemplate(w, "file_list.html", pageData); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("template render error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
@@ -104,7 +110,8 @@ func (h *Handler) FileDetails(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.templateEngine.ExecuteTemplate(w, "details_modal.html", detailsData); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("template render error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
@@ -114,6 +121,11 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Upload payload too large or invalid form", http.StatusBadRequest)
 		return
 	}
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
 
 	lang := h.setLangCookie(w, r)
 	relativePath := r.FormValue("path")
@@ -128,7 +140,9 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		_ = h.storageService.SaveUploadedFile(relativePath, fileHeader.Filename, fileStream)
+		if err := h.storageService.SaveUploadedFile(relativePath, fileHeader.Filename, fileStream); err != nil {
+			log.Printf("save uploaded file error: %v", err)
+		}
 		fileStream.Close()
 	}
 
@@ -136,6 +150,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Folder(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	lang := h.setLangCookie(w, r)
 	relativePath := r.FormValue("path")
 	viewMode := r.FormValue("view")
@@ -144,7 +159,8 @@ func (h *Handler) Folder(w http.ResponseWriter, r *http.Request) {
 	folderName := r.FormValue("name")
 
 	if err := h.storageService.CreateFolder(relativePath, folderName); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Printf("create folder error: %v", err)
+		http.Error(w, "Failed to create folder", http.StatusBadRequest)
 		return
 	}
 
@@ -152,6 +168,7 @@ func (h *Handler) Folder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateFile(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	lang := h.setLangCookie(w, r)
 	relativePath := r.FormValue("path")
 	viewMode := r.FormValue("view")
@@ -179,7 +196,8 @@ func (h *Handler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.storageService.CreateFile(relativePath, filename, contentBytes); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Printf("create file error: %v", err)
+		http.Error(w, "Failed to create file", http.StatusBadRequest)
 		return
 	}
 
@@ -194,7 +212,8 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	sortOrder := r.URL.Query().Get("order")
 
 	if err := h.storageService.DeleteItem(relativePath); err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		log.Printf("delete item error: %v", err)
+		http.Error(w, "Cannot delete item", http.StatusForbidden)
 		return
 	}
 
@@ -207,13 +226,14 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 	relativePath := r.URL.Query().Get("path")
 	previewData, err := h.storageService.GetFilePreview(relativePath, lang)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.templateEngine.ExecuteTemplate(w, "preview_modal.html", previewData); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("template render error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
@@ -225,13 +245,15 @@ func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if mimeType != "" {
-		w.Header().Set("Content-Type", mimeType)
-	}
-
 	forceAttachment := r.URL.Query().Get("download") == "true" || isDangerousType
 	if forceAttachment {
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+		encodedFilename := url.PathEscape(filename)
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", filename, encodedFilename))
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	}
+
+	if mimeType != "" {
+		w.Header().Set("Content-Type", mimeType)
 	}
 
 	http.ServeFile(w, r, filePath)
@@ -240,7 +262,8 @@ func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) renderFileList(w http.ResponseWriter, path, query, view, sort, order, lang string) {
 	pageData, err := h.storageService.GetDirectoryPage(path, query, view, sort, order, lang)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("render file list error: %v", err)
+		http.Error(w, "Failed to load directory", http.StatusInternalServerError)
 		return
 	}
 

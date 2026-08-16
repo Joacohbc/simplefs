@@ -26,6 +26,18 @@ func NewService(baseDirectory string) *Service {
 	}
 }
 
+func isRestrictedSegment(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return false
+	}
+	return strings.HasPrefix(trimmed, ".") ||
+		trimmed == "simplefs" ||
+		trimmed == "node_modules" ||
+		trimmed == ".stitch" ||
+		trimmed == ".dc_simplefs"
+}
+
 func (s *Service) ResolvePath(relativePath string) (string, error) {
 	absoluteBase, err := filepath.Abs(s.baseDirectory)
 	if err != nil {
@@ -45,6 +57,12 @@ func (s *Service) ResolvePath(relativePath string) (string, error) {
 		return "", errors.New("invalid path access")
 	}
 
+	for _, segment := range strings.Split(cleanRelative, string(filepath.Separator)) {
+		if isRestrictedSegment(segment) {
+			return "", errors.New("access denied: protected item")
+		}
+	}
+
 	targetPath := filepath.Join(absoluteBase, cleanRelative)
 
 	relativeFromBase, err := filepath.Rel(absoluteBase, targetPath)
@@ -52,12 +70,20 @@ func (s *Service) ResolvePath(relativePath string) (string, error) {
 		return "", errors.New("access denied")
 	}
 
-	if evaluatedTarget, err := filepath.EvalSymlinks(targetPath); err == nil {
-		evaluatedRel, err := filepath.Rel(absoluteBase, evaluatedTarget)
+	checkPath := targetPath
+	if _, err := os.Lstat(targetPath); os.IsNotExist(err) {
+		checkPath = filepath.Dir(targetPath)
+	}
+
+	if evaluated, err := filepath.EvalSymlinks(checkPath); err == nil {
+		evaluatedRel, err := filepath.Rel(absoluteBase, evaluated)
 		if err != nil || strings.HasPrefix(evaluatedRel, "..") || evaluatedRel == ".." {
 			return "", errors.New("symlink target outside storage root")
 		}
-		return evaluatedTarget, nil
+		if checkPath == targetPath {
+			return evaluated, nil
+		}
+		return filepath.Join(evaluated, filepath.Base(targetPath)), nil
 	}
 
 	return targetPath, nil
@@ -242,7 +268,7 @@ func (s *Service) GetFilePreview(relativePath, lang string) (models.PreviewData,
 
 func (s *Service) SaveUploadedFile(targetDirectoryRelativePath, originalFilename string, fileReader io.Reader) error {
 	cleanFilename := filepath.Base(filepath.Clean(originalFilename))
-	if cleanFilename == "" || cleanFilename == "." || cleanFilename == ".." {
+	if cleanFilename == "" || cleanFilename == "." || cleanFilename == ".." || isRestrictedSegment(cleanFilename) {
 		return errors.New("invalid filename")
 	}
 
@@ -252,7 +278,13 @@ func (s *Service) SaveUploadedFile(targetDirectoryRelativePath, originalFilename
 	}
 
 	destinationPath := filepath.Join(targetDirectory, cleanFilename)
-	destinationFile, err := os.Create(destinationPath)
+	if fi, err := os.Lstat(destinationPath); err == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			return errors.New("cannot overwrite symlink")
+		}
+	}
+
+	destinationFile, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -269,7 +301,7 @@ func (s *Service) CreateFolder(parentRelativePath, folderName string) error {
 	}
 
 	cleanFolderName := filepath.Base(filepath.Clean(trimmedName))
-	if cleanFolderName == "" || cleanFolderName == "." || cleanFolderName == ".." {
+	if cleanFolderName == "" || cleanFolderName == "." || cleanFolderName == ".." || isRestrictedSegment(cleanFolderName) {
 		return errors.New("invalid folder name")
 	}
 
@@ -279,7 +311,13 @@ func (s *Service) CreateFolder(parentRelativePath, folderName string) error {
 	}
 
 	newFolderPath := filepath.Join(targetDirectory, cleanFolderName)
-	return os.MkdirAll(newFolderPath, 0755)
+	if fi, err := os.Lstat(newFolderPath); err == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			return errors.New("cannot create folder on symlink")
+		}
+	}
+
+	return os.MkdirAll(newFolderPath, 0700)
 }
 
 func (s *Service) CreateFile(parentRelativePath, filename string, content []byte) error {
@@ -289,7 +327,7 @@ func (s *Service) CreateFile(parentRelativePath, filename string, content []byte
 	}
 
 	cleanFilename := filepath.Base(filepath.Clean(trimmedFilename))
-	if cleanFilename == "" || cleanFilename == "." || cleanFilename == ".." {
+	if cleanFilename == "" || cleanFilename == "." || cleanFilename == ".." || isRestrictedSegment(cleanFilename) {
 		return errors.New("invalid filename")
 	}
 
@@ -298,13 +336,25 @@ func (s *Service) CreateFile(parentRelativePath, filename string, content []byte
 		return err
 	}
 
-	return os.WriteFile(targetFilePath, content, 0644)
+	if fi, err := os.Lstat(targetFilePath); err == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			return errors.New("cannot overwrite symlink")
+		}
+	}
+
+	return os.WriteFile(targetFilePath, content, 0600)
 }
 
 func (s *Service) DeleteItem(relativePath string) error {
 	cleanRelative := filepath.Clean(filepath.FromSlash(strings.TrimSpace(relativePath)))
 	if cleanRelative == "" || cleanRelative == "." || cleanRelative == "/" {
 		return errors.New("cannot delete root directory")
+	}
+
+	for _, segment := range strings.Split(cleanRelative, string(filepath.Separator)) {
+		if isRestrictedSegment(segment) {
+			return errors.New("cannot delete protected item")
+		}
 	}
 
 	absolutePath, err := s.ResolvePath(relativePath)
@@ -335,11 +385,16 @@ func (s *Service) GetDownloadFile(relativePath string) (string, string, string, 
 		return "", "", "", false, errors.New("file not found")
 	}
 
-	extension := filepath.Ext(absolutePath)
+	extension := strings.ToLower(filepath.Ext(absolutePath))
 	typeDef := filetype.Resolve(extension, false)
 	filename := filepath.Base(absolutePath)
 
-	forceAttachment := extension == ".html" || extension == ".htm" || extension == ".svg" || extension == ".xml"
+	dangerousExts := map[string]bool{
+		".html": true, ".htm": true, ".xhtml": true, ".xht": true,
+		".svg": true, ".svgz": true, ".xml": true, ".xsl": true,
+		".xslt": true, ".mht": true, ".mhtml": true, ".shtml": true,
+	}
+	forceAttachment := dangerousExts[extension]
 	return absolutePath, filename, typeDef.MimeType, forceAttachment, nil
 }
 
@@ -384,7 +439,7 @@ func FormatBytes(bytesCount int64) string {
 }
 
 func isExcludedItem(name string) bool {
-	return name == ".git" || name == ".dc_simplefs" || name == "simplefs" || name == "node_modules" || name == ".stitch"
+	return isRestrictedSegment(name)
 }
 
 func countDirectoryChildren(directoryPath string) int {

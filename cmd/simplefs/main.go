@@ -18,10 +18,10 @@ import (
 func main() {
 	storageDirectory := os.Getenv("STORAGE_DIR")
 	if storageDirectory == "" {
-		storageDirectory = "."
+		storageDirectory = "./uploads"
 	}
 
-	if err := os.MkdirAll(storageDirectory, 0755); err != nil {
+	if err := os.MkdirAll(storageDirectory, 0700); err != nil {
 		log.Fatalf("Failed to initialize storage directory: %v", err)
 	}
 
@@ -46,13 +46,16 @@ func main() {
 	absoluteStoragePath, _ := filepath.Abs(storageDirectory)
 	serverAddress := ":" + port
 
+	securedHandler := middleware.NewSecurityHeadersMiddleware(middleware.CSRFProtectionMiddleware(mux))
+
 	server := &http.Server{
-		Addr:           serverAddress,
-		Handler:        middleware.NewSecurityHeadersMiddleware(mux),
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   30 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+		Addr:              serverAddress,
+		Handler:           securedHandler,
+		ReadHeaderTimeout: 3 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	log.Printf("🚀 SimpleFS running at http://localhost%s serving directory: %s", serverAddress, absoluteStoragePath)

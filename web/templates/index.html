@@ -780,7 +780,11 @@
         const rawContent = container.getAttribute('data-markdown');
         if (rawContent && window.marked) {
           const parsed = marked.parse(rawContent);
-          container.innerHTML = window.DOMPurify ? DOMPurify.sanitize(parsed) : parsed;
+          if (window.DOMPurify) {
+            container.innerHTML = DOMPurify.sanitize(parsed);
+          } else {
+            container.textContent = rawContent;
+          }
         }
       });
     }
