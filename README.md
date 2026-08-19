@@ -6,7 +6,7 @@
 
 </div>
 
-SimpleFS es una solución de gestión y previsualización de archivos autocontenida diseñada para ofrecer el máximo rendimiento con el mínimo consumo de recursos[cite: 1]. Desarrollado para eliminar la sobrecarga de configuraciones complejas, proporciona una interfaz web intuitiva, segura y responsiva que permite cargar, organizar y previsualizar múltiples formatos en tiempo real a través de un único binario independiente[cite: 1].
+SimpleFS es una solución de gestión y previsualización de archivos autocontenida diseñada para ofrecer el máximo rendimiento con el mínimo consumo de recursos. Desarrollado para eliminar la sobrecarga de configuraciones complejas, proporciona una interfaz web intuitiva, segura y responsiva que permite cargar, organizar y previsualizar múltiples formatos en tiempo real a través de un único binario independiente.
 
 ## Built With
 
