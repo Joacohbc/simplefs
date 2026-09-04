@@ -2,6 +2,19 @@ package models
 
 import "time"
 
+const (
+	SortByName     = "name"
+	SortBySize     = "size"
+	SortByCreated  = "created"
+	SortByModified = "modified"
+
+	SortOrderAsc  = "asc"
+	SortOrderDesc = "desc"
+
+	ViewModeList = "list"
+	ViewModeGrid = "grid"
+)
+
 type FileInfo struct {
 	Name             string
 	RelPath          string
@@ -35,6 +48,14 @@ type PageData struct {
 	Lang        string
 }
 
+func (p PageData) TotalItems() int {
+	return len(p.Folders) + len(p.Files)
+}
+
+func (p PageData) HasItems() bool {
+	return len(p.Folders) > 0 || len(p.Files) > 0
+}
+
 type PreviewData struct {
 	Name          string
 	RelPath       string
@@ -50,6 +71,10 @@ type PreviewData struct {
 	Lang          string
 }
 
+func (p PreviewData) HasContent() bool {
+	return p.Content != ""
+}
+
 type FileDetailsData struct {
 	Name          string
 	RelPath       string
@@ -62,4 +87,3 @@ type FileDetailsData struct {
 	IsImage       bool
 	Lang          string
 }
-

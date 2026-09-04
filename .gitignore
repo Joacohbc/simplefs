@@ -32,3 +32,6 @@ stitch_designs/
 
 # Devcontainer config
 devcontainer.config.json
+
+# devcontainer-cli
+.dc_*/

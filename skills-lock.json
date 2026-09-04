@@ -21,7 +21,7 @@
       "source": "Joacohbc/my-devcontainer-installer",
       "sourceType": "github",
       "skillPath": "skills/devcontainer-cli/SKILL.md",
-      "computedHash": "40d96a81a561bdb2f74d76ac1b6192a21ddda5f2fa1c1c271564077333913d7a"
+      "computedHash": "b8b554b5fd839eb5b36d62128890ac239b3e6b017ca5edb2ace001122ac46693"
     },
     "frontend-design": {
       "source": "anthropics/skills",

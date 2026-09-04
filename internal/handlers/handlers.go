@@ -283,4 +283,3 @@ func extractParentPath(relativePath string) string {
 	}
 	return parent[:lastSlash]
 }
-

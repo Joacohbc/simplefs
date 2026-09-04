@@ -16,6 +16,29 @@ import (
 
 const maxInlinePreviewBytes = 1000 * 1024
 
+var (
+	ErrNotFound         = errors.New("file or directory not found")
+	ErrInvalidPath      = errors.New("invalid path access")
+	ErrAccessDenied     = errors.New("access denied")
+	ErrProtectedItem    = errors.New("access denied: protected item")
+	ErrSymlinkForbidden = errors.New("symlink target outside storage root")
+	ErrSymlinkOverwrite = errors.New("cannot overwrite symlink")
+	ErrInvalidName      = errors.New("invalid filename or folder name")
+	ErrCannotDeleteRoot = errors.New("cannot delete root directory")
+)
+
+type ServiceInterface interface {
+	ResolvePath(relativePath string) (string, error)
+	GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder, lang string) (models.PageData, error)
+	GetFileDetails(relativePath, lang string) (models.FileDetailsData, error)
+	GetFilePreview(relativePath, lang string) (models.PreviewData, error)
+	SaveUploadedFile(targetDirectoryRelativePath, originalFilename string, fileReader io.Reader) error
+	CreateFolder(parentRelativePath, folderName string) error
+	CreateFile(parentRelativePath, filename string, content []byte) error
+	DeleteItem(relativePath string) error
+	GetDownloadFile(relativePath string) (filePath, filename, mimeType string, forceAttachment bool, err error)
+}
+
 type Service struct {
 	baseDirectory string
 }
@@ -38,6 +61,32 @@ func isRestrictedSegment(name string) bool {
 		trimmed == ".dc_simplefs"
 }
 
+func validateItemName(name string) (string, error) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "", ErrInvalidName
+	}
+	if strings.Contains(trimmed, "/") || strings.Contains(trimmed, "\\") || strings.Contains(trimmed, "..") {
+		return "", ErrInvalidName
+	}
+	clean := filepath.Base(filepath.Clean(trimmed))
+	if clean == "" || clean == "." || clean == ".." || isRestrictedSegment(clean) {
+		return "", ErrInvalidName
+	}
+	return clean, nil
+}
+
+func ensureNotSymlink(path string) error {
+	fileInfo, err := os.Lstat(path)
+	if err != nil {
+		return nil
+	}
+	if fileInfo.Mode()&os.ModeSymlink != 0 {
+		return ErrSymlinkOverwrite
+	}
+	return nil
+}
+
 func (s *Service) ResolvePath(relativePath string) (string, error) {
 	absoluteBase, err := filepath.Abs(s.baseDirectory)
 	if err != nil {
@@ -48,45 +97,95 @@ func (s *Service) ResolvePath(relativePath string) (string, error) {
 		absoluteBase = evaluatedBase
 	}
 
-	cleanRelative := filepath.Clean(filepath.FromSlash(relativePath))
+	normalized := strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/")
+	cleanRelative := filepath.Clean(filepath.FromSlash(normalized))
 	if cleanRelative == "." || cleanRelative == "/" || cleanRelative == "" {
 		cleanRelative = ""
 	}
 
 	if strings.HasPrefix(cleanRelative, "..") {
-		return "", errors.New("invalid path access")
+		return "", ErrInvalidPath
 	}
 
 	for _, segment := range strings.Split(cleanRelative, string(filepath.Separator)) {
 		if isRestrictedSegment(segment) {
-			return "", errors.New("access denied: protected item")
+			return "", ErrProtectedItem
 		}
 	}
 
 	targetPath := filepath.Join(absoluteBase, cleanRelative)
-
 	relativeFromBase, err := filepath.Rel(absoluteBase, targetPath)
 	if err != nil || strings.HasPrefix(relativeFromBase, "..") || relativeFromBase == ".." {
-		return "", errors.New("access denied")
+		return "", ErrAccessDenied
 	}
 
-	checkPath := targetPath
-	if _, err := os.Lstat(targetPath); os.IsNotExist(err) {
-		checkPath = filepath.Dir(targetPath)
-	}
+	return s.evaluateSymlinkTarget(targetPath, absoluteBase)
+}
 
-	if evaluated, err := filepath.EvalSymlinks(checkPath); err == nil {
+func (s *Service) evaluateSymlinkTarget(targetPath, absoluteBase string) (string, error) {
+	current := targetPath
+	for {
+		evaluated, err := filepath.EvalSymlinks(current)
+		if err != nil {
+			parent := filepath.Dir(current)
+			if parent == current || len(parent) < len(absoluteBase) {
+				break
+			}
+			current = parent
+			continue
+		}
+
 		evaluatedRel, err := filepath.Rel(absoluteBase, evaluated)
 		if err != nil || strings.HasPrefix(evaluatedRel, "..") || evaluatedRel == ".." {
-			return "", errors.New("symlink target outside storage root")
+			return "", ErrSymlinkForbidden
 		}
-		if checkPath == targetPath {
+		if current == targetPath {
 			return evaluated, nil
 		}
-		return filepath.Join(evaluated, filepath.Base(targetPath)), nil
+		suffix, relErr := filepath.Rel(current, targetPath)
+		if relErr != nil {
+			return "", ErrInvalidPath
+		}
+		return filepath.Join(evaluated, suffix), nil
+	}
+	return targetPath, nil
+}
+
+func (s *Service) mapDirEntryToFileInfo(entry os.DirEntry, relativePath, absolutePath, lang string) (models.FileInfo, bool) {
+	name := entry.Name()
+	if isRestrictedSegment(name) {
+		return models.FileInfo{}, false
 	}
 
-	return targetPath, nil
+	entryInfo, err := entry.Info()
+	if err != nil {
+		return models.FileInfo{}, false
+	}
+
+	entryRelativePath := filepath.Join(relativePath, name)
+	extension := filepath.Ext(name)
+	typeDef := filetype.Resolve(extension, entry.IsDir())
+
+	childCount := 0
+	if entry.IsDir() {
+		childCount = countDirectoryChildren(filepath.Join(absolutePath, name))
+	}
+
+	return models.FileInfo{
+		Name:             name,
+		RelPath:          filepath.ToSlash(entryRelativePath),
+		IsDir:            entry.IsDir(),
+		Size:             entryInfo.Size(),
+		FormattedSize:    FormatBytes(entryInfo.Size()),
+		ModTime:          entryInfo.ModTime(),
+		FormattedMod:     i18n.FormatDate(entryInfo.ModTime(), lang),
+		FormattedCreated: i18n.FormatDate(entryInfo.ModTime(), lang),
+		ItemCount:        childCount,
+		TypeLabel:        typeDef.Label,
+		MaterialIcon:     typeDef.Icon,
+		IconColorClass:   typeDef.ColorClass,
+		IsImage:          typeDef.Category == filetype.CategoryImage,
+	}, true
 }
 
 func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder, lang string) (models.PageData, error) {
@@ -97,7 +196,7 @@ func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, 
 
 	entries, err := os.ReadDir(absolutePath)
 	if err != nil {
-		return models.PageData{}, err
+		return models.PageData{}, ErrNotFound
 	}
 
 	var folders []models.FileInfo
@@ -107,42 +206,13 @@ func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, 
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if isExcludedItem(name) {
-			continue
-		}
-
 		if searchLower != "" && !strings.Contains(strings.ToLower(name), searchLower) {
 			continue
 		}
 
-		entryInfo, err := entry.Info()
-		if err != nil {
+		fileObject, ok := s.mapDirEntryToFileInfo(entry, relativePath, absolutePath, normalizedLang)
+		if !ok {
 			continue
-		}
-
-		entryRelativePath := filepath.Join(relativePath, name)
-		extension := filepath.Ext(name)
-		typeDef := filetype.Resolve(extension, entry.IsDir())
-
-		childCount := 0
-		if entry.IsDir() {
-			childCount = countDirectoryChildren(filepath.Join(absolutePath, name))
-		}
-
-		fileObject := models.FileInfo{
-			Name:             name,
-			RelPath:          filepath.ToSlash(entryRelativePath),
-			IsDir:            entry.IsDir(),
-			Size:             entryInfo.Size(),
-			FormattedSize:    FormatBytes(entryInfo.Size()),
-			ModTime:          entryInfo.ModTime(),
-			FormattedMod:     i18n.FormatDate(entryInfo.ModTime(), normalizedLang),
-			FormattedCreated: i18n.FormatDate(entryInfo.ModTime(), normalizedLang),
-			ItemCount:        childCount,
-			TypeLabel:        typeDef.Label,
-			MaterialIcon:     typeDef.Icon,
-			IconColorClass:   typeDef.ColorClass,
-			IsImage:          typeDef.Category == filetype.CategoryImage,
 		}
 
 		if entry.IsDir() {
@@ -157,7 +227,7 @@ func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, 
 	sortFiles(files, normalizedSortBy, normalizedSortOrder)
 
 	if viewMode == "" {
-		viewMode = "list"
+		viewMode = models.ViewModeList
 	}
 
 	return models.PageData{
@@ -181,7 +251,7 @@ func (s *Service) GetFileDetails(relativePath, lang string) (models.FileDetailsD
 
 	fileInfo, err := os.Stat(absolutePath)
 	if err != nil {
-		return models.FileDetailsData{}, err
+		return models.FileDetailsData{}, ErrNotFound
 	}
 
 	extension := filepath.Ext(absolutePath)
@@ -217,7 +287,7 @@ func (s *Service) GetFilePreview(relativePath, lang string) (models.PreviewData,
 
 	fileInfo, err := os.Stat(absolutePath)
 	if err != nil || fileInfo.IsDir() {
-		return models.PreviewData{}, errors.New("file not found")
+		return models.PreviewData{}, ErrNotFound
 	}
 
 	extension := filepath.Ext(absolutePath)
@@ -267,9 +337,9 @@ func (s *Service) GetFilePreview(relativePath, lang string) (models.PreviewData,
 }
 
 func (s *Service) SaveUploadedFile(targetDirectoryRelativePath, originalFilename string, fileReader io.Reader) error {
-	cleanFilename := filepath.Base(filepath.Clean(originalFilename))
-	if cleanFilename == "" || cleanFilename == "." || cleanFilename == ".." || isRestrictedSegment(cleanFilename) {
-		return errors.New("invalid filename")
+	cleanFilename, err := validateItemName(originalFilename)
+	if err != nil {
+		return err
 	}
 
 	targetDirectory, err := s.ResolvePath(targetDirectoryRelativePath)
@@ -277,11 +347,13 @@ func (s *Service) SaveUploadedFile(targetDirectoryRelativePath, originalFilename
 		return err
 	}
 
+	if _, err := os.Stat(targetDirectory); err != nil {
+		return ErrNotFound
+	}
+
 	destinationPath := filepath.Join(targetDirectory, cleanFilename)
-	if fi, err := os.Lstat(destinationPath); err == nil {
-		if fi.Mode()&os.ModeSymlink != 0 {
-			return errors.New("cannot overwrite symlink")
-		}
+	if err := ensureNotSymlink(destinationPath); err != nil {
+		return err
 	}
 
 	destinationFile, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
@@ -295,14 +367,9 @@ func (s *Service) SaveUploadedFile(targetDirectoryRelativePath, originalFilename
 }
 
 func (s *Service) CreateFolder(parentRelativePath, folderName string) error {
-	trimmedName := strings.TrimSpace(folderName)
-	if trimmedName == "" || strings.Contains(trimmedName, "/") || strings.Contains(trimmedName, "\\") || strings.Contains(trimmedName, "..") {
-		return errors.New("invalid folder name")
-	}
-
-	cleanFolderName := filepath.Base(filepath.Clean(trimmedName))
-	if cleanFolderName == "" || cleanFolderName == "." || cleanFolderName == ".." || isRestrictedSegment(cleanFolderName) {
-		return errors.New("invalid folder name")
+	cleanFolderName, err := validateItemName(folderName)
+	if err != nil {
+		return err
 	}
 
 	targetDirectory, err := s.ResolvePath(parentRelativePath)
@@ -310,50 +377,55 @@ func (s *Service) CreateFolder(parentRelativePath, folderName string) error {
 		return err
 	}
 
+	if _, err := os.Stat(targetDirectory); err != nil {
+		return ErrNotFound
+	}
+
 	newFolderPath := filepath.Join(targetDirectory, cleanFolderName)
-	if fi, err := os.Lstat(newFolderPath); err == nil {
-		if fi.Mode()&os.ModeSymlink != 0 {
-			return errors.New("cannot create folder on symlink")
-		}
+	if err := ensureNotSymlink(newFolderPath); err != nil {
+		return err
 	}
 
 	return os.MkdirAll(newFolderPath, 0700)
 }
 
 func (s *Service) CreateFile(parentRelativePath, filename string, content []byte) error {
-	trimmedFilename := strings.TrimSpace(filename)
-	if trimmedFilename == "" || strings.Contains(trimmedFilename, "/") || strings.Contains(trimmedFilename, "\\") || strings.Contains(trimmedFilename, "..") {
-		return errors.New("invalid filename")
-	}
-
-	cleanFilename := filepath.Base(filepath.Clean(trimmedFilename))
-	if cleanFilename == "" || cleanFilename == "." || cleanFilename == ".." || isRestrictedSegment(cleanFilename) {
-		return errors.New("invalid filename")
-	}
-
-	targetFilePath, err := s.ResolvePath(filepath.Join(parentRelativePath, cleanFilename))
+	cleanFilename, err := validateItemName(filename)
 	if err != nil {
 		return err
 	}
 
-	if fi, err := os.Lstat(targetFilePath); err == nil {
-		if fi.Mode()&os.ModeSymlink != 0 {
-			return errors.New("cannot overwrite symlink")
-		}
+	targetDirectory, err := s.ResolvePath(parentRelativePath)
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(targetDirectory); err != nil {
+		return ErrNotFound
+	}
+
+	targetFilePath := filepath.Join(targetDirectory, cleanFilename)
+	if err := ensureNotSymlink(targetFilePath); err != nil {
+		return err
 	}
 
 	return os.WriteFile(targetFilePath, content, 0600)
 }
 
 func (s *Service) DeleteItem(relativePath string) error {
-	cleanRelative := filepath.Clean(filepath.FromSlash(strings.TrimSpace(relativePath)))
+	normalized := strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/")
+	cleanRelative := filepath.Clean(filepath.FromSlash(normalized))
 	if cleanRelative == "" || cleanRelative == "." || cleanRelative == "/" {
-		return errors.New("cannot delete root directory")
+		return ErrCannotDeleteRoot
+	}
+
+	if strings.HasPrefix(cleanRelative, "..") {
+		return ErrInvalidPath
 	}
 
 	for _, segment := range strings.Split(cleanRelative, string(filepath.Separator)) {
 		if isRestrictedSegment(segment) {
-			return errors.New("cannot delete protected item")
+			return ErrProtectedItem
 		}
 	}
 
@@ -362,13 +434,16 @@ func (s *Service) DeleteItem(relativePath string) error {
 		return err
 	}
 
-	absoluteBase, _ := filepath.Abs(s.baseDirectory)
+	absoluteBase, err := filepath.Abs(s.baseDirectory)
+	if err != nil {
+		return err
+	}
 	if evaluatedBase, err := filepath.EvalSymlinks(absoluteBase); err == nil {
 		absoluteBase = evaluatedBase
 	}
 
 	if absolutePath == absoluteBase {
-		return errors.New("cannot delete root directory")
+		return ErrCannotDeleteRoot
 	}
 
 	return os.RemoveAll(absolutePath)
@@ -382,7 +457,7 @@ func (s *Service) GetDownloadFile(relativePath string) (string, string, string, 
 
 	fileInfo, err := os.Stat(absolutePath)
 	if err != nil || fileInfo.IsDir() {
-		return "", "", "", false, errors.New("file not found")
+		return "", "", "", false, ErrNotFound
 	}
 
 	extension := strings.ToLower(filepath.Ext(absolutePath))
@@ -399,16 +474,18 @@ func (s *Service) GetDownloadFile(relativePath string) (string, string, string, 
 }
 
 func BuildBreadcrumbs(relativePath string) []models.Breadcrumb {
-	if relativePath == "" || relativePath == "." {
+	normalized := strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/")
+	cleanRelative := filepath.Clean(filepath.FromSlash(normalized))
+	if cleanRelative == "" || cleanRelative == "." || cleanRelative == "/" {
 		return nil
 	}
 
-	pathParts := strings.Split(filepath.ToSlash(relativePath), "/")
+	pathParts := strings.Split(filepath.ToSlash(cleanRelative), "/")
 	var breadcrumbs []models.Breadcrumb
 	var currentPath string
 
 	for _, part := range pathParts {
-		if part == "" {
+		if part == "" || part == "." {
 			continue
 		}
 		if currentPath == "" {
@@ -426,20 +503,21 @@ func BuildBreadcrumbs(relativePath string) []models.Breadcrumb {
 }
 
 func FormatBytes(bytesCount int64) string {
+	if bytesCount < 0 {
+		return "0 B"
+	}
 	const unit = 1024
 	if bytesCount < unit {
 		return fmt.Sprintf("%d B", bytesCount)
 	}
-	divider, exponent := int64(unit), 0
-	for n := bytesCount / unit; n >= unit; n /= unit {
+	divider := int64(unit)
+	exponent := 0
+	units := "KMGTPE"
+	for n := bytesCount / unit; n >= unit && exponent < len(units)-1; n /= unit {
 		divider *= unit
 		exponent++
 	}
-	return fmt.Sprintf("%.1f %cB", float64(bytesCount)/float64(divider), "KMGTPE"[exponent])
-}
-
-func isExcludedItem(name string) bool {
-	return isRestrictedSegment(name)
+	return fmt.Sprintf("%.1f %cB", float64(bytesCount)/float64(divider), units[exponent])
 }
 
 func countDirectoryChildren(directoryPath string) int {
@@ -447,69 +525,68 @@ func countDirectoryChildren(directoryPath string) int {
 	if err != nil {
 		return 0
 	}
-	count := 0
+	childCount := 0
 	for _, entry := range subEntries {
-		name := entry.Name()
-		if !strings.HasPrefix(name, ".") && name != "node_modules" {
-			count++
+		if isRestrictedSegment(entry.Name()) {
+			continue
 		}
+		childCount++
 	}
-	return count
+	return childCount
 }
 
 func normalizeSortParams(sortBy, sortOrder string) (string, string) {
-	validSorts := map[string]bool{"name": true, "created": true, "modified": true, "size": true}
-	normalizedSort := strings.ToLower(sortBy)
+	validSorts := map[string]bool{
+		models.SortByName:     true,
+		models.SortByCreated:  true,
+		models.SortByModified: true,
+		models.SortBySize:     true,
+	}
+	normalizedSort := strings.ToLower(strings.TrimSpace(sortBy))
 	if !validSorts[normalizedSort] {
-		normalizedSort = "name"
+		normalizedSort = models.SortByName
 	}
 
-	normalizedOrder := strings.ToLower(sortOrder)
-	if normalizedOrder != "desc" {
-		normalizedOrder = "asc"
+	normalizedOrder := strings.ToLower(strings.TrimSpace(sortOrder))
+	if normalizedOrder != models.SortOrderDesc {
+		normalizedOrder = models.SortOrderAsc
 	}
 
 	return normalizedSort, normalizedOrder
 }
 
+func compareFileItems(a, b models.FileInfo, sortBy, sortOrder string) bool {
+	isDesc := sortOrder == models.SortOrderDesc
+	var isLess bool
+	switch sortBy {
+	case models.SortBySize:
+		if a.IsDir && b.IsDir {
+			isLess = a.ItemCount < b.ItemCount
+		} else {
+			isLess = a.Size < b.Size
+		}
+	case models.SortByCreated, models.SortByModified:
+		isLess = a.ModTime.Before(b.ModTime)
+	case models.SortByName:
+		fallthrough
+	default:
+		isLess = strings.ToLower(a.Name) < strings.ToLower(b.Name)
+	}
+
+	if isDesc {
+		return !isLess
+	}
+	return isLess
+}
+
 func sortFolders(folders []models.FileInfo, sortBy, sortOrder string) {
-	isDesc := sortOrder == "desc"
 	sort.Slice(folders, func(i, j int) bool {
-		var less bool
-		switch sortBy {
-		case "size":
-			less = folders[i].ItemCount < folders[j].ItemCount
-		case "created", "modified":
-			less = folders[i].ModTime.Before(folders[j].ModTime)
-		case "name":
-			fallthrough
-		default:
-			less = strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
-		}
-		if isDesc {
-			return !less
-		}
-		return less
+		return compareFileItems(folders[i], folders[j], sortBy, sortOrder)
 	})
 }
 
 func sortFiles(files []models.FileInfo, sortBy, sortOrder string) {
-	isDesc := sortOrder == "desc"
 	sort.Slice(files, func(i, j int) bool {
-		var less bool
-		switch sortBy {
-		case "size":
-			less = files[i].Size < files[j].Size
-		case "created", "modified":
-			less = files[i].ModTime.Before(files[j].ModTime)
-		case "name":
-			fallthrough
-		default:
-			less = strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name)
-		}
-		if isDesc {
-			return !less
-		}
-		return less
+		return compareFileItems(files[i], files[j], sortBy, sortOrder)
 	})
 }

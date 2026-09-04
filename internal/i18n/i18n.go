@@ -233,19 +233,25 @@ var translations = map[string]map[string]string{
 	},
 }
 
-// NormalizeLang returns "es" or "en", defaulting to "es"
+func isSpanishTag(tag string) bool {
+	return tag == LangES || strings.HasPrefix(tag, "es-") || strings.HasPrefix(tag, "es_")
+}
+
+func isEnglishTag(tag string) bool {
+	return tag == LangEN || strings.HasPrefix(tag, "en-") || strings.HasPrefix(tag, "en_")
+}
+
 func NormalizeLang(lang string) string {
-	lang = strings.ToLower(strings.TrimSpace(lang))
-	if strings.HasPrefix(lang, LangEN) {
+	trimmed := strings.ToLower(strings.TrimSpace(lang))
+	if isEnglishTag(trimmed) {
 		return LangEN
 	}
-	if strings.HasPrefix(lang, LangES) {
+	if isSpanishTag(trimmed) {
 		return LangES
 	}
 	return defaultLang
 }
 
-// ResolveLang extracts the preferred language from query params, cookies or headers
 func ResolveLang(r *http.Request) string {
 	if queryLang := r.URL.Query().Get("lang"); queryLang != "" {
 		return NormalizeLang(queryLang)
@@ -260,47 +266,38 @@ func ResolveLang(r *http.Request) string {
 	}
 
 	acceptLang := r.Header.Get("Accept-Language")
-	if acceptLang != "" {
-		parts := strings.Split(acceptLang, ",")
-		for _, part := range parts {
-			tag := strings.TrimSpace(strings.Split(part, ";")[0])
-			if strings.HasPrefix(strings.ToLower(tag), "es") {
-				return LangES
-			}
-			if strings.HasPrefix(strings.ToLower(tag), "en") {
-				return LangEN
-			}
+	if acceptLang == "" {
+		return defaultLang
+	}
+
+	parts := strings.Split(acceptLang, ",")
+	for _, part := range parts {
+		tag := strings.TrimSpace(strings.Split(part, ";")[0])
+		tagLower := strings.ToLower(tag)
+		if isSpanishTag(tagLower) {
+			return LangES
+		}
+		if isEnglishTag(tagLower) {
+			return LangEN
 		}
 	}
 
 	return defaultLang
 }
 
-// T translates a key into the given language, optionally formatting with args
 func T(lang string, key string, args ...any) string {
 	normLang := NormalizeLang(lang)
-	dict, ok := translations[normLang]
-	if !ok {
-		dict = translations[defaultLang]
+	dict := translations[normLang]
+
+	templateStr := key
+	if val, exists := dict[key]; exists {
+		templateStr = val
+	} else if defaultVal, defaultExists := translations[defaultLang][key]; defaultExists {
+		templateStr = defaultVal
 	}
 
-	templateStr, exists := dict[key]
-	if !exists {
-		if defaultDict, defOk := translations[defaultLang]; defOk {
-			if defStr, defExists := defaultDict[key]; defExists {
-				templateStr = defStr
-			} else {
-				templateStr = key
-			}
-		} else {
-			templateStr = key
-		}
-	}
-
-	if len(args) > 0 {
-		if strings.Contains(templateStr, "%") {
-			return fmt.Sprintf(templateStr, args...)
-		}
+	if len(args) > 0 && strings.Contains(templateStr, "%") {
+		return fmt.Sprintf(templateStr, args...)
 	}
 	return templateStr
 }
@@ -313,21 +310,15 @@ var monthsEN = []string{
 	"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 }
 
-// FormatDate formats a time.Time object according to the selected language
 func FormatDate(t time.Time, lang string) string {
 	normLang := NormalizeLang(lang)
 	monthIdx := int(t.Month()) - 1
-	if monthIdx < 0 || monthIdx >= 12 {
-		monthIdx = 0
-	}
-
 	if normLang == LangES {
 		return fmt.Sprintf("%02d %s %d", t.Day(), monthsES[monthIdx], t.Year())
 	}
 	return fmt.Sprintf("%02d %s %d", t.Day(), monthsEN[monthIdx], t.Year())
 }
 
-// FormatDateTime formats date and time
 func FormatDateTime(t time.Time, lang string) string {
 	datePart := FormatDate(t, lang)
 	return fmt.Sprintf("%s, %02d:%02d", datePart, t.Hour(), t.Minute())

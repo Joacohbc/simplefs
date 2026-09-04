@@ -2,6 +2,7 @@ package filetype
 
 import (
 	"mime"
+	"path/filepath"
 	"strings"
 )
 
@@ -29,14 +30,14 @@ type Definition struct {
 
 var directoryDefinition = Definition{
 	Category:   CategoryDirectory,
-	Label:      "Carpeta",
+	Label:      "Folder",
 	Icon:       "folder",
 	ColorClass: "text-primary dark:text-primary-fixed-dim",
 }
 
 var defaultFileDefinition = Definition{
 	Category:      CategoryBinary,
-	Label:         "Archivo",
+	Label:         "File",
 	Icon:          "description",
 	ColorClass:    "text-secondary dark:text-secondary-fixed-dim",
 	LanguageClass: "language-plaintext",
@@ -109,14 +110,14 @@ var registry = map[string]Definition{
 	},
 	".xlsx": {
 		Category:   CategoryBinary,
-		Label:      "Hoja de Cálculo",
+		Label:      "Spreadsheet",
 		Icon:       "table_chart",
 		ColorClass: "text-emerald-600 dark:text-emerald-400",
 		MimeType:   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 	},
 	".xls": {
 		Category:   CategoryBinary,
-		Label:      "Hoja de Cálculo",
+		Label:      "Spreadsheet",
 		Icon:       "table_chart",
 		ColorClass: "text-emerald-600 dark:text-emerald-400",
 		MimeType:   "application/vnd.ms-excel",
@@ -131,119 +132,119 @@ var registry = map[string]Definition{
 	},
 	".doc": {
 		Category:   CategoryBinary,
-		Label:      "Documento de Texto",
+		Label:      "Word Document",
 		Icon:       "article",
 		ColorClass: "text-blue-600 dark:text-blue-400",
 		MimeType:   "application/msword",
 	},
 	".docx": {
 		Category:   CategoryBinary,
-		Label:      "Documento de Texto",
+		Label:      "Word Document",
 		Icon:       "article",
 		ColorClass: "text-blue-600 dark:text-blue-400",
 		MimeType:   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	},
 	".odt": {
 		Category:   CategoryBinary,
-		Label:      "Documento OpenDocument",
+		Label:      "OpenDocument Text",
 		Icon:       "article",
 		ColorClass: "text-blue-600 dark:text-blue-400",
 		MimeType:   "application/vnd.oasis.opendocument.text",
 	},
 	".mp4": {
 		Category:   CategoryVideo,
-		Label:      "Archivo de Video MP4",
+		Label:      "MP4 Video",
 		Icon:       "movie",
 		ColorClass: "text-purple-600 dark:text-purple-400",
 		MimeType:   "video/mp4",
 	},
 	".mov": {
 		Category:   CategoryVideo,
-		Label:      "Archivo de Video QuickTime",
+		Label:      "QuickTime Video",
 		Icon:       "movie",
 		ColorClass: "text-purple-600 dark:text-purple-400",
 		MimeType:   "video/quicktime",
 	},
 	".webm": {
 		Category:   CategoryVideo,
-		Label:      "Archivo de Video WebM",
+		Label:      "WebM Video",
 		Icon:       "movie",
 		ColorClass: "text-purple-600 dark:text-purple-400",
 		MimeType:   "video/webm",
 	},
 	".mkv": {
 		Category:   CategoryVideo,
-		Label:      "Archivo de Video Matroska",
+		Label:      "Matroska Video",
 		Icon:       "movie",
 		ColorClass: "text-purple-600 dark:text-purple-400",
 		MimeType:   "video/x-matroska",
 	},
 	".mp3": {
 		Category:   CategoryAudio,
-		Label:      "Archivo de Audio MP3",
+		Label:      "MP3 Audio",
 		Icon:       "audiotrack",
 		ColorClass: "text-amber-600 dark:text-amber-400",
 		MimeType:   "audio/mpeg",
 	},
 	".wav": {
 		Category:   CategoryAudio,
-		Label:      "Archivo de Audio WAV",
+		Label:      "WAV Audio",
 		Icon:       "audiotrack",
 		ColorClass: "text-amber-600 dark:text-amber-400",
 		MimeType:   "audio/wav",
 	},
 	".ogg": {
 		Category:   CategoryAudio,
-		Label:      "Archivo de Audio OGG",
+		Label:      "OGG Audio",
 		Icon:       "audiotrack",
 		ColorClass: "text-amber-600 dark:text-amber-400",
 		MimeType:   "audio/ogg",
 	},
 	".flac": {
 		Category:   CategoryAudio,
-		Label:      "Archivo de Audio FLAC",
+		Label:      "FLAC Audio",
 		Icon:       "audiotrack",
 		ColorClass: "text-amber-600 dark:text-amber-400",
 		MimeType:   "audio/flac",
 	},
 	".m4a": {
 		Category:   CategoryAudio,
-		Label:      "Archivo de Audio M4A",
+		Label:      "M4A Audio",
 		Icon:       "audiotrack",
 		ColorClass: "text-amber-600 dark:text-amber-400",
 		MimeType:   "audio/mp4",
 	},
 	".zip": {
 		Category:   CategoryBinary,
-		Label:      "Archivo ZIP",
+		Label:      "ZIP Archive",
 		Icon:       "folder_zip",
 		ColorClass: "text-orange-600 dark:text-orange-400",
 		MimeType:   "application/zip",
 	},
 	".tar": {
 		Category:   CategoryBinary,
-		Label:      "Archivo TAR",
+		Label:      "TAR Archive",
 		Icon:       "folder_zip",
 		ColorClass: "text-orange-600 dark:text-orange-400",
 		MimeType:   "application/x-tar",
 	},
 	".gz": {
 		Category:   CategoryBinary,
-		Label:      "Archivo GZ Comprimido",
+		Label:      "GZ Archive",
 		Icon:       "folder_zip",
 		ColorClass: "text-orange-600 dark:text-orange-400",
 		MimeType:   "application/gzip",
 	},
 	".rar": {
 		Category:   CategoryBinary,
-		Label:      "Archivo RAR",
+		Label:      "RAR Archive",
 		Icon:       "folder_zip",
 		ColorClass: "text-orange-600 dark:text-orange-400",
 		MimeType:   "application/vnd.rar",
 	},
 	".7z": {
 		Category:   CategoryBinary,
-		Label:      "Archivo 7-Zip",
+		Label:      "7-Zip Archive",
 		Icon:       "folder_zip",
 		ColorClass: "text-orange-600 dark:text-orange-400",
 		MimeType:   "application/x-7z-compressed",
@@ -410,7 +411,7 @@ var registry = map[string]Definition{
 	},
 	".txt": {
 		Category:      CategoryCode,
-		Label:         "Texto Plano",
+		Label:         "Plain Text",
 		Icon:          "description",
 		ColorClass:    "text-secondary dark:text-secondary-fixed-dim",
 		LanguageClass: "language-plaintext",
@@ -418,7 +419,7 @@ var registry = map[string]Definition{
 	},
 	".env": {
 		Category:      CategoryCode,
-		Label:         "Configuración Environment",
+		Label:         "Environment Config",
 		Icon:          "settings",
 		ColorClass:    "text-amber-700 dark:text-amber-400",
 		LanguageClass: "language-bash",
@@ -434,23 +435,44 @@ var registry = map[string]Definition{
 	},
 }
 
-func Resolve(extension string, isDirectory bool) Definition {
-	if isDirectory {
+func Resolve(filenameOrExt string, isDir bool) Definition {
+	if isDir {
 		return directoryDefinition
 	}
 
-	normalizedExt := strings.ToLower(extension)
-	if definition, exists := registry[normalizedExt]; exists {
-		if definition.MimeType == "" {
-			definition.MimeType = mime.TypeByExtension(normalizedExt)
-		}
+	cleaned := strings.TrimSpace(filenameOrExt)
+	if cleaned == "" {
+		return defaultFileDefinition
+	}
+
+	baseName := filepath.Base(strings.ToLower(cleaned))
+
+	if definition, exists := registry[baseName]; exists {
 		return definition
 	}
 
+	ext := filepath.Ext(baseName)
+	if ext != "" {
+		if definition, exists := registry[ext]; exists {
+			return definition
+		}
+	}
+
+	if !strings.HasPrefix(baseName, ".") {
+		if definition, exists := registry["."+baseName]; exists {
+			return definition
+		}
+	}
+
 	fallback := defaultFileDefinition
-	detectedMime := mime.TypeByExtension(normalizedExt)
-	if detectedMime != "" {
+	targetExt := ext
+	if targetExt == "" {
+		targetExt = "." + baseName
+	}
+
+	if detectedMime := mime.TypeByExtension(targetExt); detectedMime != "" {
 		fallback.MimeType = detectedMime
 	}
+
 	return fallback
 }
