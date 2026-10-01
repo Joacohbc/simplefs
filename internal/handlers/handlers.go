@@ -34,6 +34,16 @@ func NewHandler(storageService *storage.Service, templateEngine *template.Templa
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, embeddedAssets embed.FS) {
 	mux.Handle("GET /static/", http.FileServer(http.FS(embeddedAssets)))
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		data, err := embeddedAssets.ReadFile("static/favicon.svg")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = w.Write(data)
+	})
 	mux.HandleFunc("GET /", h.Index)
 	mux.HandleFunc("GET /api/files", h.Files)
 	mux.HandleFunc("GET /api/file-details", h.FileDetails)
@@ -43,6 +53,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, embeddedAssets embed.FS) {
 	mux.HandleFunc("POST /api/folder", h.Folder)
 	mux.HandleFunc("POST /api/create-file", h.CreateFile)
 	mux.HandleFunc("DELETE /api/delete", h.Delete)
+	mux.HandleFunc("GET /trash", h.Trash)
+	mux.HandleFunc("GET /api/trash", h.ApiTrash)
+	mux.HandleFunc("POST /api/trash/restore", h.ApiTrashRestore)
+	mux.HandleFunc("DELETE /api/trash/delete", h.ApiTrashDelete)
+	mux.HandleFunc("DELETE /api/trash/empty", h.ApiTrashEmpty)
 	mux.HandleFunc("GET /api/preview", h.Preview)
 	mux.HandleFunc("GET /api/download-folder", h.DownloadFolder)
 	mux.HandleFunc("GET /download", h.Download)
@@ -451,4 +466,125 @@ func extractParentPath(relativePath string) string {
 		return ""
 	}
 	return parent[:lastSlash]
+}
+
+func (h *Handler) Trash(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
+	viewMode := r.URL.Query().Get("view")
+	sortBy := r.URL.Query().Get("sort")
+	sortOrder := r.URL.Query().Get("order")
+
+	pageData, err := h.storageService.GetTrashPage(viewMode, sortBy, sortOrder, lang)
+	if err != nil {
+		log.Printf("get trash page error: %v", err)
+		http.Error(w, "Trash unavailable", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := h.templateEngine.ExecuteTemplate(w, "index.html", pageData); err != nil {
+		log.Printf("template render error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) ApiTrash(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
+	viewMode := r.URL.Query().Get("view")
+	sortBy := r.URL.Query().Get("sort")
+	sortOrder := r.URL.Query().Get("order")
+
+	h.renderTrashList(w, viewMode, sortBy, sortOrder, lang)
+}
+
+func (h *Handler) ApiTrashRestore(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		name = r.FormValue("name")
+	}
+	viewMode := r.URL.Query().Get("view")
+	if viewMode == "" {
+		viewMode = r.FormValue("view")
+	}
+	sortBy := r.URL.Query().Get("sort")
+	if sortBy == "" {
+		sortBy = r.FormValue("sort")
+	}
+	sortOrder := r.URL.Query().Get("order")
+	if sortOrder == "" {
+		sortOrder = r.FormValue("order")
+	}
+
+	if err := h.storageService.RestoreFromTrash(name); err != nil {
+		log.Printf("restore from trash error: %v", err)
+		http.Error(w, "Failed to restore item", http.StatusBadRequest)
+		return
+	}
+
+	h.renderTrashList(w, viewMode, sortBy, sortOrder, lang)
+}
+
+func (h *Handler) ApiTrashDelete(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		name = r.FormValue("name")
+	}
+	viewMode := r.URL.Query().Get("view")
+	if viewMode == "" {
+		viewMode = r.FormValue("view")
+	}
+	sortBy := r.URL.Query().Get("sort")
+	if sortBy == "" {
+		sortBy = r.FormValue("sort")
+	}
+	sortOrder := r.URL.Query().Get("order")
+	if sortOrder == "" {
+		sortOrder = r.FormValue("order")
+	}
+
+	if err := h.storageService.DeletePermanentFromTrash(name); err != nil {
+		log.Printf("delete permanent from trash error: %v", err)
+		http.Error(w, "Failed to delete item", http.StatusBadRequest)
+		return
+	}
+
+	h.renderTrashList(w, viewMode, sortBy, sortOrder, lang)
+}
+
+func (h *Handler) ApiTrashEmpty(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
+	viewMode := r.URL.Query().Get("view")
+	if viewMode == "" {
+		viewMode = r.FormValue("view")
+	}
+	sortBy := r.URL.Query().Get("sort")
+	if sortBy == "" {
+		sortBy = r.FormValue("sort")
+	}
+	sortOrder := r.URL.Query().Get("order")
+	if sortOrder == "" {
+		sortOrder = r.FormValue("order")
+	}
+
+	if err := h.storageService.EmptyTrash(); err != nil {
+		log.Printf("empty trash error: %v", err)
+		http.Error(w, "Failed to empty trash", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderTrashList(w, viewMode, sortBy, sortOrder, lang)
+}
+
+func (h *Handler) renderTrashList(w http.ResponseWriter, view, sort, order, lang string) {
+	pageData, err := h.storageService.GetTrashPage(view, sort, order, lang)
+	if err != nil {
+		log.Printf("render trash list error: %v", err)
+		http.Error(w, "Failed to load trash", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = h.templateEngine.ExecuteTemplate(w, "file_list.html", pageData)
 }

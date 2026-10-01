@@ -48,6 +48,16 @@ func TestHandler_RegisterRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK && rec.Code != http.StatusNotFound {
 		t.Errorf("unexpected status code for static file: %d", rec.Code)
 	}
+
+	reqFav := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	recFav := httptest.NewRecorder()
+	mux.ServeHTTP(recFav, reqFav)
+	if recFav.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for /favicon.ico, got: %d", recFav.Code)
+	}
+	if ct := recFav.Header().Get("Content-Type"); ct != "image/svg+xml" {
+		t.Errorf("expected image/svg+xml, got: %s", ct)
+	}
 }
 
 func TestHandler_Index(t *testing.T) {
@@ -680,4 +690,83 @@ func TestHandler_Download_DirectoryAsZip(t *testing.T) {
 	if rec.Header().Get("Content-Type") != "application/zip" {
 		t.Errorf("expected application/zip, got %q", rec.Header().Get("Content-Type"))
 	}
+}
+
+func TestHandler_Trash(t *testing.T) {
+	handler, tempDir := setupTestServer(t)
+
+	// Create test file
+	filePath := filepath.Join(tempDir, "item_to_delete.txt")
+	if err := os.WriteFile(filePath, []byte("delete me"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("renders /trash page", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/trash?view=list&lang=es", nil)
+		rec := httptest.NewRecorder()
+		handler.Trash(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "Papelera") {
+			t.Errorf("expected body to contain 'Papelera'")
+		}
+	})
+
+	t.Run("move to trash via delete and view api trash", func(t *testing.T) {
+		delReq := httptest.NewRequest(http.MethodDelete, "/api/delete?path=item_to_delete.txt&view=list&lang=es", nil)
+		delRec := httptest.NewRecorder()
+		handler.Delete(delRec, delReq)
+
+		if delRec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", delRec.Code)
+		}
+
+		trashReq := httptest.NewRequest(http.MethodGet, "/api/trash?view=list&lang=es", nil)
+		trashRec := httptest.NewRecorder()
+		handler.ApiTrash(trashRec, trashReq)
+
+		if trashRec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", trashRec.Code)
+		}
+		body := trashRec.Body.String()
+		if !strings.Contains(body, "item_to_delete.txt") {
+			t.Errorf("expected trash to contain 'item_to_delete.txt', body: %s", body)
+		}
+	})
+
+	t.Run("restore item from trash", func(t *testing.T) {
+		restoreReq := httptest.NewRequest(http.MethodPost, "/api/trash/restore?name=item_to_delete.txt&view=list&lang=es", nil)
+		restoreRec := httptest.NewRecorder()
+		handler.ApiTrashRestore(restoreRec, restoreReq)
+
+		if restoreRec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", restoreRec.Code)
+		}
+
+		// Verify file restored
+		if _, err := os.Stat(filepath.Join(tempDir, "item_to_delete.txt")); err != nil {
+			t.Errorf("restored file not found in tempDir: %v", err)
+		}
+	})
+
+	t.Run("empty trash", func(t *testing.T) {
+		// Delete again
+		delReq := httptest.NewRequest(http.MethodDelete, "/api/delete?path=item_to_delete.txt&view=list&lang=es", nil)
+		delRec := httptest.NewRecorder()
+		handler.Delete(delRec, delReq)
+
+		emptyReq := httptest.NewRequest(http.MethodDelete, "/api/trash/empty?view=list&lang=es", nil)
+		emptyRec := httptest.NewRecorder()
+		handler.ApiTrashEmpty(emptyRec, emptyReq)
+
+		if emptyRec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", emptyRec.Code)
+		}
+		if !strings.Contains(emptyRec.Body.String(), "La papelera está vacía") {
+			t.Errorf("expected empty trash message in body")
+		}
+	})
 }

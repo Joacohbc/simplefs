@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient: Deep Cobalt Blue -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#005fb8" />
+      <stop offset="50%" stop-color="#00488d" />
+      <stop offset="100%" stop-color="#002b5c" />
+    </linearGradient>
+
+    <!-- Subtle inner surface gloss -->
+    <linearGradient id="sheen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Subtle drop shadow for crisp glyph depth -->
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="125%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#001833" flood-opacity="0.38" />
+    </filter>
+
+    <!-- Cyan/Emerald accent glow -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#4facfe" />
+    </linearGradient>
+  </defs>
+
+  <!-- iOS / macOS style rounded squircle base -->
+  <rect width="512" height="512" rx="116" fill="url(#bgGrad)" />
+  <rect width="512" height="512" rx="116" fill="url(#sheen)" />
+  
+  <!-- Subtle border stroke -->
+  <rect x="2" y="2" width="508" height="508" rx="114" fill="none" stroke="#ffffff" stroke-width="3" stroke-opacity="0.18" />
+
+  <!-- Iconic Minimalist Folder & Data Core Graphic -->
+  <g filter="url(#softShadow)">
+    <!-- Back Tab of the Folder -->
+    <path d="M 124 186 C 124 168 138 154 156 154 L 232 154 C 248 154 262 163 270 176 L 286 202 L 356 202 C 374 202 388 216 388 234 L 388 336 C 388 354 374 368 356 368 L 156 368 C 138 368 124 354 124 336 Z" 
+          fill="#00356d" opacity="0.65" />
+
+    <!-- Main Folder Silhouette: Pure, Crisp White Body -->
+    <path d="M 116 218 C 116 198 132 182 152 182 L 230 182 C 244 182 258 190 266 202 L 282 226 L 360 226 C 380 226 396 242 396 262 L 396 348 C 396 368 380 384 360 384 L 152 384 C 132 384 116 368 116 348 Z" 
+          fill="#ffffff" />
+
+    <!-- Technical Inner Cutout / Storage Core Details -->
+    <rect x="168" y="266" width="176" height="20" rx="10" fill="#00488d" />
+    <rect x="168" y="306" width="112" height="20" rx="10" fill="#00488d" />
+
+    <!-- Active High-Performance Data Node / Live Sync Indicator (Cyan) -->
+    <circle cx="328" cy="316" r="16" fill="url(#accentGrad)" />
+    <circle cx="328" cy="316" r="8" fill="#ffffff" />
+  </g>
+</svg>

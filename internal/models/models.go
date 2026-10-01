@@ -32,8 +32,9 @@ type FileInfo struct {
 	FolderDotClass   string
 	IsImage          bool
 	IsZip            bool
-	Category         string
-	Extension        string
+	Category          string
+	Extension         string
+	TrashOriginalPath string
 }
 
 type Breadcrumb struct {
@@ -42,17 +43,18 @@ type Breadcrumb struct {
 }
 
 type PageData struct {
-	Path        string
-	Query       string
-	SortBy      string
-	SortOrder   string
-	Breadcrumbs []Breadcrumb
-	Folders     []FileInfo
-	Files       []FileInfo
+	Path         string
+	Query        string
+	SortBy       string
+	SortOrder    string
+	Breadcrumbs  []Breadcrumb
+	Folders      []FileInfo
+	Files        []FileInfo
 	ViewMode     string
 	Lang         string
 	NotFound     bool
 	NotFoundPath string
+	IsTrash      bool
 }
 
 func (p PageData) TotalItems() int {

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="favBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#005fb8" />
+      <stop offset="100%" stop-color="#002e60" />
+    </linearGradient>
+    <linearGradient id="cyanNode" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#4facfe" />
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle Base for Favicon -->
+  <rect width="64" height="64" rx="15" fill="url(#favBg)" />
+  <rect x="1" y="1" width="62" height="62" rx="14" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.2" />
+
+  <!-- Pixel-tuned Minimalist Folder Glyph for 16-64px rendering -->
+  <path d="M 14 26 C 14 22.7 16.7 20 20 20 L 27 20 C 28.8 20 30.5 21 31.5 22.5 L 33.5 25.5 L 44 25.5 C 47.3 25.5 50 28.2 50 31.5 L 50 43 C 50 46.3 47.3 49 44 49 L 20 49 C 16.7 49 14 46.3 14 43 Z" fill="#ffffff" />
+
+  <!-- Data Track & Active Node -->
+  <rect x="20" y="33" width="24" height="4" rx="2" fill="#00488d" />
+  <rect x="20" y="40" width="14" height="4" rx="2" fill="#00488d" />
+  <circle cx="41" cy="42" r="3.5" fill="url(#cyanNode)" />
+</svg>

@@ -36,6 +36,11 @@ type ServiceInterface interface {
 	CreateFolder(parentRelativePath, folderName string) error
 	CreateFile(parentRelativePath, filename string, content []byte) error
 	DeleteItem(relativePath string) error
+	MoveToTrash(relativePath string) error
+	GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models.PageData, error)
+	RestoreFromTrash(trashName string) error
+	DeletePermanentFromTrash(trashName string) error
+	EmptyTrash() error
 	GetDownloadFile(relativePath string) (filePath, filename, mimeType string, forceAttachment bool, err error)
 	ExtractZipFile(targetDirectoryRelativePath, originalFilename string, fileReader io.Reader) (string, error)
 	ExtractExistingZip(parentRelativePath, zipFilename string) (string, error)
@@ -460,6 +465,39 @@ func (s *Service) DeleteItem(relativePath string) error {
 
 	if strings.HasPrefix(cleanRelative, "..") {
 		return ErrInvalidPath
+	}
+
+	for _, segment := range strings.Split(cleanRelative, string(filepath.Separator)) {
+		if isRestrictedSegment(segment) {
+			return ErrProtectedItem
+		}
+	}
+
+	absolutePath, err := s.ResolvePath(relativePath)
+	if err != nil {
+		return err
+	}
+
+	absoluteBase, err := filepath.Abs(s.baseDirectory)
+	if err != nil {
+		return err
+	}
+	if evaluatedBase, err := filepath.EvalSymlinks(absoluteBase); err == nil {
+		absoluteBase = evaluatedBase
+	}
+
+	if absolutePath == absoluteBase {
+		return ErrCannotDeleteRoot
+	}
+
+	return s.MoveToTrash(relativePath)
+}
+
+func (s *Service) DeleteItemPermanently(relativePath string) error {
+	normalized := strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/")
+	cleanRelative := filepath.Clean(filepath.FromSlash(normalized))
+	if cleanRelative == "" || cleanRelative == "." || cleanRelative == "/" {
+		return ErrCannotDeleteRoot
 	}
 
 	for _, segment := range strings.Split(cleanRelative, string(filepath.Separator)) {

@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ T .Lang "app.title" }}</title>
   
+  <!-- Favicon and App Icon (Stitch Generated) -->
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="alternate icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/static/app-icon.svg">
+  
   <!-- Vendor Styles (Fonts, Icons, Highlight.js) -->
   <link rel="stylesheet" href="/static/vendor.css">
   
@@ -68,44 +73,26 @@
          hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
          hx-target="#file-list-container"
          hx-indicator="#global-spinner"
-         onclick="if(window.innerWidth < 768) toggleMobileSidebar()"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors bg-primary dark:bg-primary-container-dark text-white font-medium shadow-sm"
-         aria-current="page">
+         onclick="if(window.innerWidth < 768) toggleMobileSidebar(); updateNavSelection(false);"
+         id="nav-all-files"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors {{ if not .IsTrash }}bg-primary dark:bg-primary-container-dark text-white font-medium shadow-sm{{ else }}text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark{{ end }}"
+         {{ if not .IsTrash }}aria-current="page"{{ end }}>
         <span class="material-symbols-outlined text-[20px]">folder_open</span>
         <span>{{ T .Lang "nav.all_files" }}</span>
       </a>
-      <a href="/?path=&sort=modified&order=desc&view={{ .ViewMode }}&lang={{ .Lang }}"
-         hx-get="/api/files?path=&sort=modified&order=desc&view={{ .ViewMode }}&lang={{ .Lang }}" 
-         hx-push-url="/?path=&sort=modified&order=desc&view={{ .ViewMode }}&lang={{ .Lang }}"
+      <a href="/trash?view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
+         hx-get="/api/trash?view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
+         hx-push-url="/trash?view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
          hx-target="#file-list-container"
          hx-indicator="#global-spinner"
-         onclick="if(window.innerWidth < 768) toggleMobileSidebar()"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors">
-        <span class="material-symbols-outlined text-[20px]">schedule</span>
-        <span>{{ T .Lang "nav.recents" }}</span>
-      </a>
-      <a href="#" onclick="alert('Sección de favoritos disponible próximamente'); return false;"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors">
-        <span class="material-symbols-outlined text-[20px]">star</span>
-        <span>{{ T .Lang "nav.favorites" }}</span>
-      </a>
-      <a href="#" onclick="alert('La papelera está vacía'); return false;"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors">
+         onclick="if(window.innerWidth < 768) toggleMobileSidebar(); updateNavSelection(true);"
+         id="nav-trash"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors {{ if .IsTrash }}bg-primary dark:bg-primary-container-dark text-white font-medium shadow-sm{{ else }}text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark{{ end }}"
+         {{ if .IsTrash }}aria-current="page"{{ end }}>
         <span class="material-symbols-outlined text-[20px]">delete</span>
         <span>{{ T .Lang "nav.trash" }}</span>
       </a>
     </nav>
-
-    <!-- Bottom Status Widget -->
-    <div class="px-4 mt-auto">
-      <div class="p-3 rounded-xl bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-accent-sheet"></span>
-          <span class="font-label-md text-label-md text-on-surface-light dark:text-on-surface-dark font-medium">{{ T .Lang "status.local_server" }}</span>
-        </div>
-        <span class="font-mono-tabular text-mono-tabular text-secondary text-[11px]">v1.0</span>
-      </div>
-    </div>
   </aside>
 
   <!-- Top Navigation Bar -->
@@ -137,7 +124,7 @@
 
     <!-- Right: Action Controls -->
     <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-      <div class="flex items-center gap-2">
+      <div id="header-create-actions" class="flex items-center gap-2 {{ if .IsTrash }}hidden{{ end }}">
         <button onclick="openFolderModal()" 
                 class="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark font-body-sm text-body-sm text-on-surface-light dark:text-on-surface-dark transition-all shadow-sm" 
                 type="button"
@@ -154,7 +141,7 @@
         </button>
       </div>
 
-      <div class="hidden sm:block h-5 w-[1px] bg-outline-variant-light dark:bg-outline-variant-dark mx-1"></div>
+      <div id="header-separator" class="hidden sm:block h-5 w-[1px] bg-outline-variant-light dark:bg-outline-variant-dark mx-1 {{ if .IsTrash }}!hidden{{ end }}"></div>
 
       <!-- Language Selector -->
       <div class="flex items-center border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark rounded-xl p-1 shadow-sm">
@@ -228,7 +215,7 @@
   </main>
 
   <!-- Floating Action Button (FAB) with Speed Dial (Stitch Style) -->
-  <div class="fixed bottom-8 right-8 z-50 flex flex-col-reverse items-end gap-3" id="speed-dial-container">
+  <div class="fixed bottom-8 right-8 z-50 flex flex-col-reverse items-end gap-3 {{ if .IsTrash }}hidden{{ end }}" id="speed-dial-container">
     
     <!-- Main Primary FAB Button -->
     <button onclick="toggleSpeedDial()" 
@@ -476,9 +463,19 @@
       if (document.getElementById('current-order-input')) document.getElementById('current-order-input').value = p.order;
       if (document.getElementById('current-lang-input')) document.getElementById('current-lang-input').value = p.lang;
 
-      const queryString = `path=${encodeURIComponent(p.path)}&view=${encodeURIComponent(p.view)}&sort=${encodeURIComponent(p.sort)}&order=${encodeURIComponent(p.order)}&lang=${encodeURIComponent(p.lang)}${p.query ? '&query=' + encodeURIComponent(p.query) : ''}`;
-      const url = `/api/files?${queryString}`;
-      const pushUrl = `/?${queryString}`;
+      const activePath = document.getElementById('active-path');
+      const isTrash = (activePath && activePath.getAttribute('data-is-trash') === 'true') || window.location.pathname.startsWith('/trash');
+
+      let url, pushUrl;
+      if (isTrash) {
+        const trashQuery = `view=${encodeURIComponent(p.view)}&sort=${encodeURIComponent(p.sort)}&order=${encodeURIComponent(p.order)}&lang=${encodeURIComponent(p.lang)}`;
+        url = `/api/trash?${trashQuery}`;
+        pushUrl = `/trash?${trashQuery}`;
+      } else {
+        const queryString = `path=${encodeURIComponent(p.path)}&view=${encodeURIComponent(p.view)}&sort=${encodeURIComponent(p.sort)}&order=${encodeURIComponent(p.order)}&lang=${encodeURIComponent(p.lang)}${p.query ? '&query=' + encodeURIComponent(p.query) : ''}`;
+        url = `/api/files?${queryString}`;
+        pushUrl = `/?${queryString}`;
+      }
 
       htmx.ajax('GET', url, {
         target: '#file-list-container',
@@ -889,8 +886,49 @@
         document.getElementById('folder-modal-sort').value = sortVal;
         document.getElementById('folder-modal-order').value = orderVal;
       }
+
+      const isTrashEl = document.querySelector('[data-is-trash="true"]');
+      updateNavSelection(!!isTrashEl);
+
       initRichHighlight();
     });
+
+    function updateNavSelection(isTrash) {
+      const navAll = document.getElementById('nav-all-files');
+      const navTrash = document.getElementById('nav-trash');
+      const createActions = document.getElementById('header-create-actions');
+      const headerSep = document.getElementById('header-separator');
+      const speedDial = document.getElementById('speed-dial-container');
+
+      const activeClass = 'bg-primary dark:bg-primary-container-dark text-white font-medium shadow-sm';
+      const inactiveClass = 'text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark';
+
+      if (isTrash) {
+        if (navTrash) {
+          navTrash.className = 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ' + activeClass;
+          navTrash.setAttribute('aria-current', 'page');
+        }
+        if (navAll) {
+          navAll.className = 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ' + inactiveClass;
+          navAll.removeAttribute('aria-current');
+        }
+        if (createActions) createActions.classList.add('hidden');
+        if (headerSep) headerSep.classList.add('!hidden');
+        if (speedDial) speedDial.classList.add('hidden');
+      } else {
+        if (navAll) {
+          navAll.className = 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ' + activeClass;
+          navAll.setAttribute('aria-current', 'page');
+        }
+        if (navTrash) {
+          navTrash.className = 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ' + inactiveClass;
+          navTrash.removeAttribute('aria-current');
+        }
+        if (createActions) createActions.classList.remove('hidden');
+        if (headerSep) headerSep.classList.remove('!hidden');
+        if (speedDial) speedDial.classList.remove('hidden');
+      }
+    }
 
     // Global HTMX error handler for notifications (e.g. security rejection on ZIP)
     document.body.addEventListener('htmx:responseError', function(evt) {

@@ -1,3 +1,5 @@
+{{ if .IsTrash }}<div data-is-trash="true" class="hidden"></div>{{ end }}
+
 {{ if .NotFound }}
 <!-- Folder Not Found Empty State -->
 <div class="flex flex-col items-center justify-center p-10 md:p-14 bg-surface-container-light dark:bg-surface-container-dark rounded-2xl border border-outline-variant-light dark:border-outline-variant-dark text-center my-6 shadow-sm">
@@ -20,7 +22,7 @@
 </div>
 {{ else }}
 
-<!-- 1. Breadcrumb & Control Bar (Stitch Reference Lines 6-7) -->
+<!-- 1. Breadcrumb & Control Bar (Stitch Ambient Workspace Reference) -->
 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
   <!-- Breadcrumb Navigation -->
   <nav class="flex items-center gap-2 text-secondary dark:text-on-surface-variant-dark font-body-sm text-body-sm overflow-x-auto py-1" aria-label="{{ T .Lang "breadcrumb.aria" }}">
@@ -35,28 +37,37 @@
        data-sort="{{ .SortBy }}"
        data-order="{{ .SortOrder }}"
        data-view="{{ .ViewMode }}"
-       data-lang="{{ .Lang }}">
+       data-lang="{{ .Lang }}"
+       data-is-trash="{{ if .IsTrash }}true{{ else }}false{{ end }}">
       <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark">home</span>
       <span>{{ T .Lang "breadcrumb.home" }}</span>
     </a>
 
-    {{ range .Breadcrumbs }}
+    {{ if .IsTrash }}
       <span class="text-outline-variant-light dark:text-outline-variant-dark select-none">/</span>
-      <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-         class="flex items-center gap-1.5 px-2 py-1 font-medium text-on-surface-light dark:text-on-surface-dark hover:text-primary dark:hover:text-primary-dark transition-colors rounded-lg hover:bg-surface-container-light dark:hover:bg-surface-container-dark"
-         hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-         hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-         hx-target="#file-list-container" 
-         hx-indicator="#global-spinner">
-        <span class="material-symbols-outlined text-[17px] text-primary dark:text-primary-dark">folder_open</span>
-        <span class="tracking-tight font-semibold">{{ .Name }}</span>
-      </a>
+      <span class="flex items-center gap-1.5 px-2 py-1 font-semibold text-on-surface-light dark:text-on-surface-dark">
+        <span class="material-symbols-outlined text-[17px] text-primary dark:text-primary-dark">delete</span>
+        <span class="tracking-tight">{{ T .Lang "trash.title" }}</span>
+      </span>
+    {{ else }}
+      {{ range .Breadcrumbs }}
+        <span class="text-outline-variant-light dark:text-outline-variant-dark select-none">/</span>
+        <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
+           class="flex items-center gap-1.5 px-2 py-1 font-medium text-on-surface-light dark:text-on-surface-dark hover:text-primary dark:hover:text-primary-dark transition-colors rounded-lg hover:bg-surface-container-light dark:hover:bg-surface-container-dark"
+           hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
+           hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+           hx-target="#file-list-container" 
+           hx-indicator="#global-spinner">
+          <span class="material-symbols-outlined text-[17px] text-primary dark:text-primary-dark">folder_open</span>
+          <span class="tracking-tight font-semibold">{{ .Name }}</span>
+        </a>
+      {{ end }}
     {{ end }}
   </nav>
 
   <!-- Controls: Download ZIP, Sort Dropdown & View Mode Switcher -->
   <div class="flex items-center gap-2.5 self-end md:self-auto">
-    {{ if and .Path (not .NotFound) }}
+    {{ if and .Path (not .NotFound) (not .IsTrash) }}
     <a href="/api/download-folder?path={{ .Path }}" 
        download
        class="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-white dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark text-on-surface-light dark:text-on-surface-dark font-body-sm text-body-sm transition-all shadow-sm"
@@ -105,6 +116,7 @@
       </button>
     </div>
 
+    {{ if not .IsTrash }}
     <!-- Info Button -->
     <button aria-label="Información de directorio" 
             hx-get="/api/file-details?path={{ .Path }}&lang={{ $.Lang }}"
@@ -114,11 +126,45 @@
             type="button">
       <span class="material-symbols-outlined text-[19px]">info</span>
     </button>
+    {{ end }}
   </div>
 </div>
 
-<!-- 2. Quick Storage Metric Banner (Stitch Reference Lines 8-9) -->
-<div class="flex items-center justify-between py-2">
+<!-- 2. Header Banner (Generous separation: pt-2 pb-6 mb-2) -->
+{{ if .IsTrash }}
+<div class="flex items-center justify-between pt-2 pb-6 mb-2">
+  <div class="flex items-center gap-4">
+    <div class="w-12 h-12 rounded-2xl bg-error-container/20 dark:bg-error-container/30 text-error flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined text-[28px]">delete</span>
+    </div>
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="font-headline-md text-headline-md text-on-surface-light dark:text-on-surface-dark font-bold tracking-tight">
+          {{ T .Lang "trash.title" }}
+        </h1>
+        <span class="px-2.5 py-0.5 rounded-full text-label-md font-mono-tabular bg-primary/10 dark:bg-surface-container-highest-dark text-primary dark:text-primary-dark font-medium">
+          {{ T .Lang "banner.items_count" .TotalItems }}
+        </span>
+      </div>
+      <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark mt-1">
+        {{ T .Lang "trash.desc" }}
+      </p>
+    </div>
+  </div>
+  {{ if or .Folders .Files }}
+  <button hx-delete="/api/trash/empty?view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
+          hx-confirm="{{ T .Lang "trash.empty_confirm" }}"
+          hx-target="#file-list-container"
+          hx-indicator="#global-spinner"
+          class="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-error/40 hover:bg-error/10 text-error font-body-sm text-body-sm font-medium transition-all shadow-sm cursor-pointer"
+          type="button">
+    <span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+    <span>{{ T .Lang "trash.empty_btn" }}</span>
+  </button>
+  {{ end }}
+</div>
+{{ else }}
+<div class="flex items-center justify-between pt-2 pb-6 mb-2">
   <div class="flex items-center gap-4">
     <div class="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary-container-dark/30 text-primary dark:text-primary-dark flex items-center justify-center shrink-0">
       <span class="material-symbols-outlined text-[28px]">folder</span>
@@ -137,13 +183,22 @@
       </p>
     </div>
   </div>
-  <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light/50 dark:border-outline-variant-dark text-secondary">
-    <span class="w-2 h-2 rounded-full bg-accent-sheet"></span>
-    <span class="font-label-md text-label-md font-medium text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "banner.active_dir" }}</span>
-  </div>
+  <!-- Directorio activo badge removed as per user instruction -->
 </div>
+{{ end }}
 
-<!-- 3. SECCIÓN: CARPETAS (Folders) (Stitch Reference Lines 10-11) -->
+{{ if and .IsTrash (not .Folders) (not .Files) }}
+<!-- Empty Trash State -->
+<div class="flex flex-col items-center justify-center p-14 text-center my-6 bg-surface-container-light/30 dark:bg-surface-container-low-dark/30 rounded-2xl border border-outline-variant-light/40 dark:border-outline-variant-dark/30">
+  <div class="w-16 h-16 rounded-full bg-surface-container-light dark:bg-surface-container-highest-dark flex items-center justify-center mb-3 text-secondary">
+    <span class="material-symbols-outlined text-4xl">delete_outline</span>
+  </div>
+  <h3 class="font-semibold text-base text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "trash.empty" }}</h3>
+  <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark max-w-sm mt-1">{{ T .Lang "trash.empty_desc" }}</p>
+</div>
+{{ end }}
+
+<!-- 3. SECCIÓN: CARPETAS (Folders) -->
 {{ if .Folders }}
 <section class="space-y-3 pt-2" aria-label="{{ T .Lang "folders.title" (len .Folders) }}">
   <div class="flex items-center justify-between">
@@ -157,6 +212,47 @@
 
   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
     {{ range .Folders }}
+    {{ if $.IsTrash }}
+    <!-- Trashed Folder Card -->
+    <div class="group relative rounded-xl p-3 bg-surface-container-light/50 dark:bg-surface-container-low-dark border border-outline-variant-light/50 dark:border-outline-variant-dark/50 hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 flex items-center justify-between"
+         aria-label="{{ .Name }}">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-error-container/20 dark:bg-error-container/30 text-error flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[22px]">folder_delete</span>
+        </div>
+        <div class="min-w-0">
+          <h3 class="font-body-md text-body-md font-semibold text-on-surface-light dark:text-on-surface-dark truncate" title="{{ .Name }}">{{ .Name }}</h3>
+          <p class="font-mono-tabular text-mono-tabular text-secondary text-[12px] truncate" title="{{ if .TrashOriginalPath }}{{ T $.Lang "trash.original_location" .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}">
+            {{ if .TrashOriginalPath }}{{ T $.Lang "trash.original_location" .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}
+          </p>
+        </div>
+      </div>
+      
+      <!-- Trashed Folder Actions: Restore & Permanent Delete -->
+      <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
+                hx-post="/api/trash/restore?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                hx-target="#file-list-container"
+                hx-indicator="#global-spinner"
+                title="{{ T $.Lang "trash.restore" }}"
+                aria-label="{{ T $.Lang "trash.restore" }}"
+                type="button">
+          <span class="material-symbols-outlined text-[18px]">restore_from_trash</span>
+        </button>
+        <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
+                hx-delete="/api/trash/delete?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                hx-confirm="{{ T $.Lang "trash.delete_permanent_confirm" .Name }}"
+                hx-target="#file-list-container"
+                hx-indicator="#global-spinner"
+                title="{{ T $.Lang "trash.delete_permanent" }}"
+                aria-label="{{ T $.Lang "trash.delete_permanent" }}"
+                type="button">
+          <span class="material-symbols-outlined text-[18px]">delete_forever</span>
+        </button>
+      </div>
+    </div>
+    {{ else }}
+    <!-- Normal Folder Card -->
     <div class="group relative rounded-xl p-3 hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex items-center justify-between"
          hx-get="/api/files?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
          hx-push-url="/?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
@@ -203,12 +299,13 @@
       </div>
     </div>
     {{ end }}
+    {{ end }}
   </div>
 </section>
 {{ end }}
 
-<!-- 4. SECCIÓN: ARCHIVOS (Files) (Stitch Reference Lines 12-20) -->
-{{ if or .Files (and (not .Folders) (not .Query)) (and .Query (not .Files)) }}
+<!-- 4. SECCIÓN: ARCHIVOS (Files) (Stitch Ambient Workspace Reference) -->
+{{ if or .Files (and (not .Folders) (not .Query) (not .IsTrash)) (and .Query (not .Files)) }}
 <section class="space-y-4 pt-2" aria-label="{{ T .Lang "files.title" (len .Files) }}">
   <!-- Section Header with Categorical Filter Chips -->
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -260,18 +357,20 @@
       <!-- GRID VIEW (Stitch Reference Line 17: 16/10 aspect ratio cards) -->
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5" id="files-grid">
         {{ range .Files }}
-        <div class="file-item group p-3 rounded-2xl hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex flex-col justify-between"
+        <div class="file-item group p-3 rounded-2xl bg-surface-container-light/50 dark:bg-surface-container-low-dark border border-outline-variant-light/40 dark:border-white/5 hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex flex-col justify-between"
              data-name="{{ .Name }}"
              data-category="{{ .Category }}">
           
           <!-- Thumbnail Container (16/10 aspect ratio) -->
-          <div class="w-full aspect-[16/10] rounded-xl bg-surface-container-light dark:bg-surface-container-low-dark p-3.5 relative select-none flex flex-col justify-between overflow-hidden border border-outline-variant-light/40 dark:border-outline-variant-dark/30"
+          <div class="w-full aspect-[16/10] rounded-xl bg-surface-container-light dark:bg-surface-container-dark/70 p-3.5 relative select-none flex flex-col justify-between overflow-hidden border border-outline-variant-light/40 dark:border-white/5"
+               {{ if not $.IsTrash }}
                hx-get="/api/preview?path={{ .RelPath }}&lang={{ $.Lang }}"
                hx-target="#modal-container"
                hx-indicator="#global-spinner"
                role="button"
                tabindex="0"
-               aria-label="{{ T $.Lang "files.actions.preview" .Name }}">
+               aria-label="{{ T $.Lang "files.actions.preview" .Name }}"
+               {{ end }}>
             
             {{ if .IsImage }}
               <img src="/download?path={{ .RelPath }}" 
@@ -353,14 +452,37 @@
           <div class="mt-3 flex items-start justify-between gap-2 px-1">
             <div class="min-w-0 flex-1">
               <p class="font-body-sm text-body-sm font-semibold text-on-surface-light dark:text-on-surface-dark truncate group-hover:text-primary dark:group-hover:text-primary-dark transition-colors" title="{{ .Name }}">{{ .Name }}</p>
-              <div class="flex items-center gap-2 mt-0.5 font-mono-tabular text-mono-tabular text-secondary text-[12px]">
+              <div class="flex items-center gap-2 mt-0.5 font-mono-tabular text-mono-tabular text-secondary text-[12px] truncate">
                 <span>{{ .FormattedSize }}</span>
                 <span>•</span>
-                <span>{{ .FormattedMod }}</span>
+                <span class="truncate">{{ if and $.IsTrash .TrashOriginalPath }}{{ T $.Lang "trash.original_location" .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}</span>
               </div>
             </div>
 
             <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              {{ if $.IsTrash }}
+              <!-- Trashed File Actions: Restore & Permanent Delete -->
+              <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
+                      hx-post="/api/trash/restore?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                      hx-target="#file-list-container"
+                      hx-indicator="#global-spinner"
+                      title="{{ T $.Lang "trash.restore" }}"
+                      aria-label="{{ T $.Lang "trash.restore" }}"
+                      type="button">
+                <span class="material-symbols-outlined text-[18px]">restore_from_trash</span>
+              </button>
+              <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
+                      hx-delete="/api/trash/delete?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                      hx-confirm="{{ T $.Lang "trash.delete_permanent_confirm" .Name }}"
+                      hx-target="#file-list-container"
+                      hx-indicator="#global-spinner"
+                      title="{{ T $.Lang "trash.delete_permanent" }}"
+                      aria-label="{{ T $.Lang "trash.delete_permanent" }}"
+                      type="button">
+                <span class="material-symbols-outlined text-[18px]">delete_forever</span>
+              </button>
+              {{ else }}
+              <!-- Normal File Actions -->
               <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
                       hx-get="/api/file-details?path={{ .RelPath }}&lang={{ $.Lang }}"
                       hx-target="#modal-container"
@@ -395,6 +517,7 @@
                       aria-label="{{ T $.Lang "files.actions.delete" .Name }}">
                 <span class="material-symbols-outlined text-[18px]">delete</span>
               </button>
+              {{ end }}
             </div>
           </div>
 
@@ -425,7 +548,7 @@
                   <button type="button" 
                           onclick="toggleColumnSort('modified')"
                           class="flex items-center gap-1 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors {{ if eq .SortBy "modified" }}text-primary dark:text-primary-dark font-bold{{ end }}">
-                    <span>{{ T .Lang "files.table.modified" }}</span>
+                    <span>{{ if .IsTrash }}{{ T .Lang "trash.original_location" }}{{ else }}{{ T .Lang "files.table.modified" }}{{ end }}</span>
                     {{ if eq .SortBy "modified" }}
                       <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
                     {{ else }}
@@ -454,16 +577,41 @@
                   data-name="{{ .Name }}"
                   data-category="{{ .Category }}">
                 <td class="py-3.5 px-4 flex items-center gap-3"
+                    {{ if not $.IsTrash }}
                     hx-get="/api/preview?path={{ .RelPath }}&lang={{ $.Lang }}"
                     hx-target="#modal-container"
-                    hx-indicator="#global-spinner">
+                    hx-indicator="#global-spinner"
+                    {{ end }}>
                   <span class="material-symbols-outlined text-[20px] {{ .IconColorClass }}">{{ .MaterialIcon }}</span>
                   <span class="font-medium text-on-surface-light dark:text-on-surface-dark truncate">{{ .Name }}</span>
                 </td>
-                <td class="py-3.5 px-4 font-mono-tabular text-mono-tabular text-secondary hidden sm:table-cell">{{ .FormattedMod }}</td>
+                <td class="py-3.5 px-4 font-mono-tabular text-mono-tabular text-secondary hidden sm:table-cell truncate" title="{{ if and $.IsTrash .TrashOriginalPath }}{{ .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}">
+                  {{ if and $.IsTrash .TrashOriginalPath }}{{ .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}
+                </td>
                 <td class="py-3.5 px-4 font-mono-tabular text-mono-tabular text-secondary">{{ .FormattedSize }}</td>
                 <td class="py-3.5 px-4 text-right">
                   <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {{ if $.IsTrash }}
+                    <!-- Trashed Table Actions -->
+                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
+                            hx-post="/api/trash/restore?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                            hx-target="#file-list-container"
+                            hx-indicator="#global-spinner"
+                            title="{{ T $.Lang "trash.restore" }}"
+                            aria-label="{{ T $.Lang "trash.restore" }}">
+                      <span class="material-symbols-outlined text-[18px]">restore_from_trash</span>
+                    </button>
+                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
+                            hx-delete="/api/trash/delete?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                            hx-confirm="{{ T $.Lang "trash.delete_permanent_confirm" .Name }}"
+                            hx-target="#file-list-container"
+                            hx-indicator="#global-spinner"
+                            title="{{ T $.Lang "trash.delete_permanent" }}"
+                            aria-label="{{ T $.Lang "trash.delete_permanent" }}">
+                      <span class="material-symbols-outlined text-[18px]">delete_forever</span>
+                    </button>
+                    {{ else }}
+                    <!-- Normal Table Actions -->
                     <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
                             hx-get="/api/file-details?path={{ .RelPath }}&lang={{ $.Lang }}"
                             hx-target="#modal-container"
@@ -494,6 +642,7 @@
                             title="{{ T $.Lang "files.actions.delete" .Name }}">
                       <span class="material-symbols-outlined text-[18px]">delete</span>
                     </button>
+                    {{ end }}
                   </div>
                 </td>
               </tr>
