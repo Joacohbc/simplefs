@@ -233,3 +233,10 @@
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-outline);
 }
+
+@layer utilities {
+  .font-mono-tabular {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}

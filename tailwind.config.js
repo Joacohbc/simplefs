@@ -42,7 +42,13 @@ module.exports = {
         error: "var(--color-error)",
         "error-container": "var(--color-error-container)",
         "on-error": "var(--color-on-error)",
-        "on-error-container": "var(--color-on-error-container)"
+        "on-error-container": "var(--color-on-error-container)",
+
+        "accent-go": "#00add8",
+        "accent-js": "#f59e0b",
+        "accent-sheet": "#10b981",
+        "accent-danger-pdf": "#ba1a1a",
+        "accent-media": "#8b5cf6"
       },
       borderRadius: {
         "DEFAULT": "0.25rem",
@@ -63,7 +69,9 @@ module.exports = {
         "xl": "32px"
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"]
+        sans: ["Inter", "system-ui", "sans-serif"],
+        mono: ["'JetBrains Mono'", "ui-monospace", "SFMono-Regular", "monospace"],
+        "mono-tabular": ["'JetBrains Mono'", "ui-monospace", "SFMono-Regular", "monospace"]
       }
     }
   },

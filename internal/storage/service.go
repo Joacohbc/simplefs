@@ -190,6 +190,8 @@ func (s *Service) mapDirEntryToFileInfo(entry os.DirEntry, relativePath, absolut
 		IconColorClass:   typeDef.ColorClass,
 		IsImage:          typeDef.Category == filetype.CategoryImage,
 		IsZip:            !entry.IsDir() && strings.EqualFold(extension, ".zip"),
+		Category:         string(typeDef.Category),
+		Extension:        strings.TrimPrefix(strings.ToUpper(extension), "."),
 	}, true
 }
 

@@ -30,6 +30,8 @@ type FileInfo struct {
 	IconColorClass   string
 	IsImage          bool
 	IsZip            bool
+	Category         string
+	Extension        string
 }
 
 type Breadcrumb struct {
