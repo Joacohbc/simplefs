@@ -140,6 +140,21 @@
       <input type="file" id="global-file-picker" name="files" multiple onchange="submitUploadForm()" aria-label="{{ T .Lang "fab.upload" }}">
     </form>
 
+    <!-- Hidden Native ZIP Upload Input (Extracts into Folder) -->
+    <form id="upload-zip-form" 
+          hx-post="/api/upload-zip" 
+          hx-target="#file-list-container" 
+          hx-encoding="multipart/form-data" 
+          hx-indicator="#global-spinner" 
+          class="hidden">
+      <input type="hidden" name="path" id="upload-zip-form-path" value="{{ .Path }}">
+      <input type="hidden" name="view" id="upload-zip-form-view" value="{{ .ViewMode }}">
+      <input type="hidden" name="sort" id="upload-zip-form-sort" value="{{ .SortBy }}">
+      <input type="hidden" name="order" id="upload-zip-form-order" value="{{ .SortOrder }}">
+      <input type="hidden" name="lang" id="upload-zip-form-lang" value="{{ .Lang }}">
+      <input type="file" id="global-zip-picker" name="zip_file" accept=".zip" onchange="submitZipUploadForm()" aria-label="{{ T .Lang "fab.upload_zip" }}">
+    </form>
+
     <!-- Dynamic File List Area -->
     <div id="file-list-container" class="transition-opacity duration-150">
       {{ template "file_list.html" . }}
@@ -170,7 +185,18 @@
       </button>
     </div>
 
-    <!-- Speed Dial Option 2: Paste from Clipboard -->
+    <!-- Speed Dial Option 2: Upload ZIP & Extract -->
+    <div class="speed-dial-item flex items-center gap-2">
+      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.upload_zip" }}</span>
+      <button onclick="triggerZipUpload()" 
+              class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
+              aria-label="{{ T .Lang "fab.upload_zip" }}"
+              title="{{ T .Lang "fab.upload_zip" }}">
+        <span class="material-symbols-outlined text-xl">folder_zip</span>
+      </button>
+    </div>
+
+    <!-- Speed Dial Option 3: Paste from Clipboard -->
     <div class="speed-dial-item flex items-center gap-2">
       <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.paste" }}</span>
       <button onclick="openClipboardModal(); closeSpeedDial()" 
@@ -180,7 +206,7 @@
       </button>
     </div>
 
-    <!-- Speed Dial Option 3: New Folder -->
+    <!-- Speed Dial Option 4: New Folder -->
     <div class="speed-dial-item flex items-center gap-2">
       <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.new_folder" }}</span>
       <button onclick="openFolderModal(); closeSpeedDial()" 
@@ -460,6 +486,21 @@
 
     function submitUploadForm() {
       const form = document.getElementById('upload-form');
+      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }
+
+    function triggerZipUpload() {
+      closeSpeedDial();
+      const current = getCurrentParams();
+      document.getElementById('upload-zip-form-path').value = current.path;
+      document.getElementById('upload-zip-form-view').value = current.view;
+      document.getElementById('upload-zip-form-sort').value = current.sort;
+      document.getElementById('upload-zip-form-order').value = current.order;
+      document.getElementById('global-zip-picker').click();
+    }
+
+    function submitZipUploadForm() {
+      const form = document.getElementById('upload-zip-form');
       form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
     }
 
@@ -763,6 +804,11 @@
         document.getElementById('upload-form-sort').value = sortVal;
         document.getElementById('upload-form-order').value = orderVal;
 
+        document.getElementById('upload-zip-form-path').value = pathVal;
+        document.getElementById('upload-zip-form-view').value = viewVal;
+        document.getElementById('upload-zip-form-sort').value = sortVal;
+        document.getElementById('upload-zip-form-order').value = orderVal;
+
         document.getElementById('clipboard-path-input').value = pathVal;
         document.getElementById('clipboard-view-input').value = viewVal;
         document.getElementById('clipboard-sort-input').value = sortVal;
@@ -774,6 +820,14 @@
         document.getElementById('folder-modal-order').value = orderVal;
       }
       initRichHighlight();
+    });
+
+    // Global HTMX error handler for notifications (e.g. security rejection on ZIP)
+    document.body.addEventListener('htmx:responseError', function(evt) {
+      if (evt.detail && evt.detail.xhr) {
+        const errorMsg = evt.detail.xhr.responseText || 'Error en la operación';
+        alert(errorMsg);
+      }
     });
 
     function initRichHighlight() {

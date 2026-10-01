@@ -37,6 +37,10 @@ type ServiceInterface interface {
 	CreateFile(parentRelativePath, filename string, content []byte) error
 	DeleteItem(relativePath string) error
 	GetDownloadFile(relativePath string) (filePath, filename, mimeType string, forceAttachment bool, err error)
+	ExtractZipFile(targetDirectoryRelativePath, originalFilename string, fileReader io.Reader) (string, error)
+	ExtractExistingZip(parentRelativePath, zipFilename string) (string, error)
+	GetFolderDownloadInfo(relativePath string) (string, string, error)
+	StreamFolderZip(folderAbsPath string, w io.Writer) error
 }
 
 type Service struct {
@@ -185,6 +189,7 @@ func (s *Service) mapDirEntryToFileInfo(entry os.DirEntry, relativePath, absolut
 		MaterialIcon:     typeDef.Icon,
 		IconColorClass:   typeDef.ColorClass,
 		IsImage:          typeDef.Category == filetype.CategoryImage,
+		IsZip:            !entry.IsDir() && strings.EqualFold(extension, ".zip"),
 	}, true
 }
 
@@ -222,7 +227,7 @@ func (s *Service) GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, 
 		}
 	}
 
-	normalizedSortBy, normalizedSortOrder := normalizeSortParams(sortBy, sortOrder)
+	normalizedSortBy, normalizedSortOrder := NormalizeSortParams(sortBy, sortOrder)
 	sortFolders(folders, normalizedSortBy, normalizedSortOrder)
 	sortFiles(files, normalizedSortBy, normalizedSortOrder)
 
@@ -535,7 +540,7 @@ func countDirectoryChildren(directoryPath string) int {
 	return childCount
 }
 
-func normalizeSortParams(sortBy, sortOrder string) (string, string) {
+func NormalizeSortParams(sortBy, sortOrder string) (string, string) {
 	validSorts := map[string]bool{
 		models.SortByName:     true,
 		models.SortByCreated:  true,

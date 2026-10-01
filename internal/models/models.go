@@ -29,6 +29,7 @@ type FileInfo struct {
 	MaterialIcon     string
 	IconColorClass   string
 	IsImage          bool
+	IsZip            bool
 }
 
 type Breadcrumb struct {
@@ -44,8 +45,10 @@ type PageData struct {
 	Breadcrumbs []Breadcrumb
 	Folders     []FileInfo
 	Files       []FileInfo
-	ViewMode    string
-	Lang        string
+	ViewMode     string
+	Lang         string
+	NotFound     bool
+	NotFoundPath string
 }
 
 func (p PageData) TotalItems() int {

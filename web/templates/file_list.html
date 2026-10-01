@@ -1,34 +1,68 @@
-<!-- Breadcrumb Navigation Bar with Browser History Push -->
-<nav class="flex items-center gap-2 text-xs md:text-sm text-on-surface-variant mb-6 overflow-x-auto whitespace-nowrap py-1" aria-label="{{ T .Lang "nav.home" }}">
+<!-- Breadcrumb Navigation Bar with Browser History Push & Folder Zip Download -->
+<div class="flex items-center justify-between gap-2 mb-6">
+  <nav class="flex items-center gap-2 text-xs md:text-sm text-on-surface-variant overflow-x-auto whitespace-nowrap py-1 flex-1 min-w-0" aria-label="{{ T .Lang "nav.home" }}">
+    <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
+       class="flex items-center gap-1.5 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors py-1 px-2 rounded-lg hover:bg-surface-container-high/50" 
+       hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
+       hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
+       hx-target="#file-list-container" 
+       hx-indicator="#global-spinner"
+       id="active-path"
+       data-path="{{ .Path }}"
+       data-sort="{{ .SortBy }}"
+       data-order="{{ .SortOrder }}"
+       data-view="{{ .ViewMode }}"
+       data-lang="{{ .Lang }}">
+      <span class="material-symbols-outlined text-lg filled">home</span>
+      <span class="font-medium">{{ T .Lang "nav.home" }}</span>
+    </a>
+
+    {{ range .Breadcrumbs }}
+      <span class="material-symbols-outlined text-sm text-outline-variant/60">chevron_right</span>
+      <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
+         class="hover:text-primary dark:hover:text-primary-fixed-dim transition-colors py-1 px-2 rounded-lg hover:bg-surface-container-high/50 font-medium"
+         hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
+         hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+         hx-target="#file-list-container" 
+         hx-indicator="#global-spinner">
+        {{ .Name }}
+      </a>
+    {{ end }}
+  </nav>
+
+  {{ if and .Path (not .NotFound) }}
+  <a href="/api/download-folder?path={{ .Path }}" 
+     download
+     class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface hover:text-primary dark:hover:text-primary-fixed-dim transition-colors border border-outline-variant/30 shrink-0 shadow-sm"
+     title="{{ T .Lang "folders.download_zip" }}"
+     aria-label="{{ T .Lang "folders.download_zip" }}">
+    <span class="material-symbols-outlined text-base">folder_zip</span>
+    <span class="hidden sm:inline">{{ T .Lang "folders.download_zip" }}</span>
+  </a>
+  {{ end }}
+</div>
+
+{{ if .NotFound }}
+<!-- Folder Not Found Empty State -->
+<div class="flex flex-col items-center justify-center p-10 md:p-14 bg-surface-container-low dark:bg-surface-container rounded-3xl border border-dashed border-error/30 text-center my-6 shadow-sm">
+  <div class="w-16 h-16 rounded-2xl bg-error-container/40 dark:bg-error-container/20 flex items-center justify-center mb-4 text-error">
+    <span class="material-symbols-outlined text-4xl">folder_off</span>
+  </div>
+  <h3 class="font-bold text-lg md:text-xl text-on-surface">{{ T .Lang "empty.not_found_title" }}</h3>
+  <p class="text-sm text-on-surface-variant max-w-md mt-2 mb-6">
+    {{ T .Lang "empty.not_found_desc" .NotFoundPath }}
+  </p>
   <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-     class="flex items-center gap-1.5 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors py-1 px-2 rounded-lg hover:bg-surface-container-high/50" 
+     class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:opacity-95 active:scale-95 transition-all shadow-md"
      hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
      hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
      hx-target="#file-list-container" 
-     hx-indicator="#global-spinner"
-     id="active-path"
-     data-path="{{ .Path }}"
-     data-sort="{{ .SortBy }}"
-     data-order="{{ .SortOrder }}"
-     data-view="{{ .ViewMode }}"
-     data-lang="{{ .Lang }}">
+     hx-indicator="#global-spinner">
     <span class="material-symbols-outlined text-lg filled">home</span>
-    <span class="font-medium">{{ T .Lang "nav.home" }}</span>
+    <span>{{ T .Lang "empty.not_found_back_home" }}</span>
   </a>
-
-  {{ range .Breadcrumbs }}
-    <span class="material-symbols-outlined text-sm text-outline-variant/60">chevron_right</span>
-    <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-       class="hover:text-primary dark:hover:text-primary-fixed-dim transition-colors py-1 px-2 rounded-lg hover:bg-surface-container-high/50 font-medium"
-       hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-       hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-       hx-target="#file-list-container" 
-       hx-indicator="#global-spinner">
-      {{ .Name }}
-    </a>
-  {{ end }}
-</nav>
-
+</div>
+{{ else }}
 <!-- Folders Section -->
 {{ if .Folders }}
 <section class="mb-8" aria-label="{{ T .Lang "folders.title" (len .Folders) }}">
@@ -60,17 +94,27 @@
         </div>
       </div>
 
-      <!-- Action Button (Delete Folder) -->
-      <button class="p-1 sm:p-1.5 rounded-full hover:bg-error-container hover:text-error text-on-surface-variant/70 hover:opacity-100 transition-all opacity-0 group-hover:opacity-100 shrink-0" 
-              hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-              hx-confirm="{{ T $.Lang "folders.delete_confirm" .Name }}"
-              hx-target="#file-list-container"
-              hx-indicator="#global-spinner"
-              onclick="event.stopPropagation()"
-              title="{{ T $.Lang "files.actions.delete" .Name }}"
-              aria-label="{{ T $.Lang "files.actions.delete" .Name }}">
-        <span class="material-symbols-outlined text-base sm:text-lg">delete</span>
-      </button>
+      <!-- Action Buttons (Download Folder as ZIP & Delete Folder) -->
+      <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
+        <a href="/api/download-folder?path={{ .RelPath }}" 
+           download
+           onclick="event.stopPropagation()"
+           class="p-1 sm:p-1.5 rounded-full hover:bg-surface-variant/50 hover:text-primary text-on-surface-variant/70 hover:opacity-100 transition-all opacity-0 group-hover:opacity-100 shrink-0" 
+           title="{{ T $.Lang "folders.actions.download_zip" .Name }}"
+           aria-label="{{ T $.Lang "folders.actions.download_zip" .Name }}">
+          <span class="material-symbols-outlined text-base sm:text-lg">folder_zip</span>
+        </a>
+        <button class="p-1 sm:p-1.5 rounded-full hover:bg-error-container hover:text-error text-on-surface-variant/70 hover:opacity-100 transition-all opacity-0 group-hover:opacity-100 shrink-0" 
+                hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
+                hx-confirm="{{ T $.Lang "folders.delete_confirm" .Name }}"
+                hx-target="#file-list-container"
+                hx-indicator="#global-spinner"
+                onclick="event.stopPropagation()"
+                title="{{ T $.Lang "files.actions.delete" .Name }}"
+                aria-label="{{ T $.Lang "files.actions.delete" .Name }}">
+          <span class="material-symbols-outlined text-base sm:text-lg">delete</span>
+        </button>
+      </div>
 
     </div>
     {{ end }}
@@ -194,6 +238,17 @@
                aria-label="{{ T $.Lang "files.actions.download" .Name }}">
               <span class="material-symbols-outlined text-base">download</span>
             </a>
+            {{ if .IsZip }}
+            <button class="p-1.5 rounded-full hover:bg-surface-variant/40 hover:text-primary transition-colors text-on-surface-variant"
+                    hx-post="/api/extract-zip?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                    hx-confirm="{{ T $.Lang "files.actions.extract_confirm" .Name }}"
+                    hx-target="#file-list-container"
+                    hx-indicator="#global-spinner"
+                    title="{{ T $.Lang "files.actions.extract_zip" }}"
+                    aria-label="{{ T $.Lang "files.actions.extract_zip" }}">
+              <span class="material-symbols-outlined text-base">folder_zip</span>
+            </button>
+            {{ end }}
             <button class="p-1.5 rounded-full hover:bg-error-container hover:text-error transition-colors text-on-surface-variant"
                     hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
                     hx-confirm="{{ T $.Lang "files.delete_confirm" .Name }}"
@@ -319,6 +374,18 @@
                  aria-label="{{ T $.Lang "files.actions.download" .Name }}">
                 <span class="material-symbols-outlined text-lg">download</span>
               </a>
+              {{ if .IsZip }}
+              <button class="p-2 sm:p-1.5 rounded-full hover:bg-surface-variant/50 hover:text-primary active:scale-95 transition-all text-on-surface-variant"
+                      hx-post="/api/extract-zip?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
+                      hx-confirm="{{ T $.Lang "files.actions.extract_confirm" .Name }}"
+                      hx-target="#file-list-container"
+                      hx-indicator="#global-spinner"
+                      onclick="event.stopPropagation()"
+                      title="{{ T $.Lang "files.actions.extract_zip" }}"
+                      aria-label="{{ T $.Lang "files.actions.extract_zip" }}">
+                <span class="material-symbols-outlined text-lg">folder_zip</span>
+              </button>
+              {{ end }}
               <button class="p-2 sm:p-1.5 rounded-full hover:bg-error-container hover:text-error active:scale-95 transition-all text-on-surface-variant"
                       hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
                       hx-confirm="{{ T $.Lang "files.delete_confirm" .Name }}"
@@ -339,3 +406,4 @@
 
   {{ end }}
 </section>
+{{ end }}

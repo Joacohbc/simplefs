@@ -3,14 +3,17 @@ package handlers
 import (
 	"embed"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"simplefs/internal/i18n"
+	"simplefs/internal/models"
 	"simplefs/internal/storage"
 )
 
@@ -35,10 +38,13 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, embeddedAssets embed.FS) {
 	mux.HandleFunc("GET /api/files", h.Files)
 	mux.HandleFunc("GET /api/file-details", h.FileDetails)
 	mux.HandleFunc("POST /api/upload", h.Upload)
+	mux.HandleFunc("POST /api/upload-zip", h.UploadZip)
+	mux.HandleFunc("POST /api/extract-zip", h.ExtractZip)
 	mux.HandleFunc("POST /api/folder", h.Folder)
 	mux.HandleFunc("POST /api/create-file", h.CreateFile)
 	mux.HandleFunc("DELETE /api/delete", h.Delete)
 	mux.HandleFunc("GET /api/preview", h.Preview)
+	mux.HandleFunc("GET /api/download-folder", h.DownloadFolder)
 	mux.HandleFunc("GET /download", h.Download)
 }
 
@@ -65,12 +71,35 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	sortOrder := r.URL.Query().Get("order")
 
 	pageData, err := h.storageService.GetDirectoryPage(relativePath, "", viewMode, sortBy, sortOrder, lang)
+	isNotFound := false
 	if err != nil {
-		http.Error(w, "Directory not found", http.StatusNotFound)
-		return
+		if relativePath != "" {
+			normalizedSortBy, normalizedSortOrder := storage.NormalizeSortParams(sortBy, sortOrder)
+			if viewMode == "" {
+				viewMode = models.ViewModeList
+			}
+			pageData = models.PageData{
+				Path:         filepath.ToSlash(relativePath),
+				SortBy:       normalizedSortBy,
+				SortOrder:    normalizedSortOrder,
+				Breadcrumbs:  storage.BuildBreadcrumbs(relativePath),
+				ViewMode:     viewMode,
+				Lang:         i18n.NormalizeLang(lang),
+				NotFound:     true,
+				NotFoundPath: relativePath,
+			}
+			isNotFound = true
+		} else {
+			log.Printf("root directory error: %v", err)
+			http.Error(w, "Storage directory unavailable", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if isNotFound {
+		w.WriteHeader(http.StatusNotFound)
+	}
 	if err := h.templateEngine.ExecuteTemplate(w, "index.html", pageData); err != nil {
 		log.Printf("template render error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -87,6 +116,29 @@ func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
 
 	pageData, err := h.storageService.GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder, lang)
 	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			normalizedSortBy, normalizedSortOrder := storage.NormalizeSortParams(sortBy, sortOrder)
+			if viewMode == "" {
+				viewMode = models.ViewModeList
+			}
+			pageData = models.PageData{
+				Path:         filepath.ToSlash(relativePath),
+				Query:        searchQuery,
+				SortBy:       normalizedSortBy,
+				SortOrder:    normalizedSortOrder,
+				Breadcrumbs:  storage.BuildBreadcrumbs(relativePath),
+				ViewMode:     viewMode,
+				Lang:         i18n.NormalizeLang(lang),
+				NotFound:     true,
+				NotFoundPath: relativePath,
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			if err := h.templateEngine.ExecuteTemplate(w, "file_list.html", pageData); err != nil {
+				log.Printf("template render error: %v", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+			return
+		}
 		log.Printf("get directory error: %v", err)
 		http.Error(w, "Invalid path or directory not accessible", http.StatusBadRequest)
 		return
@@ -147,6 +199,89 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
+}
+
+func (h *Handler) UploadZip(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBytes)
+	if err := r.ParseMultipartForm(maxUploadMemoryBytes); err != nil {
+		http.Error(w, "Upload payload too large or invalid form", http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
+
+	lang := h.setLangCookie(w, r)
+	relativePath := r.FormValue("path")
+	viewMode := r.FormValue("view")
+	sortBy := r.FormValue("sort")
+	sortOrder := r.FormValue("order")
+
+	files := r.MultipartForm.File["zip_file"]
+	if len(files) == 0 {
+		files = r.MultipartForm.File["files"]
+	}
+	if len(files) == 0 {
+		http.Error(w, "No zip file provided", http.StatusBadRequest)
+		return
+	}
+
+	for _, fileHeader := range files {
+		if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".zip") {
+			http.Error(w, "Only .zip files are allowed for archive extraction", http.StatusBadRequest)
+			return
+		}
+
+		fileStream, err := fileHeader.Open()
+		if err != nil {
+			http.Error(w, "Failed to read uploaded file", http.StatusBadRequest)
+			return
+		}
+
+		_, err = h.storageService.ExtractZipFile(relativePath, fileHeader.Filename, fileStream)
+		fileStream.Close()
+		if err != nil {
+			log.Printf("secure zip extraction error: %v", err)
+			http.Error(w, fmt.Sprintf("Error extracting ZIP: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
+}
+
+func (h *Handler) ExtractZip(w http.ResponseWriter, r *http.Request) {
+	lang := h.setLangCookie(w, r)
+	relativePath := r.URL.Query().Get("path")
+	if relativePath == "" {
+		relativePath = r.FormValue("path")
+	}
+	viewMode := r.FormValue("view")
+	if viewMode == "" {
+		viewMode = r.URL.Query().Get("view")
+	}
+	sortBy := r.FormValue("sort")
+	if sortBy == "" {
+		sortBy = r.URL.Query().Get("sort")
+	}
+	sortOrder := r.FormValue("order")
+	if sortOrder == "" {
+		sortOrder = r.URL.Query().Get("order")
+	}
+
+	parentPath := extractParentPath(relativePath)
+	filename := filepath.Base(relativePath)
+
+	_, err := h.storageService.ExtractExistingZip(parentPath, filename)
+	if err != nil {
+		log.Printf("extract existing zip error: %v", err)
+		http.Error(w, fmt.Sprintf("Error extracting ZIP: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	h.renderFileList(w, parentPath, "", viewMode, sortBy, sortOrder, lang)
 }
 
 func (h *Handler) Folder(w http.ResponseWriter, r *http.Request) {
@@ -237,10 +372,44 @@ func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *Handler) DownloadFolder(w http.ResponseWriter, r *http.Request) {
+	relativePath := r.URL.Query().Get("path")
+	folderPath, archiveFilename, err := h.storageService.GetFolderDownloadInfo(relativePath)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			http.Error(w, "Folder not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Invalid folder path or access denied", http.StatusBadRequest)
+		return
+	}
+
+	encodedFilename := url.PathEscape(archiveFilename)
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", archiveFilename, encodedFilename))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	if err := h.storageService.StreamFolderZip(folderPath, w); err != nil {
+		log.Printf("stream folder zip error: %v", err)
+	}
+}
+
 func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
 	relativePath := r.URL.Query().Get("path")
+
+	// If explicitly requested as zip archive, or if it is a directory, stream folder as zip
+	if r.URL.Query().Get("archive") == "zip" {
+		h.DownloadFolder(w, r)
+		return
+	}
+
 	filePath, filename, mimeType, isDangerousType, err := h.storageService.GetDownloadFile(relativePath)
 	if err != nil {
+		// Check if the requested path is a directory
+		if _, _, folderErr := h.storageService.GetFolderDownloadInfo(relativePath); folderErr == nil {
+			h.DownloadFolder(w, r)
+			return
+		}
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
