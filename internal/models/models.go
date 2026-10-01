@@ -28,6 +28,8 @@ type FileInfo struct {
 	TypeLabel        string
 	MaterialIcon     string
 	IconColorClass   string
+	FolderBgClass    string
+	FolderDotClass   string
 	IsImage          bool
 	IsZip            bool
 	Category         string

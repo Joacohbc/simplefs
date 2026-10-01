@@ -1,57 +1,31 @@
 {{ if .NotFound }}
 <!-- Folder Not Found Empty State -->
-<div class="flex flex-col items-center justify-center p-10 md:p-14 bg-surface-container-low dark:bg-surface-container-dark rounded-3xl border border-dashed border-error/30 text-center my-6 shadow-sm">
+<div class="flex flex-col items-center justify-center p-10 md:p-14 bg-surface-container-light dark:bg-surface-container-dark rounded-2xl border border-outline-variant-light dark:border-outline-variant-dark text-center my-6 shadow-sm">
   <div class="w-16 h-16 rounded-2xl bg-error-container/40 dark:bg-error-container/20 flex items-center justify-center mb-4 text-error">
     <span class="material-symbols-outlined text-4xl">folder_off</span>
   </div>
-  <h3 class="font-bold text-lg md:text-xl text-on-surface dark:text-on-surface-dark">{{ T .Lang "empty.not_found_title" }}</h3>
-  <p class="text-sm text-on-surface-variant dark:text-on-surface-variant-dark max-w-md mt-2 mb-6">
+  <h3 class="font-bold text-lg md:text-xl text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "empty.not_found_title" }}</h3>
+  <p class="text-sm text-secondary dark:text-on-surface-variant-dark max-w-md mt-2 mb-6">
     {{ T .Lang "empty.not_found_desc" .NotFoundPath }}
   </p>
   <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-     class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:opacity-95 active:scale-95 transition-all shadow-md"
+     class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary dark:bg-primary-container-dark text-white font-semibold text-sm hover:opacity-95 active:scale-95 transition-all shadow-md"
      hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
      hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
      hx-target="#file-list-container" 
      hx-indicator="#global-spinner">
-    <span class="material-symbols-outlined text-lg filled">home</span>
+    <span class="material-symbols-outlined text-lg">home</span>
     <span>{{ T .Lang "empty.not_found_back_home" }}</span>
   </a>
 </div>
 {{ else }}
 
-<!-- Quick Storage Metric Banner -->
-<div class="flex items-center justify-between py-2">
-  <div class="flex items-center gap-4">
-    <div class="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary-container-dark/30 text-primary dark:text-primary-fixed-dim flex items-center justify-center shrink-0">
-      <span class="material-symbols-outlined text-[28px] filled">folder</span>
-    </div>
-    <div>
-      <div class="flex items-center gap-3">
-        <h1 class="font-headline-md text-xl md:text-2xl text-on-surface dark:text-on-surface-dark font-bold tracking-tight">
-          {{ if .Path }}{{ .Path }}{{ else }}{{ T .Lang "banner.title" }}{{ end }}
-        </h1>
-        <span class="px-2.5 py-0.5 rounded-full text-xs font-mono-tabular bg-surface-container-high dark:bg-surface-container-highest-dark text-primary dark:text-primary-fixed-dim font-medium">
-          {{ T .Lang "banner.items_count" .TotalItems }}
-        </span>
-      </div>
-      <p class="text-xs md:text-sm text-on-surface-variant dark:text-on-surface-variant-dark mt-0.5">
-        {{ T .Lang "banner.desc" }}
-      </p>
-    </div>
-  </div>
-  <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-low dark:bg-surface-container-dark border border-outline-variant/30 dark:border-outline-variant-dark text-secondary">
-    <span class="w-2 h-2 rounded-full bg-accent-sheet animate-pulse"></span>
-    <span class="text-xs font-medium text-on-surface dark:text-on-surface-dark">{{ T .Lang "banner.active_dir" }}</span>
-  </div>
-</div>
-
-<!-- Breadcrumb & Controls Bar -->
-<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-outline-variant/20 dark:border-outline-variant-dark/40">
+<!-- 1. Breadcrumb & Control Bar (Stitch Reference Lines 6-7) -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
   <!-- Breadcrumb Navigation -->
-  <nav class="flex items-center gap-2 text-on-surface-variant dark:text-on-surface-variant-dark text-xs md:text-sm overflow-x-auto py-1" aria-label="{{ T .Lang "breadcrumb.aria" }}">
+  <nav class="flex items-center gap-2 text-secondary dark:text-on-surface-variant-dark font-body-sm text-body-sm overflow-x-auto py-1" aria-label="{{ T .Lang "breadcrumb.aria" }}">
     <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-       class="flex items-center gap-1.5 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors px-2 py-1 rounded-lg hover:bg-surface-container-high/50" 
+       class="flex items-center gap-1.5 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors px-2 py-1 rounded-lg hover:bg-surface-container-light dark:hover:bg-surface-container-dark" 
        hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
        hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
        hx-target="#file-list-container" 
@@ -62,19 +36,19 @@
        data-order="{{ .SortOrder }}"
        data-view="{{ .ViewMode }}"
        data-lang="{{ .Lang }}">
-      <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-fixed-dim filled">home</span>
-      <span class="font-medium">{{ T .Lang "breadcrumb.home" }}</span>
+      <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark">home</span>
+      <span>{{ T .Lang "breadcrumb.home" }}</span>
     </a>
 
     {{ range .Breadcrumbs }}
-      <span class="text-outline-variant/60 dark:text-outline-variant-dark select-none">/</span>
+      <span class="text-outline-variant-light dark:text-outline-variant-dark select-none">/</span>
       <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-         class="flex items-center gap-1.5 px-2 py-1 font-medium text-on-surface dark:text-on-surface-dark hover:text-primary dark:hover:text-primary-fixed-dim transition-colors rounded-lg hover:bg-surface-container-high/50"
+         class="flex items-center gap-1.5 px-2 py-1 font-medium text-on-surface-light dark:text-on-surface-dark hover:text-primary dark:hover:text-primary-dark transition-colors rounded-lg hover:bg-surface-container-light dark:hover:bg-surface-container-dark"
          hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
          hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
          hx-target="#file-list-container" 
          hx-indicator="#global-spinner">
-        <span class="material-symbols-outlined text-[17px] text-primary dark:text-primary-fixed-dim">folder_open</span>
+        <span class="material-symbols-outlined text-[17px] text-primary dark:text-primary-dark">folder_open</span>
         <span class="tracking-tight font-semibold">{{ .Name }}</span>
       </a>
     {{ end }}
@@ -85,67 +59,105 @@
     {{ if and .Path (not .NotFound) }}
     <a href="/api/download-folder?path={{ .Path }}" 
        download
-       class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-surface-container-low dark:bg-surface-container-dark hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark text-on-surface dark:text-on-surface-dark transition-all border border-outline-variant/30 dark:border-outline-variant-dark shadow-sm"
+       class="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-white dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark text-on-surface-light dark:text-on-surface-dark font-body-sm text-body-sm transition-all shadow-sm"
        title="{{ T .Lang "folders.download_zip" }}"
        aria-label="{{ T .Lang "folders.download_zip" }}">
-      <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-fixed-dim">folder_zip</span>
-      <span class="hidden sm:inline">{{ T .Lang "folders.download_zip" }}</span>
+      <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark">folder_zip</span>
+      <span class="hidden sm:inline font-medium">{{ T .Lang "folders.download_zip" }}</span>
     </a>
     {{ end }}
 
     <!-- Sort Selector Dropdown -->
-    <div class="relative inline-block text-left">
-      <div class="h-9 px-3 bg-surface-container-low dark:bg-surface-container-dark rounded-xl border border-outline-variant/30 dark:border-outline-variant-dark text-on-surface dark:text-on-surface-dark flex items-center gap-1.5 shadow-sm">
-        <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-fixed-dim shrink-0">sort_by_alpha</span>
+    <div class="relative inline-block text-left" id="sort-dropdown-wrap">
+      <div class="flex items-center gap-2 h-9 px-3.5 rounded-xl bg-white dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark text-on-surface-light dark:text-on-surface-dark font-body-sm text-body-sm transition-all shadow-sm">
+        <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark shrink-0">sort_by_alpha</span>
         <label for="sort-selector" class="sr-only">{{ T .Lang "sort.label" }}</label>
         <select id="sort-selector" 
                 onchange="applySort(this.value)" 
-                class="bg-transparent border-none text-xs font-medium text-on-surface dark:text-on-surface-dark focus:ring-0 cursor-pointer pl-0.5 pr-5 py-0 h-full leading-none">
-          <option value="name:asc" class="bg-surface-container dark:bg-surface-container-dark text-on-surface dark:text-on-surface-dark" {{ if and (eq .SortBy "name") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.name_asc" }}</option>
-          <option value="name:desc" class="bg-surface-container dark:bg-surface-container-dark text-on-surface dark:text-on-surface-dark" {{ if and (eq .SortBy "name") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.name_desc" }}</option>
-          <option value="modified:desc" class="bg-surface-container dark:bg-surface-container-dark text-on-surface dark:text-on-surface-dark" {{ if and (eq .SortBy "modified") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.modified_desc" }}</option>
-          <option value="modified:asc" class="bg-surface-container dark:bg-surface-container-dark text-on-surface dark:text-on-surface-dark" {{ if and (eq .SortBy "modified") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.modified_asc" }}</option>
-          <option value="created:desc" class="bg-surface-container dark:bg-surface-container-dark text-on-surface dark:text-on-surface-dark" {{ if and (eq .SortBy "created") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.created_desc" }}</option>
-          <option value="created:asc" class="bg-surface-container dark:bg-surface-container-dark text-on-surface dark:text-on-surface-dark" {{ if and (eq .SortBy "created") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.created_asc" }}</option>
-          <option value="size:desc" class="bg-surface-container dark:bg-surface-container-dark text-on-surface dark:text-on-surface-dark" {{ if and (eq .SortBy "size") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.size_desc" }}</option>
-          <option value="size:asc" class="bg-surface-container dark:bg-surface-container-dark text-on-surface dark:text-on-surface-dark" {{ if and (eq .SortBy "size") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.size_asc" }}</option>
+                class="bg-transparent border-none font-body-sm text-body-sm font-medium text-on-surface-light dark:text-on-surface-dark focus:ring-0 cursor-pointer pl-0 pr-4 py-0 h-full leading-none">
+          <option value="name:asc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "name") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.name_asc" }}</option>
+          <option value="name:desc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "name") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.name_desc" }}</option>
+          <option value="modified:desc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "modified") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.modified_desc" }}</option>
+          <option value="modified:asc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "modified") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.modified_asc" }}</option>
+          <option value="created:desc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "created") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.created_desc" }}</option>
+          <option value="created:asc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "created") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.created_asc" }}</option>
+          <option value="size:desc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "size") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.size_desc" }}</option>
+          <option value="size:asc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "size") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.size_asc" }}</option>
         </select>
       </div>
     </div>
 
-    <!-- View Mode Switcher -->
-    <div class="flex items-center border border-outline-variant/30 dark:border-outline-variant-dark bg-surface-container-low dark:bg-surface-container-dark p-1 rounded-xl shadow-sm gap-1">
-      <button aria-label="{{ T .Lang "view.grid" }}" 
-              class="w-8 h-7 flex items-center justify-center rounded-lg transition-all {{ if eq .ViewMode "grid" }}bg-primary text-on-primary shadow-sm{{ else }}text-on-surface-variant dark:text-on-surface-variant-dark hover:text-on-surface hover:bg-surface-container-high/60{{ end }}" 
+    <!-- Grid / List Switcher -->
+    <div class="flex items-center border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark p-1 rounded-xl shadow-sm gap-1">
+      <button aria-label="Vista en cuadrícula" 
+              class="w-8 h-7 flex items-center justify-center rounded-lg transition-all {{ if eq .ViewMode "grid" }}bg-primary dark:bg-surface-container-highest-dark text-white dark:text-primary-dark shadow-sm{{ else }}text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark{{ end }}" 
+              id="view-grid-btn" 
               onclick="switchViewMode('grid')" 
               type="button">
         <span class="material-symbols-outlined text-[18px]">grid_view</span>
       </button>
-      <button aria-label="{{ T .Lang "view.list" }}" 
-              class="w-8 h-7 flex items-center justify-center rounded-lg transition-all {{ if eq .ViewMode "list" }}bg-primary text-on-primary shadow-sm{{ else }}text-on-surface-variant dark:text-on-surface-variant-dark hover:text-on-surface hover:bg-surface-container-high/60{{ end }}" 
+      <button aria-label="Vista en lista" 
+              class="w-8 h-7 flex items-center justify-center rounded-lg transition-all {{ if eq .ViewMode "list" }}bg-primary dark:bg-surface-container-highest-dark text-white dark:text-primary-dark shadow-sm{{ else }}text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark{{ end }}" 
+              id="view-list-btn" 
               onclick="switchViewMode('list')" 
               type="button">
         <span class="material-symbols-outlined text-[18px]">view_list</span>
       </button>
     </div>
+
+    <!-- Info Button -->
+    <button aria-label="Información de directorio" 
+            hx-get="/api/file-details?path={{ .Path }}&lang={{ $.Lang }}"
+            hx-target="#modal-container"
+            hx-indicator="#global-spinner"
+            class="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-all shadow-sm" 
+            type="button">
+      <span class="material-symbols-outlined text-[19px]">info</span>
+    </button>
   </div>
 </div>
 
-<!-- Folders Section (Diseño Fluido y Sin Cajas) -->
+<!-- 2. Quick Storage Metric Banner (Stitch Reference Lines 8-9) -->
+<div class="flex items-center justify-between py-2">
+  <div class="flex items-center gap-4">
+    <div class="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary-container-dark/30 text-primary dark:text-primary-dark flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined text-[28px]">folder</span>
+    </div>
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="font-headline-md text-headline-md text-on-surface-light dark:text-on-surface-dark font-bold tracking-tight">
+          {{ if .Path }}{{ .Path }}{{ else }}{{ T .Lang "banner.title" }}{{ end }}
+        </h1>
+        <span class="px-2.5 py-0.5 rounded-full text-label-md font-mono-tabular bg-primary/10 dark:bg-surface-container-highest-dark text-primary dark:text-primary-dark font-medium">
+          {{ T .Lang "banner.items_count" .TotalItems }}
+        </span>
+      </div>
+      <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark mt-1">
+        {{ T .Lang "banner.desc" }}
+      </p>
+    </div>
+  </div>
+  <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light/50 dark:border-outline-variant-dark text-secondary">
+    <span class="w-2 h-2 rounded-full bg-accent-sheet"></span>
+    <span class="font-label-md text-label-md font-medium text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "banner.active_dir" }}</span>
+  </div>
+</div>
+
+<!-- 3. SECCIÓN: CARPETAS (Folders) (Stitch Reference Lines 10-11) -->
 {{ if .Folders }}
 <section class="space-y-3 pt-2" aria-label="{{ T .Lang "folders.title" (len .Folders) }}">
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-2">
-      <span class="material-symbols-outlined text-[20px] text-primary dark:text-primary-fixed-dim">folder_shared</span>
-      <h2 class="font-title-md text-title-md text-on-surface dark:text-on-surface-dark font-semibold tracking-tight">{{ T .Lang "folders.heading" }}</h2>
-      <span class="font-mono-tabular text-mono-tabular px-2 py-0.5 rounded-full bg-surface-container-high dark:bg-surface-container-highest-dark text-on-surface-variant dark:text-on-surface-variant-dark text-[12px]">{{ len .Folders }}</span>
+      <span class="material-symbols-outlined text-[20px] text-primary dark:text-primary-dark">folder_shared</span>
+      <h2 class="font-title-md text-title-md text-on-surface-light dark:text-on-surface-dark font-semibold tracking-tight">{{ T .Lang "folders.heading" }}</h2>
+      <span class="font-mono-tabular text-mono-tabular px-2 py-0.5 rounded-full text-secondary dark:text-on-surface-variant-dark text-[12px]">{{ len .Folders }}</span>
     </div>
     <span class="font-label-md text-label-md text-secondary uppercase tracking-wider font-medium text-[11px]">{{ T .Lang "folders.modules" }}</span>
   </div>
 
-  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
     {{ range .Folders }}
-    <div class="group relative rounded-xl p-3 hover:bg-surface-container-low dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex items-center justify-between"
+    <div class="group relative rounded-xl p-3 hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex items-center justify-between"
          hx-get="/api/files?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
          hx-push-url="/?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
          hx-target="#file-list-container" 
@@ -154,28 +166,31 @@
          tabindex="0"
          aria-label="{{ .Name }}">
       <div class="flex items-center gap-3 min-w-0">
-        <div class="w-10 h-10 rounded-xl bg-primary/10 dark:bg-primary-container-dark/30 text-primary dark:text-primary-fixed-dim flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-          <span class="material-symbols-outlined text-[22px] filled">folder</span>
+        <div class="w-10 h-10 rounded-xl {{ if .FolderBgClass }}{{ .FolderBgClass }}{{ else }}bg-accent-go/20 text-accent-go{{ end }} flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+          <span class="material-symbols-outlined text-[22px]">{{ .MaterialIcon }}</span>
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-1.5">
-            <h3 class="font-body-md text-body-md font-semibold text-on-surface dark:text-on-surface-dark truncate group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</h3>
+            <h3 class="font-body-md text-body-md font-semibold text-on-surface-light dark:text-on-surface-dark truncate" title="{{ .Name }}">{{ .Name }}</h3>
+            {{ if .FolderDotClass }}
+            <span class="w-1.5 h-1.5 rounded-full {{ .FolderDotClass }} shrink-0"></span>
+            {{ end }}
           </div>
           <p class="font-mono-tabular text-mono-tabular text-secondary text-[12px] truncate">{{ T $.Lang "folders.item_count" .ItemCount }} • {{ .FormattedMod }}</p>
         </div>
       </div>
       
-      <!-- Action Buttons (Download Folder as ZIP & Delete Folder) -->
+      <!-- Folder Action Buttons -->
       <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <a href="/api/download-folder?path={{ .RelPath }}" 
            download
            onclick="event.stopPropagation()"
-           class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors" 
+           class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors" 
            title="{{ T $.Lang "folders.actions.download_zip" .Name }}"
            aria-label="{{ T $.Lang "folders.actions.download_zip" .Name }}">
           <span class="material-symbols-outlined text-[18px]">folder_zip</span>
         </a>
-        <button class="p-1.5 rounded-lg text-on-surface-variant hover:text-error transition-colors" 
+        <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors" 
                 hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
                 hx-confirm="{{ T $.Lang "folders.delete_confirm" .Name }}"
                 hx-target="#file-list-container"
@@ -192,62 +207,65 @@
 </section>
 {{ end }}
 
-<!-- Files Section -->
+<!-- 4. SECCIÓN: ARCHIVOS (Files) (Stitch Reference Lines 12-20) -->
+{{ if or .Files (and (not .Folders) (not .Query)) (and .Query (not .Files)) }}
 <section class="space-y-4 pt-2" aria-label="{{ T .Lang "files.title" (len .Files) }}">
   <!-- Section Header with Categorical Filter Chips -->
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
     <div class="flex items-center gap-2">
-      <span class="material-symbols-outlined text-[20px] text-primary dark:text-primary-fixed-dim">draft</span>
-      <h2 class="font-title-md text-title-md text-on-surface dark:text-on-surface-dark font-semibold tracking-tight">{{ T .Lang "files.heading" }}</h2>
-      <span class="font-mono-tabular text-mono-tabular px-2 py-0.5 rounded-full bg-surface-container-high dark:bg-surface-container-dark text-on-surface-variant dark:text-on-surface-variant-dark border border-outline-variant/30 dark:border-outline-variant-dark text-[12px]">{{ len .Files }}</span>
+      <span class="material-symbols-outlined text-[20px] text-primary dark:text-primary-dark">draft</span>
+      <h2 class="font-title-md text-title-md text-on-surface-light dark:text-on-surface-dark font-semibold tracking-tight">{{ T .Lang "files.heading" }}</h2>
+      <span class="font-mono-tabular text-mono-tabular px-2 py-0.5 rounded-full bg-surface-container-light dark:bg-surface-container-dark text-secondary dark:text-on-surface-variant-dark border border-outline-variant-light dark:border-outline-variant-dark">{{ len .Files }}</span>
     </div>
     
     <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="filter-container">
-      <button class="filter-chip px-3 py-1 rounded-full text-xs font-semibold bg-primary dark:bg-primary-container-dark text-white font-medium tracking-wide shadow-sm" 
+      <button class="filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-primary dark:bg-primary-container-dark text-white font-medium tracking-wide shadow-sm" 
               onclick="filterByCategory('all', this)" type="button">{{ T .Lang "filter.all" }}</button>
-      <button class="filter-chip px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-low dark:bg-surface-container-dark border border-outline-variant/30 dark:border-outline-variant-dark text-on-surface-variant dark:text-on-surface-variant-dark hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark transition-colors" 
+      <button class="filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark transition-colors" 
               onclick="filterByCategory('code', this)" type="button">{{ T .Lang "filter.code" }}</button>
-      <button class="filter-chip px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-low dark:bg-surface-container-dark border border-outline-variant/30 dark:border-outline-variant-dark text-on-surface-variant dark:text-on-surface-variant-dark hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark transition-colors" 
+      <button class="filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark transition-colors" 
               onclick="filterByCategory('docs', this)" type="button">{{ T .Lang "filter.docs" }}</button>
-      <button class="filter-chip px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-low dark:bg-surface-container-dark border border-outline-variant/30 dark:border-outline-variant-dark text-on-surface-variant dark:text-on-surface-variant-dark hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark transition-colors" 
+      <button class="filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark transition-colors" 
               onclick="filterByCategory('media', this)" type="button">{{ T .Lang "filter.media" }}</button>
     </div>
   </div>
 
   {{ if and (not .Files) (not .Folders) }}
     {{ if .Query }}
-      <div class="flex flex-col items-center justify-center p-12 bg-surface-container-low dark:bg-surface-container-dark rounded-3xl border border-dashed border-outline-variant/40 text-center my-4">
-        <div class="w-16 h-16 rounded-full bg-surface-container-high dark:bg-surface-container-highest-dark flex items-center justify-center mb-3 text-secondary">
+      <div class="flex flex-col items-center justify-center p-12 text-center my-4">
+        <div class="w-16 h-16 rounded-full bg-surface-container-light dark:bg-surface-container-highest-dark flex items-center justify-center mb-3 text-secondary">
           <span class="material-symbols-outlined text-4xl">search_off</span>
         </div>
-        <h3 class="font-semibold text-base text-on-surface dark:text-on-surface-dark">{{ T .Lang "empty.search_title" .Query }}</h3>
-        <p class="text-xs text-on-surface-variant dark:text-on-surface-variant-dark max-w-sm mt-1 mb-4">{{ T .Lang "empty.search_desc" }}</p>
+        <h3 class="font-semibold text-base text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "empty.search_title" .Query }}</h3>
+        <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark max-w-sm mt-1 mb-4">{{ T .Lang "empty.search_desc" }}</p>
       </div>
     {{ else }}
-      <div class="flex flex-col items-center justify-center p-12 bg-surface-container-low dark:bg-surface-container-dark rounded-3xl border border-dashed border-outline-variant/40 text-center my-4">
-        <div class="w-16 h-16 rounded-full bg-surface-container-high dark:bg-surface-container-highest-dark flex items-center justify-center mb-3 text-secondary">
-          <span class="material-symbols-outlined text-4xl">folder_off</span>
+      <div class="flex flex-col items-center justify-center p-12 text-center my-4">
+        <div class="w-16 h-16 rounded-full bg-surface-container-light dark:bg-surface-container-highest-dark flex items-center justify-center mb-3 text-secondary">
+          <span class="material-symbols-outlined text-4xl">folder_open</span>
         </div>
-        <h3 class="font-semibold text-base text-on-surface dark:text-on-surface-dark">{{ T .Lang "empty.folder_title" }}</h3>
-        <p class="text-xs text-on-surface-variant dark:text-on-surface-variant-dark max-w-sm mt-1">{{ T .Lang "empty.folder_desc" }}</p>
+        <h3 class="font-semibold text-base text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "empty.folder_title" }}</h3>
+        <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark max-w-sm mt-1">{{ T .Lang "empty.folder_desc" }}</p>
       </div>
     {{ end }}
   {{ else if not .Files }}
-    <div class="p-8 text-center bg-surface-container-low dark:bg-surface-container-dark rounded-2xl border border-outline-variant/20 dark:border-outline-variant-dark/40 text-secondary text-sm">
-      {{ T .Lang "empty.no_files" }}
-    </div>
+    {{ if .Query }}
+      <div class="py-8 text-center text-secondary text-sm">
+        {{ T .Lang "empty.search_title" .Query }}
+      </div>
+    {{ end }}
   {{ else }}
 
     {{ if eq .ViewMode "grid" }}
-      <!-- GRID VIEW (16/10 aspect ratio cards with rich extension pills and previews) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5" id="files-grid">
+      <!-- GRID VIEW (Stitch Reference Line 17: 16/10 aspect ratio cards) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5" id="files-grid">
         {{ range .Files }}
-        <div class="file-item group p-3 rounded-2xl hover:bg-surface-container-low dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex flex-col justify-between"
+        <div class="file-item group p-3 rounded-2xl hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex flex-col justify-between"
              data-name="{{ .Name }}"
              data-category="{{ .Category }}">
           
-          <!-- Clickable Area for Preview -->
-          <div class="w-full aspect-[16/10] rounded-xl bg-surface-container dark:bg-surface-container-low-dark p-3.5 relative overflow-hidden flex flex-col justify-between select-none border border-outline-variant/20 dark:border-outline-variant-dark/30"
+          <!-- Thumbnail Container (16/10 aspect ratio) -->
+          <div class="w-full aspect-[16/10] rounded-xl bg-surface-container-light dark:bg-surface-container-low-dark p-3.5 relative select-none flex flex-col justify-between overflow-hidden border border-outline-variant-light/40 dark:border-outline-variant-dark/30"
                hx-get="/api/preview?path={{ .RelPath }}&lang={{ $.Lang }}"
                hx-target="#modal-container"
                hx-indicator="#global-spinner"
@@ -266,25 +284,27 @@
                 <span class="material-symbols-outlined text-[16px] text-white">image</span>
               </div>
             {{ else if eq .Category "code" }}
-              <div class="space-y-1 font-mono-tabular text-[10px] leading-4 text-on-surface-variant dark:text-on-surface-variant-dark opacity-85 overflow-hidden">
+              <div class="space-y-1 font-mono-tabular text-[10px] leading-4 text-on-surface-variant-light dark:text-on-surface-variant-dark opacity-90 overflow-hidden">
                 <div class="flex items-center gap-1.5 text-accent-go font-semibold">
-                  <span>package</span><span class="text-on-surface dark:text-on-surface-dark font-semibold">main</span>
+                  <span>package</span><span class="text-on-surface-light dark:text-on-surface-dark font-semibold">main</span>
                 </div>
-                <div class="text-secondary opacity-75 truncate">import "simplefs"</div>
-                <div class="text-primary dark:text-primary-fixed-dim font-medium truncate">func Handler() {</div>
+                <div class="text-secondary opacity-75 truncate">import "github.com/simplefs"</div>
+                <div class="text-primary dark:text-primary-dark font-medium truncate">func Handler() {</div>
               </div>
               <div class="flex items-center justify-between pt-1">
                 <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-go/20 text-accent-go">.{{ if .Extension }}{{ .Extension }}{{ else }}CODE{{ end }}</span>
                 <span class="material-symbols-outlined text-[16px] text-accent-go">code</span>
               </div>
             {{ else if eq .Category "markdown" }}
-              <div class="space-y-1 overflow-hidden">
-                <span class="font-bold text-[12px] text-on-surface dark:text-on-surface-dark truncate block"># {{ .Name }}</span>
-                <p class="text-[10px] text-on-surface-variant dark:text-on-surface-variant-dark line-clamp-2 leading-relaxed">Documentación y notas de SimpleFS...</p>
+              <div class="space-y-1.5 overflow-hidden">
+                <div class="flex items-center gap-2">
+                  <span class="font-headline-md text-[13px] font-bold text-on-surface-light dark:text-on-surface-dark truncate"># {{ .Name }}</span>
+                </div>
+                <p class="font-body-sm text-[10px] text-secondary dark:text-on-surface-variant-dark line-clamp-3 leading-relaxed">Documentación y notas de SimpleFS...</p>
               </div>
               <div class="flex items-center justify-between pt-1">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-primary/20 dark:bg-primary-container-dark/40 text-primary dark:text-primary-fixed-dim">.MD</span>
-                <span class="material-symbols-outlined text-[16px] text-primary dark:text-primary-fixed-dim">menu_book</span>
+                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-primary/10 dark:bg-primary-container-dark/40 text-primary dark:text-primary-dark">.MD</span>
+                <span class="material-symbols-outlined text-[16px] text-primary dark:text-primary-dark">menu_book</span>
               </div>
             {{ else if eq .Category "pdf" }}
               <div class="flex items-center justify-center flex-1">
@@ -297,24 +317,23 @@
                 <span class="material-symbols-outlined text-[16px] text-accent-danger-pdf">picture_as_pdf</span>
               </div>
             {{ else if eq .Category "video" }}
-              <div class="flex items-center justify-center flex-1">
-                <div class="w-10 h-10 rounded-full bg-surface-container-high dark:bg-surface-container-high-dark backdrop-blur-md flex items-center justify-center text-accent-media group-hover:scale-110 transition-transform shadow-md">
-                  <span class="material-symbols-outlined text-[22px] ml-0.5">play_arrow</span>
-                </div>
+              <div class="absolute inset-0 bg-gradient-to-tr from-accent-media/15 via-surface-container-light dark:via-surface-container-dark to-primary-container-dark/20"></div>
+              <div class="w-10 h-10 rounded-full bg-white/90 dark:bg-surface-container-high-dark backdrop-blur-md flex items-center justify-center text-primary dark:text-primary-dark group-hover:scale-110 transition-transform z-10 shadow-md">
+                <span class="material-symbols-outlined text-[22px] ml-0.5">play_arrow</span>
               </div>
-              <div class="flex items-center justify-between pt-1">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-media/20 text-accent-media">MP4</span>
+              <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between z-10">
+                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-media/20 text-accent-media backdrop-blur-sm">MP4</span>
                 <span class="material-symbols-outlined text-[16px] text-accent-media">movie</span>
               </div>
             {{ else if .IsZip }}
               <div class="flex items-center justify-center flex-1">
-                <div class="w-12 h-12 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-500">
+                <div class="w-12 h-12 rounded-2xl bg-accent-js/15 flex items-center justify-center text-accent-js">
                   <span class="material-symbols-outlined text-[28px]">folder_zip</span>
                 </div>
               </div>
               <div class="flex items-center justify-between pt-1">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-amber-500/20 text-amber-500">ZIP</span>
-                <span class="material-symbols-outlined text-[16px] text-amber-500">folder_zip</span>
+                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-js/20 text-accent-js">ZIP</span>
+                <span class="material-symbols-outlined text-[16px] text-accent-js">folder_zip</span>
               </div>
             {{ else }}
               <div class="flex items-center justify-center flex-1">
@@ -333,17 +352,16 @@
           <!-- File Info & Actions -->
           <div class="mt-3 flex items-start justify-between gap-2 px-1">
             <div class="min-w-0 flex-1">
-              <p class="font-body-sm text-body-sm font-semibold text-on-surface dark:text-on-surface-dark truncate group-hover:text-primary dark:group-hover:text-primary-fixed-dim transition-colors" title="{{ .Name }}">{{ .Name }}</p>
-              <div class="flex items-center gap-1.5 mt-0.5 font-mono-tabular text-mono-tabular text-secondary text-[12px]">
+              <p class="font-body-sm text-body-sm font-semibold text-on-surface-light dark:text-on-surface-dark truncate group-hover:text-primary dark:group-hover:text-primary-dark transition-colors" title="{{ .Name }}">{{ .Name }}</p>
+              <div class="flex items-center gap-2 mt-0.5 font-mono-tabular text-mono-tabular text-secondary text-[12px]">
                 <span>{{ .FormattedSize }}</span>
                 <span>•</span>
                 <span>{{ .FormattedMod }}</span>
               </div>
             </div>
 
-            <!-- Action Buttons Toolbar -->
             <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors"
+              <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
                       hx-get="/api/file-details?path={{ .RelPath }}&lang={{ $.Lang }}"
                       hx-target="#modal-container"
                       hx-indicator="#global-spinner"
@@ -352,13 +370,13 @@
                 <span class="material-symbols-outlined text-[18px]">info</span>
               </button>
               <a href="/download?path={{ .RelPath }}" download
-                 class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors"
+                 class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
                  title="{{ T $.Lang "files.actions.download" .Name }}"
                  aria-label="{{ T $.Lang "files.actions.download" .Name }}">
                 <span class="material-symbols-outlined text-[18px]">download</span>
               </a>
               {{ if .IsZip }}
-              <button class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors"
+              <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
                       hx-post="/api/extract-zip?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
                       hx-confirm="{{ T $.Lang "files.actions.extract_confirm" .Name }}"
                       hx-target="#file-list-container"
@@ -368,7 +386,7 @@
                 <span class="material-symbols-outlined text-[18px]">folder_zip</span>
               </button>
               {{ end }}
-              <button class="p-1.5 rounded-lg text-on-surface-variant hover:text-error transition-colors"
+              <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
                       hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
                       hx-confirm="{{ T $.Lang "files.delete_confirm" .Name }}"
                       hx-target="#file-list-container"
@@ -385,17 +403,16 @@
       </div>
 
     {{ else }}
-      <!-- LIST VIEW -->
-      <div class="overflow-hidden rounded-2xl border border-outline-variant/30 dark:border-outline-variant-dark/50" id="files-list">
+      <!-- LIST VIEW (Stitch Reference Line 19: Tabular View) -->
+      <div class="overflow-hidden rounded-2xl border border-outline-variant-light dark:border-outline-variant-dark" id="files-list">
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="text-secondary font-label-md text-label-md uppercase tracking-wider border-b border-outline-variant/30 dark:border-outline-variant-dark bg-surface-container-low dark:bg-surface-container-dark">
-                <!-- Sort Column: Name -->
+              <tr class="text-secondary font-label-md text-label-md uppercase tracking-wider border-b border-outline-variant-light dark:border-outline-variant-dark bg-surface-container-light dark:bg-surface-container-dark">
                 <th class="py-3 px-4 font-medium">
                   <button type="button" 
                           onclick="toggleColumnSort('name')"
-                          class="flex items-center gap-1 hover:text-on-surface transition-colors {{ if eq .SortBy "name" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
+                          class="flex items-center gap-1 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors {{ if eq .SortBy "name" }}text-primary dark:text-primary-dark font-bold{{ end }}">
                     <span>{{ T .Lang "files.table.name" }}</span>
                     {{ if eq .SortBy "name" }}
                       <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
@@ -404,12 +421,10 @@
                     {{ end }}
                   </button>
                 </th>
-
-                <!-- Sort Column: Modified -->
                 <th class="py-3 px-4 font-medium hidden sm:table-cell">
                   <button type="button" 
                           onclick="toggleColumnSort('modified')"
-                          class="flex items-center gap-1 hover:text-on-surface transition-colors {{ if eq .SortBy "modified" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
+                          class="flex items-center gap-1 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors {{ if eq .SortBy "modified" }}text-primary dark:text-primary-dark font-bold{{ end }}">
                     <span>{{ T .Lang "files.table.modified" }}</span>
                     {{ if eq .SortBy "modified" }}
                       <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
@@ -418,12 +433,10 @@
                     {{ end }}
                   </button>
                 </th>
-
-                <!-- Sort Column: Size -->
                 <th class="py-3 px-4 font-medium">
                   <button type="button" 
                           onclick="toggleColumnSort('size')"
-                          class="flex items-center gap-1 hover:text-on-surface transition-colors {{ if eq .SortBy "size" }}text-primary dark:text-primary-fixed-dim font-bold{{ end }}">
+                          class="flex items-center gap-1 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors {{ if eq .SortBy "size" }}text-primary dark:text-primary-dark font-bold{{ end }}">
                     <span>{{ T .Lang "files.table.size" }}</span>
                     {{ if eq .SortBy "size" }}
                       <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
@@ -432,13 +445,12 @@
                     {{ end }}
                   </button>
                 </th>
-
                 <th class="py-3 px-4 font-medium text-right">{{ T .Lang "files.table.actions" }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-outline-variant/20 dark:divide-outline-variant-dark/40 text-on-surface dark:text-on-surface-dark font-body-sm text-body-sm">
+            <tbody class="divide-y divide-outline-variant-light/50 dark:divide-outline-variant-dark/50 text-on-surface-light dark:text-on-surface-dark font-body-sm text-body-sm">
               {{ range .Files }}
-              <tr class="file-item hover:bg-surface-container-low dark:hover:bg-surface-container-dark transition-colors group cursor-pointer"
+              <tr class="file-item hover:bg-white dark:hover:bg-surface-container-dark transition-colors group cursor-pointer"
                   data-name="{{ .Name }}"
                   data-category="{{ .Category }}">
                 <td class="py-3.5 px-4 flex items-center gap-3"
@@ -446,13 +458,13 @@
                     hx-target="#modal-container"
                     hx-indicator="#global-spinner">
                   <span class="material-symbols-outlined text-[20px] {{ .IconColorClass }}">{{ .MaterialIcon }}</span>
-                  <span class="font-medium text-on-surface dark:text-on-surface-dark truncate">{{ .Name }}</span>
+                  <span class="font-medium text-on-surface-light dark:text-on-surface-dark truncate">{{ .Name }}</span>
                 </td>
                 <td class="py-3.5 px-4 font-mono-tabular text-mono-tabular text-secondary hidden sm:table-cell">{{ .FormattedMod }}</td>
                 <td class="py-3.5 px-4 font-mono-tabular text-mono-tabular text-secondary">{{ .FormattedSize }}</td>
                 <td class="py-3.5 px-4 text-right">
                   <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors"
+                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
                             hx-get="/api/file-details?path={{ .RelPath }}&lang={{ $.Lang }}"
                             hx-target="#modal-container"
                             hx-indicator="#global-spinner"
@@ -460,12 +472,12 @@
                       <span class="material-symbols-outlined text-[18px]">info</span>
                     </button>
                     <a href="/download?path={{ .RelPath }}" download
-                       class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors"
+                       class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
                        title="{{ T $.Lang "files.actions.download" .Name }}">
                       <span class="material-symbols-outlined text-[18px]">download</span>
                     </a>
                     {{ if .IsZip }}
-                    <button class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors"
+                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
                             hx-post="/api/extract-zip?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
                             hx-confirm="{{ T $.Lang "files.actions.extract_confirm" .Name }}"
                             hx-target="#file-list-container"
@@ -474,7 +486,7 @@
                       <span class="material-symbols-outlined text-[18px]">folder_zip</span>
                     </button>
                     {{ end }}
-                    <button class="p-1.5 rounded-lg text-on-surface-variant hover:text-error transition-colors"
+                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
                             hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
                             hx-confirm="{{ T $.Lang "files.delete_confirm" .Name }}"
                             hx-target="#file-list-container"
@@ -494,4 +506,6 @@
 
   {{ end }}
 </section>
+{{ end }}
+
 {{ end }}

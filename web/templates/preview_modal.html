@@ -1,15 +1,15 @@
-<div class="fixed inset-0 z-50 w-full h-full min-h-screen flex flex-col bg-surface text-on-surface animate-in fade-in duration-200" id="preview-modal">
+<div class="fixed inset-0 z-50 w-full h-full min-h-screen flex flex-col bg-surface-light dark:bg-surface-dark text-on-surface-light dark:text-on-surface-dark animate-in fade-in duration-200" id="preview-modal">
   <!-- Top Navigation & Toolbar (Stitch Style) -->
-  <header class="h-16 border-b border-outline-variant/30 bg-surface-container-low dark:bg-surface-container flex items-center justify-between px-4 md:px-gutter sticky top-0 z-20 shrink-0">
-    <div class="flex items-center gap-md min-w-0">
-      <button class="p-2 rounded-full hover:bg-surface-variant/40 text-on-surface-variant transition-colors flex items-center justify-center" onclick="closePreviewModal()" title="{{ T .Lang "preview.back" }}" aria-label="{{ T .Lang "preview.back" }}">
+  <header class="h-16 border-b border-outline-variant-light dark:border-outline-variant-dark bg-white/95 dark:bg-surface-dark/95 backdrop-blur-xl flex items-center justify-between px-4 md:px-6 sticky top-0 z-20 shrink-0">
+    <div class="flex items-center gap-3 min-w-0">
+      <button class="p-2 rounded-xl hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors flex items-center justify-center" onclick="closePreviewModal()" title="{{ T .Lang "preview.back" }}" aria-label="{{ T .Lang "preview.back" }}">
         <span class="material-symbols-outlined text-2xl">arrow_back</span>
       </button>
       <div class="flex items-center gap-3 min-w-0">
-        <span class="material-symbols-outlined text-3xl filled {{ if eq .Type "pdf" }}text-error dark:text-error-container{{ else if eq .Type "image" }}text-emerald-500{{ else }}text-primary dark:text-primary-fixed-dim{{ end }}">{{ .MaterialIcon }}</span>
+        <span class="material-symbols-outlined text-3xl {{ if eq .Type "pdf" }}text-accent-danger-pdf{{ else if eq .Type "image" }}text-accent-media{{ else }}text-primary dark:text-primary-dark{{ end }}">{{ .MaterialIcon }}</span>
         <div class="flex flex-col min-w-0">
-          <h1 class="font-semibold text-lg text-on-surface truncate" title="{{ .Name }}">{{ .Name }}</h1>
-          <span class="text-xs text-on-surface-variant">{{ .FormattedSize }} • {{ .ModTime }}</span>
+          <h1 class="font-title-md text-title-md text-on-surface-light dark:text-on-surface-dark truncate" title="{{ .Name }}">{{ .Name }}</h1>
+          <span class="font-mono-tabular text-mono-tabular text-secondary">{{ .FormattedSize }} • {{ .ModTime }}</span>
         </div>
       </div>
     </div>

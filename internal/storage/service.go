@@ -171,8 +171,38 @@ func (s *Service) mapDirEntryToFileInfo(entry os.DirEntry, relativePath, absolut
 	typeDef := filetype.Resolve(extension, entry.IsDir())
 
 	childCount := 0
+	folderBgClass := ""
+	folderDotClass := ""
 	if entry.IsDir() {
 		childCount = countDirectoryChildren(filepath.Join(absolutePath, name))
+		nameLower := strings.ToLower(name)
+		switch {
+		case strings.Contains(nameLower, "src") || strings.Contains(nameLower, "code") || strings.Contains(nameLower, "cmd") || strings.Contains(nameLower, "pkg") || strings.Contains(nameLower, "internal") || strings.Contains(nameLower, "stitch"):
+			typeDef.Icon = "folder_code"
+			typeDef.ColorClass = "text-accent-go"
+			folderBgClass = "bg-accent-go/20 text-accent-go"
+			folderDotClass = "bg-accent-go"
+		case strings.Contains(nameLower, "asset") || strings.Contains(nameLower, "media") || strings.Contains(nameLower, "img") || strings.Contains(nameLower, "image") || strings.Contains(nameLower, "photo") || strings.Contains(nameLower, "static") || strings.Contains(nameLower, "video"):
+			typeDef.Icon = "perm_media"
+			typeDef.ColorClass = "text-accent-media"
+			folderBgClass = "bg-accent-media/20 text-accent-media"
+			folderDotClass = "bg-accent-media"
+		case strings.Contains(nameLower, "doc") || strings.Contains(nameLower, "guide") || strings.Contains(nameLower, "spec") || strings.Contains(nameLower, "manual") || strings.Contains(nameLower, "notes"):
+			typeDef.Icon = "description"
+			typeDef.ColorClass = "text-accent-sheet"
+			folderBgClass = "bg-accent-sheet/20 text-accent-sheet"
+			folderDotClass = "bg-accent-sheet"
+		case strings.Contains(nameLower, "build") || strings.Contains(nameLower, "dist") || strings.Contains(nameLower, "bin") || strings.Contains(nameLower, "out") || strings.Contains(nameLower, "script"):
+			typeDef.Icon = "terminal"
+			typeDef.ColorClass = "text-accent-js"
+			folderBgClass = "bg-accent-js/20 text-accent-js"
+			folderDotClass = "bg-accent-js"
+		default:
+			typeDef.Icon = "folder"
+			typeDef.ColorClass = "text-primary dark:text-primary-dark"
+			folderBgClass = "bg-primary/10 dark:bg-primary-container-dark/30 text-primary dark:text-primary-dark"
+			folderDotClass = "bg-primary dark:bg-primary-dark"
+		}
 	}
 
 	return models.FileInfo{
@@ -188,6 +218,8 @@ func (s *Service) mapDirEntryToFileInfo(entry os.DirEntry, relativePath, absolut
 		TypeLabel:        typeDef.Label,
 		MaterialIcon:     typeDef.Icon,
 		IconColorClass:   typeDef.ColorClass,
+		FolderBgClass:    folderBgClass,
+		FolderDotClass:   folderDotClass,
 		IsImage:          typeDef.Category == filetype.CategoryImage,
 		IsZip:            !entry.IsDir() && strings.EqualFold(extension, ".zip"),
 		Category:         string(typeDef.Category),

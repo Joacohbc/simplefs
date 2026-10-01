@@ -28,13 +28,13 @@
     })();
   </script>
 </head>
-<body class="bg-surface dark:bg-surface-dark text-on-surface dark:text-on-surface-dark font-sans antialiased min-h-screen flex flex-col selection:bg-primary-container/30 selection:text-primary">
+<body class="bg-surface-light dark:bg-surface-dark font-body-md text-on-surface-light dark:text-on-surface-dark selection:bg-primary-container-dark selection:text-white min-h-screen flex flex-col">
   
   <!-- Sidebar Backdrop (Mobile) -->
   <div id="sidebar-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden md:hidden transition-opacity" onclick="toggleMobileSidebar()"></div>
 
   <!-- Left Sidebar Navigation (Ambient Workspace) -->
-  <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-surface-container-low dark:bg-surface-container-low-dark z-50 flex flex-col pt-6 pb-6 border-r border-outline-variant/30 dark:border-outline-variant-dark -translate-x-full md:translate-x-0 transition-transform duration-200 ease-in-out">
+  <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-surface-container-low-light dark:bg-surface-container-low-dark z-50 flex flex-col pt-6 pb-6 border-r border-outline-variant-light dark:border-outline-variant-dark -translate-x-full md:translate-x-0 transition-transform duration-200 ease-in-out">
     <!-- Brand Logo -->
     <div class="px-6 mb-8 flex items-center justify-between">
       <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
@@ -44,21 +44,21 @@
          class="flex items-center gap-3 group"
          aria-label="SimpleFS">
         <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
-          <span class="material-symbols-outlined text-[22px] filled">folder_open</span>
+          <span class="material-symbols-outlined text-[22px]">folder_data</span>
         </div>
         <div class="flex flex-col">
-          <span class="font-bold text-base text-on-surface dark:text-on-surface-dark tracking-tight leading-none">SimpleFS</span>
-          <span class="text-xs text-secondary mt-1 font-medium">Storage Engine</span>
+          <span class="font-title-md text-title-md text-on-surface-light dark:text-on-surface-dark tracking-tight leading-none">SimpleFS</span>
+          <span class="font-label-md text-label-md text-secondary mt-1">Storage Engine</span>
         </div>
       </a>
-      <button onclick="toggleMobileSidebar()" class="md:hidden p-1 rounded-lg text-on-surface-variant hover:text-on-surface" aria-label="Cerrar navegación">
+      <button onclick="toggleMobileSidebar()" class="md:hidden p-1 rounded-lg text-secondary hover:text-on-surface-light dark:hover:text-on-surface-dark" aria-label="Cerrar navegación">
         <span class="material-symbols-outlined text-xl">close</span>
       </button>
     </div>
 
     <!-- Navigation Label -->
     <div class="px-4 mb-3">
-      <span class="px-3 text-xs uppercase tracking-wider text-secondary font-medium">{{ T .Lang "nav.navigation" }}</span>
+      <span class="px-3 font-label-md text-label-md uppercase tracking-wider text-secondary font-medium">{{ T .Lang "nav.navigation" }}</span>
     </div>
 
     <!-- Navigation Items -->
@@ -69,9 +69,9 @@
          hx-target="#file-list-container"
          hx-indicator="#global-spinner"
          onclick="if(window.innerWidth < 768) toggleMobileSidebar()"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors bg-primary/10 dark:bg-primary-container-dark text-primary dark:text-white font-medium shadow-sm"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors bg-primary dark:bg-primary-container-dark text-white font-medium shadow-sm"
          aria-current="page">
-        <span class="material-symbols-outlined text-[20px] filled">folder_open</span>
+        <span class="material-symbols-outlined text-[20px]">folder_open</span>
         <span>{{ T .Lang "nav.all_files" }}</span>
       </a>
       <a href="/?path=&sort=modified&order=desc&view={{ .ViewMode }}&lang={{ .Lang }}"
@@ -80,17 +80,17 @@
          hx-target="#file-list-container"
          hx-indicator="#global-spinner"
          onclick="if(window.innerWidth < 768) toggleMobileSidebar()"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant dark:text-on-surface-variant-dark hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark hover:text-on-surface dark:hover:text-on-surface-dark transition-colors">
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors">
         <span class="material-symbols-outlined text-[20px]">schedule</span>
         <span>{{ T .Lang "nav.recents" }}</span>
       </a>
       <a href="#" onclick="alert('Sección de favoritos disponible próximamente'); return false;"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant dark:text-on-surface-variant-dark hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark hover:text-on-surface dark:hover:text-on-surface-dark transition-colors">
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors">
         <span class="material-symbols-outlined text-[20px]">star</span>
         <span>{{ T .Lang "nav.favorites" }}</span>
       </a>
       <a href="#" onclick="alert('La papelera está vacía'); return false;"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant dark:text-on-surface-variant-dark hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark hover:text-on-surface dark:hover:text-on-surface-dark transition-colors">
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors">
         <span class="material-symbols-outlined text-[20px]">delete</span>
         <span>{{ T .Lang "nav.trash" }}</span>
       </a>
@@ -98,32 +98,32 @@
 
     <!-- Bottom Status Widget -->
     <div class="px-4 mt-auto">
-      <div class="p-3 rounded-xl bg-surface-container dark:bg-surface-container-dark border border-outline-variant/30 dark:border-outline-variant-dark flex items-center justify-between">
+      <div class="p-3 rounded-xl bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-accent-sheet animate-pulse"></span>
-          <span class="text-xs text-on-surface dark:text-on-surface-dark font-medium">{{ T .Lang "status.local_server" }}</span>
+          <span class="w-2 h-2 rounded-full bg-accent-sheet"></span>
+          <span class="font-label-md text-label-md text-on-surface-light dark:text-on-surface-dark font-medium">{{ T .Lang "status.local_server" }}</span>
         </div>
-        <span class="font-mono-tabular text-secondary text-[11px]">v1.0</span>
+        <span class="font-mono-tabular text-mono-tabular text-secondary text-[11px]">v1.0</span>
       </div>
     </div>
   </aside>
 
   <!-- Top Navigation Bar -->
-  <header class="fixed top-0 left-0 md:left-64 right-0 h-16 bg-surface/95 dark:bg-surface-dark/95 backdrop-blur-xl z-30 flex items-center justify-between px-4 md:px-6 border-b border-outline-variant/30 dark:border-outline-variant-dark transition-all duration-200" role="banner">
+  <header class="fixed top-0 left-0 md:left-64 right-0 h-16 bg-white/95 dark:bg-surface-dark/95 backdrop-blur-xl z-40 flex items-center justify-between px-4 md:px-6 border-b border-outline-variant-light dark:border-outline-variant-dark transition-all duration-200" role="banner">
     <!-- Left: Hamburger (Mobile) + Search Bar -->
-    <div class="flex items-center gap-3 flex-1 max-w-xl mr-3">
-      <button onclick="toggleMobileSidebar()" class="md:hidden p-2 rounded-xl border border-outline-variant/30 dark:border-outline-variant-dark text-on-surface hover:bg-surface-container" aria-label="Abrir menú">
+    <div class="flex items-center gap-3 flex-1 max-w-lg mr-4">
+      <button onclick="toggleMobileSidebar()" class="md:hidden p-2 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark text-on-surface-light dark:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-dark" aria-label="Abrir menú">
         <span class="material-symbols-outlined text-xl">menu</span>
       </button>
 
       <div class="relative flex items-center w-full">
         <label for="global-search-input" class="sr-only">{{ T .Lang "header.search_placeholder" }}</label>
-        <span class="material-symbols-outlined absolute left-3.5 text-[20px] text-on-surface-variant dark:text-on-surface-variant-dark pointer-events-none">search</span>
+        <span class="material-symbols-outlined absolute left-3.5 text-[20px] text-on-surface-variant-light dark:text-on-surface-variant-dark pointer-events-none">search</span>
         <input type="text" 
                id="global-search-input"
                name="query" 
                placeholder="{{ T .Lang "header.search_placeholder" }}" 
-               class="w-full h-10 pl-10 pr-12 rounded-full bg-surface-container-high dark:bg-surface-container-dark text-xs md:text-sm text-on-surface dark:text-on-surface-dark placeholder-secondary outline-none border border-outline-variant/30 dark:border-outline-variant-dark focus:ring-2 focus:ring-primary dark:focus:ring-primary-fixed-dim transition-all shadow-inner"
+               class="w-full h-10 pl-10 pr-12 rounded-full bg-surface-container-light dark:bg-surface-container-dark font-body-sm text-body-sm text-on-surface-light dark:text-on-surface-dark placeholder-secondary outline-none border border-outline-variant-light dark:border-outline-variant-dark focus:ring-1 focus:ring-primary dark:focus:ring-primary-dark transition-all"
                hx-get="/api/files" 
                hx-trigger="keyup changed delay:200ms, search" 
                hx-target="#file-list-container" 
@@ -131,45 +131,45 @@
                hx-indicator="#global-spinner"
                aria-label="{{ T .Lang "header.search_placeholder" }}">
         <span class="htmx-indicator spinner absolute right-12 top-1/2 -translate-y-1/2" id="global-spinner"></span>
-        <span class="hidden sm:inline-block absolute right-3.5 font-mono-tabular px-1.5 py-0.5 rounded bg-surface-container-highest dark:bg-surface-container-highest-dark text-secondary border border-outline-variant/30 dark:border-outline-variant-dark text-[11px]">⌘K</span>
+        <span class="hidden sm:inline-block absolute right-3.5 font-mono-tabular text-mono-tabular px-1.5 py-0.5 rounded bg-surface-container-highest-light dark:bg-surface-container-highest-dark text-secondary dark:text-on-surface-variant-dark border border-outline-variant-light dark:border-outline-variant-dark text-[11px]">⌘K</span>
       </div>
     </div>
 
     <!-- Right: Action Controls -->
     <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-      <div class="hidden sm:flex items-center gap-2">
+      <div class="flex items-center gap-2">
         <button onclick="openFolderModal()" 
-                class="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-outline-variant/30 dark:border-outline-variant-dark bg-surface-container-low dark:bg-surface-container-dark hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark text-xs font-semibold text-on-surface dark:text-on-surface-dark transition-all shadow-sm" 
+                class="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark font-body-sm text-body-sm text-on-surface-light dark:text-on-surface-dark transition-all shadow-sm" 
                 type="button"
                 title="{{ T .Lang "modal.folder.title" }}">
-          <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-fixed-dim">create_new_folder</span>
-          <span class="font-medium">{{ T .Lang "header.new_folder" }}</span>
+          <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark">create_new_folder</span>
+          <span class="font-medium hidden sm:inline">{{ T .Lang "header.new_folder" }}</span>
         </button>
         <button onclick="openClipboardModal()" 
-                class="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-outline-variant/30 dark:border-outline-variant-dark bg-surface-container-low dark:bg-surface-container-dark hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark text-xs font-semibold text-on-surface-variant dark:text-on-surface-variant-dark hover:text-on-surface transition-all shadow-sm" 
+                class="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-all shadow-sm" 
                 type="button"
                 title="{{ T .Lang "modal.clipboard.title_text" }}">
           <span class="material-symbols-outlined text-[18px]">content_paste</span>
-          <span class="font-medium">{{ T .Lang "header.paste" }}</span>
+          <span class="font-medium hidden sm:inline">{{ T .Lang "header.paste" }}</span>
         </button>
       </div>
 
-      <div class="hidden sm:block h-5 w-[1px] bg-outline-variant/30 dark:bg-outline-variant-dark mx-0.5"></div>
+      <div class="hidden sm:block h-5 w-[1px] bg-outline-variant-light dark:bg-outline-variant-dark mx-1"></div>
 
       <!-- Language Selector -->
-      <div class="flex items-center border border-outline-variant/30 dark:border-outline-variant-dark bg-surface-container-low dark:bg-surface-container-dark rounded-xl p-1 shadow-sm">
+      <div class="flex items-center border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark rounded-xl p-1 shadow-sm">
         <button onclick="switchLanguage('es')" 
-                class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all {{ if eq .Lang "es" }}bg-primary dark:bg-primary-container-dark text-on-primary font-semibold shadow-sm{{ else }}text-secondary hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark{{ end }}" 
+                class="px-2.5 py-1 rounded-lg font-label-md text-label-md {{ if eq .Lang "es" }}bg-primary dark:bg-primary-container-dark text-white font-semibold shadow-sm{{ else }}text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark{{ end }} transition-all" 
                 type="button">ES</button>
         <button onclick="switchLanguage('en')" 
-                class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all {{ if eq .Lang "en" }}bg-primary dark:bg-primary-container-dark text-on-primary font-semibold shadow-sm{{ else }}text-secondary hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark{{ end }}" 
+                class="px-2.5 py-1 rounded-lg font-label-md text-label-md {{ if eq .Lang "en" }}bg-primary dark:bg-primary-container-dark text-white font-semibold shadow-sm{{ else }}text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark{{ end }} transition-all" 
                 type="button">EN</button>
       </div>
 
       <!-- Theme Toggle -->
       <button id="theme-toggle-btn" 
               onclick="toggleTheme()" 
-              class="w-9 h-9 rounded-xl border border-outline-variant/30 dark:border-outline-variant-dark bg-surface-container-low dark:bg-surface-container-dark flex items-center justify-center text-secondary hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark transition-all shadow-sm" 
+              class="w-9 h-9 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark flex items-center justify-center text-accent-js hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark transition-all shadow-sm" 
               type="button"
               aria-label="{{ T .Lang "header.theme_toggle" }}"
               title="{{ T .Lang "header.theme_toggle" }}">
@@ -179,7 +179,7 @@
   </header>
 
   <!-- Main Content Canvas -->
-  <main class="relative pt-16 md:pl-64 min-h-screen bg-surface dark:bg-surface-dark transition-all flex flex-col" role="main">
+  <main class="relative pt-16 md:pl-64 min-h-screen bg-surface-light dark:bg-surface-dark transition-all flex flex-col" role="main">
     <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-7 flex-1">
       
       <!-- Hidden Form Inputs for HTMX synchronization -->
@@ -227,56 +227,61 @@
     </div>
   </main>
 
-  <!-- Floating Action Button (FAB) with Speed Dial -->
-  <div class="fixed bottom-6 right-6 md:bottom-8 md:right-8 z-40 flex flex-col-reverse items-end gap-3" id="speed-dial-container">
+  <!-- Floating Action Button (FAB) with Speed Dial (Stitch Style) -->
+  <div class="fixed bottom-8 right-8 z-50 flex flex-col-reverse items-end gap-3" id="speed-dial-container">
     
     <!-- Main Primary FAB Button -->
     <button onclick="toggleSpeedDial()" 
-            class="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-primary hover:bg-primary-container text-on-primary shadow-xl hover:shadow-2xl flex items-center justify-center transition-all duration-200 active:scale-95 group focus:outline-none focus:ring-4 focus:ring-primary/20"
+            class="w-14 h-14 rounded-2xl bg-primary dark:bg-primary-container-dark hover:bg-primary-container dark:hover:bg-primary text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
             aria-label="{{ T .Lang "fab.actions" }}"
             aria-expanded="false"
             id="fab-main-btn"
-            title="{{ T .Lang "fab.actions" }}">
-      <span class="material-symbols-outlined text-3xl fab-icon transition-transform duration-300">add</span>
+            title="{{ T .Lang "fab.actions" }}"
+            type="button">
+      <span class="material-symbols-outlined text-[28px] fab-icon transition-transform duration-300">add</span>
     </button>
 
     <!-- Speed Dial Option 1: Upload Files -->
     <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.upload" }}</span>
+      <span class="bg-surface-container-highest-light/95 dark:bg-surface-container-high-dark/95 text-on-surface-light dark:text-on-surface-dark font-label-md text-label-md px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant-light dark:border-outline-variant-dark backdrop-blur-sm">{{ T .Lang "fab.upload" }}</span>
       <button onclick="triggerFileUpload()" 
-              class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
-              aria-label="{{ T .Lang "fab.upload" }}">
+              class="w-11 h-11 rounded-xl bg-white dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark hover:bg-primary dark:hover:bg-primary-container-dark hover:text-white shadow-md flex items-center justify-center transition-all border border-outline-variant-light dark:border-outline-variant-dark"
+              aria-label="{{ T .Lang "fab.upload" }}"
+              type="button">
         <span class="material-symbols-outlined text-xl">upload_file</span>
       </button>
     </div>
 
     <!-- Speed Dial Option 2: Upload ZIP & Extract -->
     <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.upload_zip" }}</span>
+      <span class="bg-surface-container-highest-light/95 dark:bg-surface-container-high-dark/95 text-on-surface-light dark:text-on-surface-dark font-label-md text-label-md px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant-light dark:border-outline-variant-dark backdrop-blur-sm">{{ T .Lang "fab.upload_zip" }}</span>
       <button onclick="triggerZipUpload()" 
-              class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
+              class="w-11 h-11 rounded-xl bg-white dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark hover:bg-primary dark:hover:bg-primary-container-dark hover:text-white shadow-md flex items-center justify-center transition-all border border-outline-variant-light dark:border-outline-variant-dark"
               aria-label="{{ T .Lang "fab.upload_zip" }}"
-              title="{{ T .Lang "fab.upload_zip" }}">
+              title="{{ T .Lang "fab.upload_zip" }}"
+              type="button">
         <span class="material-symbols-outlined text-xl">folder_zip</span>
       </button>
     </div>
 
     <!-- Speed Dial Option 3: Paste from Clipboard -->
     <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.paste" }}</span>
+      <span class="bg-surface-container-highest-light/95 dark:bg-surface-container-high-dark/95 text-on-surface-light dark:text-on-surface-dark font-label-md text-label-md px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant-light dark:border-outline-variant-dark backdrop-blur-sm">{{ T .Lang "fab.paste" }}</span>
       <button onclick="openClipboardModal(); closeSpeedDial()" 
-              class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
-              aria-label="{{ T .Lang "fab.paste" }}">
+              class="w-11 h-11 rounded-xl bg-white dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark hover:bg-primary dark:hover:bg-primary-container-dark hover:text-white shadow-md flex items-center justify-center transition-all border border-outline-variant-light dark:border-outline-variant-dark"
+              aria-label="{{ T .Lang "fab.paste" }}"
+              type="button">
         <span class="material-symbols-outlined text-xl">content_paste</span>
       </button>
     </div>
 
     <!-- Speed Dial Option 4: New Folder -->
     <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest/95 dark:bg-surface-container-high/95 text-on-surface text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30 backdrop-blur-sm">{{ T .Lang "fab.new_folder" }}</span>
+      <span class="bg-surface-container-highest-light/95 dark:bg-surface-container-high-dark/95 text-on-surface-light dark:text-on-surface-dark font-label-md text-label-md px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant-light dark:border-outline-variant-dark backdrop-blur-sm">{{ T .Lang "fab.new_folder" }}</span>
       <button onclick="openFolderModal(); closeSpeedDial()" 
-              class="w-11 h-11 rounded-xl bg-secondary-container text-on-secondary-container hover:bg-primary hover:text-on-primary shadow-md flex items-center justify-center transition-all"
-              aria-label="{{ T .Lang "fab.new_folder" }}">
+              class="w-11 h-11 rounded-xl bg-white dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark hover:bg-primary dark:hover:bg-primary-container-dark hover:text-white shadow-md flex items-center justify-center transition-all border border-outline-variant-light dark:border-outline-variant-dark"
+              aria-label="{{ T .Lang "fab.new_folder" }}"
+              type="button">
         <span class="material-symbols-outlined text-xl">create_new_folder</span>
       </button>
     </div>
@@ -937,10 +942,10 @@
       if (container) {
         const chips = container.querySelectorAll('.filter-chip');
         chips.forEach(c => {
-          c.className = 'filter-chip px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-low dark:bg-surface-container-dark border border-outline-variant/30 dark:border-outline-variant-dark text-on-surface-variant dark:text-on-surface-variant-dark hover:text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-high-dark transition-colors';
+          c.className = 'filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark transition-colors';
         });
         if (btn) {
-          btn.className = 'filter-chip px-3 py-1 rounded-full text-xs font-semibold bg-primary dark:bg-primary-container-dark text-white font-medium tracking-wide shadow-sm';
+          btn.className = 'filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-primary dark:bg-primary-container-dark text-white font-medium tracking-wide shadow-sm';
         }
       }
 
