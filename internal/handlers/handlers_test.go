@@ -4,7 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
-	"html/template"
+	"encoding/json"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -14,759 +15,557 @@ import (
 	"strings"
 	"testing"
 
+	"simplefs/internal/assets"
+	"simplefs/internal/auth"
 	"simplefs/internal/handlers"
-	"simplefs/internal/i18n"
 	"simplefs/internal/storage"
 	"simplefs/web"
 )
 
-func setupTestServer(t *testing.T) (*handlers.Handler, string) {
-	t.Helper()
-	tempDir := t.TempDir()
-	storageService := storage.NewService(tempDir)
+type testServer struct {
+	mux  http.Handler
+	root string
+}
 
-	tmpl, err := template.New("").Funcs(template.FuncMap{
-		"T": i18n.T,
-	}).ParseFS(web.Assets, "templates/*.html")
+func newTestServer(t *testing.T, authenticator *auth.Authenticator, maxUpload int64) *testServer {
+	t.Helper()
+	root := t.TempDir()
+	staticAssets, err := assets.New(web.Assets, "static")
+	if err != nil {
+		t.Fatal(err)
+	}
+	templates, err := handlers.ParseTemplates(web.Assets, staticAssets)
 	if err != nil {
 		t.Fatalf("failed to parse templates: %v", err)
 	}
-
-	handler := handlers.NewHandler(storageService, tmpl)
-	return handler, tempDir
-}
-
-func TestHandler_RegisterRoutes(t *testing.T) {
-	handler, _ := setupTestServer(t)
+	if authenticator == nil {
+		authenticator = auth.Disabled()
+	}
+	handler := handlers.NewHandler(storage.NewService(root), templates, handlers.Config{
+		Auth:           authenticator,
+		Assets:         staticAssets,
+		MaxUploadBytes: maxUpload,
+	})
 	mux := http.NewServeMux()
-	handler.RegisterRoutes(mux, web.Assets)
-
-	req := httptest.NewRequest(http.MethodGet, "/static/css/styles.css", nil)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK && rec.Code != http.StatusNotFound {
-		t.Errorf("unexpected status code for static file: %d", rec.Code)
-	}
-
-	reqFav := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
-	recFav := httptest.NewRecorder()
-	mux.ServeHTTP(recFav, reqFav)
-	if recFav.Code != http.StatusOK {
-		t.Errorf("expected 200 OK for /favicon.ico, got: %d", recFav.Code)
-	}
-	if ct := recFav.Header().Get("Content-Type"); ct != "image/svg+xml" {
-		t.Errorf("expected image/svg+xml, got: %s", ct)
-	}
+	handler.RegisterRoutes(mux)
+	return &testServer{mux: authenticator.Middleware(mux), root: root}
 }
 
-func TestHandler_Index(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	if err := os.WriteFile(filepath.Join(tempDir, "sample.txt"), []byte("sample content"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("renders index page successfully", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/?lang=en&view=grid&sort=name&order=asc", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Index(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-		if !strings.Contains(rec.Body.String(), "sample.txt") {
-			t.Errorf("body does not contain file name: %s", rec.Body.String())
-		}
-
-		cookies := rec.Result().Cookies()
-		foundLangCookie := false
-		for _, cookie := range cookies {
-			if cookie.Name == "lang" && cookie.Value == "en" {
-				foundLangCookie = true
-				break
-			}
-		}
-		if !foundLangCookie {
-			t.Error("expected lang cookie to be set")
-		}
-	})
-
-	t.Run("returns 404 for invalid directory path", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/?path=../outside", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Index(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected 404 for invalid path, got %d", rec.Code)
-		}
-	})
-
-	t.Run("renders styled not found page for non-existent directory", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/?path=utils&view=list&sort=name&order=asc&lang=es", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Index(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected 404 for non-existent directory, got %d", rec.Code)
-		}
-		body := rec.Body.String()
-		if !strings.Contains(body, "Carpeta no encontrada") {
-			t.Errorf("expected styled not found title in body, got: %s", body)
-		}
-		if !strings.Contains(body, "utils") {
-			t.Errorf("expected non-existent folder name in body, got: %s", body)
-		}
-		if !strings.Contains(body, "Volver al inicio") {
-			t.Errorf("expected back to home button in body, got: %s", body)
-		}
-	})
-}
-
-func TestHandler_Files(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	if err := os.WriteFile(filepath.Join(tempDir, "alpha.txt"), []byte("alpha"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("renders file list fragment", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/files?query=alpha", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Files(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-		if !strings.Contains(rec.Body.String(), "alpha.txt") {
-			t.Errorf("expected fragment to contain alpha.txt")
-		}
-	})
-
-	t.Run("returns 400 for path traversal", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/files?path=../outside", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Files(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("expected 400 Bad Request, got %d", rec.Code)
-		}
-	})
-
-	t.Run("renders styled not found fragment for non-existent directory", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/files?path=utils&view=list&sort=name&order=asc&lang=es", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Files(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200 for HTMX fragment swap, got %d", rec.Code)
-		}
-		body := rec.Body.String()
-		if !strings.Contains(body, "Carpeta no encontrada") {
-			t.Errorf("expected styled not found title in body, got: %s", body)
-		}
-		if !strings.Contains(body, "utils") {
-			t.Errorf("expected non-existent folder name in body, got: %s", body)
-		}
-	})
-}
-
-func TestHandler_FileDetails(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	if err := os.WriteFile(filepath.Join(tempDir, "info.txt"), []byte("details content"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("renders file details modal", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/file-details?path=info.txt", nil)
-		rec := httptest.NewRecorder()
-
-		handler.FileDetails(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-		if !strings.Contains(rec.Body.String(), "info.txt") {
-			t.Errorf("expected details body to contain file name")
-		}
-	})
-
-	t.Run("returns 404 for missing file details", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/file-details?path=missing.txt", nil)
-		rec := httptest.NewRecorder()
-
-		handler.FileDetails(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected status 404, got %d", rec.Code)
-		}
-	})
-}
-
-func TestHandler_Upload(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	t.Run("uploads multiple files", func(t *testing.T) {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		_ = writer.WriteField("path", "")
-		part1, _ := writer.CreateFormFile("files", "uploaded_a.txt")
-		_, _ = part1.Write([]byte("content a"))
-		part2, _ := writer.CreateFormFile("files", "uploaded_b.txt")
-		_, _ = part2.Write([]byte("content b"))
-		_ = writer.Close()
-
-		req := httptest.NewRequest(http.MethodPost, "/api/upload", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		rec := httptest.NewRecorder()
-
-		handler.Upload(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-
-		if _, err := os.Stat(filepath.Join(tempDir, "uploaded_a.txt")); err != nil {
-			t.Errorf("uploaded file a does not exist: %v", err)
-		}
-		if _, err := os.Stat(filepath.Join(tempDir, "uploaded_b.txt")); err != nil {
-			t.Errorf("uploaded file b does not exist: %v", err)
-		}
-	})
-
-	t.Run("returns 400 for malformed multipart request", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/upload", strings.NewReader("invalid-form"))
-		req.Header.Set("Content-Type", "multipart/form-data; boundary=invalid")
-		rec := httptest.NewRecorder()
-
-		handler.Upload(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("expected 400 for malformed form, got %d", rec.Code)
-		}
-	})
-}
-
-func TestHandler_Folder(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	t.Run("creates new folder successfully", func(t *testing.T) {
-		form := url.Values{}
-		form.Set("path", "")
-		form.Set("name", "new_folder")
-
-		req := httptest.NewRequest(http.MethodPost, "/api/folder", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rec := httptest.NewRecorder()
-
-		handler.Folder(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-
-		if info, err := os.Stat(filepath.Join(tempDir, "new_folder")); err != nil || !info.IsDir() {
-			t.Errorf("expected folder to exist, err: %v", err)
-		}
-	})
-
-	t.Run("returns 400 for invalid folder name", func(t *testing.T) {
-		form := url.Values{}
-		form.Set("path", "")
-		form.Set("name", ".hidden")
-
-		req := httptest.NewRequest(http.MethodPost, "/api/folder", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rec := httptest.NewRecorder()
-
-		handler.Folder(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("expected status 400, got %d", rec.Code)
-		}
-	})
-}
-
-func TestHandler_CreateFile(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	t.Run("creates plain text file", func(t *testing.T) {
-		form := url.Values{}
-		form.Set("path", "")
-		form.Set("filename", "notes.txt")
-		form.Set("content", "plain text payload")
-
-		req := httptest.NewRequest(http.MethodPost, "/api/create-file", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rec := httptest.NewRecorder()
-
-		handler.CreateFile(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-
-		content, err := os.ReadFile(filepath.Join(tempDir, "notes.txt"))
-		if err != nil || string(content) != "plain text payload" {
-			t.Errorf("unexpected created file content: %s, err: %v", string(content), err)
-		}
-	})
-
-	t.Run("creates base64 encoded file with data URI prefix", func(t *testing.T) {
-		rawBinary := []byte("binary image simulation")
-		encoded := base64.StdEncoding.EncodeToString(rawBinary)
-		dataURI := "data:image/png;base64," + encoded
-
-		form := url.Values{}
-		form.Set("path", "")
-		form.Set("filename", "image.png")
-		form.Set("content", dataURI)
-		form.Set("is_base64", "true")
-
-		req := httptest.NewRequest(http.MethodPost, "/api/create-file", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rec := httptest.NewRecorder()
-
-		handler.CreateFile(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-
-		content, err := os.ReadFile(filepath.Join(tempDir, "image.png"))
-		if err != nil || !bytes.Equal(content, rawBinary) {
-			t.Errorf("unexpected decoded binary content: %s, err: %v", string(content), err)
-		}
-	})
-
-	t.Run("returns 400 for invalid base64 content", func(t *testing.T) {
-		form := url.Values{}
-		form.Set("path", "")
-		form.Set("filename", "bad.png")
-		form.Set("content", "not_valid_base64!!!")
-		form.Set("is_base64", "true")
-
-		req := httptest.NewRequest(http.MethodPost, "/api/create-file", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rec := httptest.NewRecorder()
-
-		handler.CreateFile(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("expected 400 for invalid base64, got %d", rec.Code)
-		}
-	})
-
-	t.Run("returns 400 for invalid filename", func(t *testing.T) {
-		form := url.Values{}
-		form.Set("path", "")
-		form.Set("filename", ".env")
-		form.Set("content", "secret")
-
-		req := httptest.NewRequest(http.MethodPost, "/api/create-file", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rec := httptest.NewRecorder()
-
-		handler.CreateFile(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("expected 400 for protected item name, got %d", rec.Code)
-		}
-	})
-}
-
-func TestHandler_Delete(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	targetFile := filepath.Join(tempDir, "trash.txt")
-	if err := os.WriteFile(targetFile, []byte("to delete"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("deletes file successfully", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/delete?path=trash.txt", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Delete(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-		if _, err := os.Stat(targetFile); !os.IsNotExist(err) {
-			t.Error("file still exists after deletion")
-		}
-	})
-
-	t.Run("returns 403 when attempting to delete root directory", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodDelete, "/api/delete?path=", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Delete(rec, req)
-
-		if rec.Code != http.StatusForbidden {
-			t.Errorf("expected status 403 Forbidden, got %d", rec.Code)
-		}
-	})
-}
-
-func TestHandler_Preview(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	mainFile := filepath.Join(tempDir, "main.go")
-	if err := os.WriteFile(mainFile, []byte("package main\n\nfunc main() {}\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("renders preview modal for existing file", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/preview?path=main.go", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Preview(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", rec.Code)
-		}
-		if !strings.Contains(rec.Body.String(), "main.go") {
-			t.Errorf("expected preview body to contain filename")
-		}
-	})
-
-	t.Run("returns 404 for missing preview target", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/preview?path=notfound.go", nil)
-		rec := httptest.NewRecorder()
-
-		handler.Preview(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected 404 for missing file preview, got %d", rec.Code)
-		}
-	})
-}
-
-func TestHandler_DownloadSecurityHeaders(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	htmlFile := filepath.Join(tempDir, "test.HTML")
-	if err := os.WriteFile(htmlFile, []byte("<h1>hello</h1>"), 0600); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/download?path=test.HTML", nil)
-	rec := httptest.NewRecorder()
-
-	handler.Download(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rec.Code)
-	}
-
-	contentDisp := rec.Header().Get("Content-Disposition")
-	if !strings.Contains(contentDisp, "attachment") {
-		t.Errorf("expected Content-Disposition to contain 'attachment', got %q", contentDisp)
-	}
-
-	csp := rec.Header().Get("Content-Security-Policy")
-	if !strings.Contains(csp, "sandbox") {
-		t.Errorf("expected Content-Security-Policy to contain 'sandbox', got %q", csp)
-	}
-}
-
-func TestHandler_CreateFile_SizeLimit(t *testing.T) {
-	handler, _ := setupTestServer(t)
-
-	largePayload := "filename=test.txt&content=" + strings.Repeat("A", 11*1024*1024)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/create-file", strings.NewReader(largePayload))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-
-	handler.CreateFile(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 Bad Request for oversized body, got %d", rec.Code)
-	}
-}
-
-func TestHandler_ErrorMasking(t *testing.T) {
-	handler, _ := setupTestServer(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/files?path=../invalid/path", nil)
-	rec := httptest.NewRecorder()
-
-	handler.Files(rec, req)
-
-	body := rec.Body.String()
-	if strings.Contains(body, "/home/") || strings.Contains(body, "/var/") || strings.Contains(body, "\\") {
-		t.Errorf("error response leaks internal server path: %q", body)
-	}
-}
-
-func createHandlerTestZip(t *testing.T, files map[string]string) []byte {
+func (s *testServer) do(t *testing.T, method, target string, body io.Reader, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
-	buf := new(bytes.Buffer)
-	zw := zip.NewWriter(buf)
+	req := httptest.NewRequest(method, target, body)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	rec := httptest.NewRecorder()
+	s.mux.ServeHTTP(rec, req)
+	return rec
+}
+
+func (s *testServer) write(t *testing.T, path, content string) {
+	t.Helper()
+	full := filepath.Join(s.root, filepath.FromSlash(path))
+	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (s *testServer) exists(path string) bool {
+	_, err := os.Stat(filepath.Join(s.root, filepath.FromSlash(path)))
+	return err == nil
+}
+
+func multipartBody(t *testing.T, field string, files map[string]string, fields map[string]string) (*bytes.Buffer, string) {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	for key, value := range fields {
+		_ = writer.WriteField(key, value)
+	}
 	for name, content := range files {
-		w, err := zw.Create(name)
+		part, err := writer.CreateFormFile(field, name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := w.Write([]byte(content)); err != nil {
+		_, _ = part.Write([]byte(content))
+	}
+	_ = writer.Close()
+	return body, writer.FormDataContentType()
+}
+
+func zipBytes(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	buffer := &bytes.Buffer{}
+	writer := zip.NewWriter(buffer)
+	for name, content := range files {
+		entry, err := writer.Create(name)
+		if err != nil {
 			t.Fatal(err)
 		}
+		_, _ = entry.Write([]byte(content))
 	}
-	if err := zw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return buf.Bytes()
-}
-
-func TestHandler_UploadZip(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	zipBytes := createHandlerTestZip(t, map[string]string{
-		"readme.md": "# Hello",
-		"code.go":   "package main",
-	})
-
-	body := new(bytes.Buffer)
-	writer := multipart.NewWriter(body)
-	_ = writer.WriteField("path", "")
-	_ = writer.WriteField("view", "list")
-	_ = writer.WriteField("sort", "name")
-	_ = writer.WriteField("order", "asc")
-
-	part, err := writer.CreateFormFile("zip_file", "mybundle.zip")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _ = part.Write(zipBytes)
 	_ = writer.Close()
+	return buffer.Bytes()
+}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/upload-zip", body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	rec := httptest.NewRecorder()
-
-	handler.UploadZip(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	// Verify extracted folder exists on disk
-	extractedFolder := filepath.Join(tempDir, "mybundle")
-	if _, err := os.Stat(extractedFolder); os.IsNotExist(err) {
-		t.Fatalf("expected extracted directory %s to exist", extractedFolder)
-	}
-	if _, err := os.Stat(filepath.Join(extractedFolder, "readme.md")); os.IsNotExist(err) {
-		t.Fatalf("expected readme.md to be extracted")
+func decodeJSON(t *testing.T, rec *httptest.ResponseRecorder, target any) {
+	t.Helper()
+	if err := json.Unmarshal(rec.Body.Bytes(), target); err != nil {
+		t.Fatalf("invalid JSON %q: %v", rec.Body.String(), err)
 	}
 }
 
-func TestHandler_UploadZip_RejectsZipSlip(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	buf := new(bytes.Buffer)
-	zw := zip.NewWriter(buf)
-	w, _ := zw.Create("../../slip.txt")
-	_, _ = w.Write([]byte("evil"))
-	_ = zw.Close()
-
-	body := new(bytes.Buffer)
-	writer := multipart.NewWriter(body)
-	_ = writer.WriteField("path", "")
-
-	part, _ := writer.CreateFormFile("zip_file", "slip.zip")
-	_, _ = part.Write(buf.Bytes())
-	_ = writer.Close()
-
-	req := httptest.NewRequest(http.MethodPost, "/api/upload-zip", body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	rec := httptest.NewRecorder()
-
-	handler.UploadZip(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 Bad Request for Zip Slip, got %d", rec.Code)
+func toastMessage(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	header := rec.Header().Get("HX-Trigger")
+	if header == "" {
+		return ""
 	}
-
-	// Verify no slip.txt was created
-	entries, _ := os.ReadDir(tempDir)
-	if len(entries) != 0 {
-		t.Fatalf("expected empty directory after rollback, found %d entries", len(entries))
+	for _, r := range header {
+		if r > 127 {
+			t.Errorf("HX-Trigger must be ASCII, got %q", header)
+		}
 	}
+	var payload map[string]struct {
+		Level   string `json:"level"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(header), &payload); err != nil {
+		t.Fatalf("invalid HX-Trigger %q: %v", header, err)
+	}
+	return payload["simplefs:toast"].Level + ":" + payload["simplefs:toast"].Message
 }
 
-func TestHandler_ExtractZip(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
+func TestPagesRender(t *testing.T) {
+	server := newTestServer(t, nil, 0)
+	server.write(t, "docs/readme.md", "# hi")
+	server.write(t, "photo.png", "png")
 
-	zipBytes := createHandlerTestZip(t, map[string]string{
-		"inner.txt": "extracted data",
-	})
-	if err := os.WriteFile(filepath.Join(tempDir, "archive.zip"), zipBytes, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/api/extract-zip?path=archive.zip", nil)
-	rec := httptest.NewRecorder()
-
-	handler.ExtractZip(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	extractedFile := filepath.Join(tempDir, "archive", "inner.txt")
-	if _, err := os.Stat(extractedFile); os.IsNotExist(err) {
-		t.Fatalf("expected extracted file %s to exist", extractedFile)
-	}
-}
-
-func TestHandler_DownloadFolder(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	folderPath := filepath.Join(tempDir, "test_folder")
-	if err := os.MkdirAll(folderPath, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(folderPath, "sample.txt"), []byte("sample"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/api/download-folder?path=test_folder", nil)
-	rec := httptest.NewRecorder()
-
-	handler.DownloadFolder(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d", rec.Code)
-	}
-
-	if rec.Header().Get("Content-Type") != "application/zip" {
-		t.Errorf("expected application/zip Content-Type, got %q", rec.Header().Get("Content-Type"))
-	}
-
-	contentDisp := rec.Header().Get("Content-Disposition")
-	if !strings.Contains(contentDisp, "test_folder.zip") {
-		t.Errorf("expected Content-Disposition to contain 'test_folder.zip', got %q", contentDisp)
-	}
-
-	// Verify valid zip content
-	zr, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
-	if err != nil {
-		t.Fatalf("failed to read streamed zip: %v", err)
-	}
-	if len(zr.File) != 1 || zr.File[0].Name != "sample.txt" {
-		t.Errorf("unexpected zip contents: %+v", zr.File)
-	}
-}
-
-func TestHandler_Download_DirectoryAsZip(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	folderPath := filepath.Join(tempDir, "sub_dir")
-	if err := os.MkdirAll(folderPath, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(folderPath, "file.txt"), []byte("hello"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/download?path=sub_dir", nil)
-	rec := httptest.NewRecorder()
-
-	handler.Download(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK for directory download, got %d", rec.Code)
-	}
-	if rec.Header().Get("Content-Type") != "application/zip" {
-		t.Errorf("expected application/zip, got %q", rec.Header().Get("Content-Type"))
-	}
-}
-
-func TestHandler_Trash(t *testing.T) {
-	handler, tempDir := setupTestServer(t)
-
-	// Create test file
-	filePath := filepath.Join(tempDir, "item_to_delete.txt")
-	if err := os.WriteFile(filePath, []byte("delete me"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("renders /trash page", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/trash?view=list&lang=es", nil)
-		rec := httptest.NewRecorder()
-		handler.Trash(rec, req)
-
+	for _, target := range []string{"/", "/?path=docs&view=grid", "/recent", "/trash", "/api/files?path=docs", "/api/recent", "/api/trash", "/api/files?query=read"} {
+		rec := server.do(t, http.MethodGet, target, nil, nil)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("expected 200 OK, got %d", rec.Code)
+			t.Errorf("%s: status %d", target, rec.Code)
 		}
-		body := rec.Body.String()
-		if !strings.Contains(body, "Papelera") {
-			t.Errorf("expected body to contain 'Papelera'")
+		if !strings.Contains(rec.Body.String(), `id="active-view"`) {
+			t.Errorf("%s: missing view state", target)
 		}
-	})
+	}
 
-	t.Run("move to trash via delete and view api trash", func(t *testing.T) {
-		delReq := httptest.NewRequest(http.MethodDelete, "/api/delete?path=item_to_delete.txt&view=list&lang=es", nil)
-		delRec := httptest.NewRecorder()
-		handler.Delete(delRec, delReq)
+	rec := server.do(t, http.MethodGet, "/", nil, nil)
+	if strings.Contains(rec.Body.String(), "onclick=") || strings.Contains(rec.Body.String(), "<script>") {
+		t.Error("pages must not contain inline scripts (strict CSP)")
+	}
 
-		if delRec.Code != http.StatusOK {
-			t.Fatalf("expected 200 OK, got %d", delRec.Code)
+	rec = server.do(t, http.MethodGet, "/?path=missing", nil, nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("missing folder should return 404, got %d", rec.Code)
+	}
+
+	rec = server.do(t, http.MethodGet, "/api/files?query=readme", nil, nil)
+	if !strings.Contains(rec.Body.String(), "/docs") {
+		t.Error("recursive search results should show the parent folder")
+	}
+
+	rec = server.do(t, http.MethodGet, "/does-not-exist", nil, nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("unknown route should 404, got %d", rec.Code)
+	}
+}
+
+func TestStaticAndHealth(t *testing.T) {
+	server := newTestServer(t, auth.New("secret", ""), 0)
+	for _, target := range []string{"/healthz", "/favicon.ico", "/static/favicon.svg"} {
+		if rec := server.do(t, http.MethodGet, target, nil, nil); rec.Code != http.StatusOK {
+			t.Errorf("%s should be public, got %d", target, rec.Code)
 		}
+	}
+}
 
-		trashReq := httptest.NewRequest(http.MethodGet, "/api/trash?view=list&lang=es", nil)
-		trashRec := httptest.NewRecorder()
-		handler.ApiTrash(trashRec, trashReq)
+func TestUIUploadStreamsAndRenames(t *testing.T) {
+	server := newTestServer(t, nil, 0)
+	server.write(t, "inbox/a.txt", "old")
 
-		if trashRec.Code != http.StatusOK {
-			t.Fatalf("expected 200 OK, got %d", trashRec.Code)
+	body, contentType := multipartBody(t, "files", map[string]string{"a.txt": "new", "b ñ.txt": "b"}, nil)
+	rec := server.do(t, http.MethodPost, "/api/upload?path=inbox&lang=es", body, map[string]string{"Content-Type": contentType})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upload failed: %d %s", rec.Code, rec.Body.String())
+	}
+	if !server.exists("inbox/a (1).txt") || !server.exists("inbox/b ñ.txt") {
+		t.Error("expected renamed upload and second file")
+	}
+	if content, _ := os.ReadFile(filepath.Join(server.root, "inbox", "a.txt")); string(content) != "old" {
+		t.Error("UI upload must not overwrite existing files")
+	}
+	if toast := toastMessage(t, rec); !strings.HasPrefix(toast, "success:") {
+		t.Errorf("expected success toast, got %q", toast)
+	}
+
+	body, contentType = multipartBody(t, "files", map[string]string{".trash": "x"}, map[string]string{"path": ""})
+	rec = server.do(t, http.MethodPost, "/api/upload", body, map[string]string{"Content-Type": contentType})
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), ".trash") {
+		t.Errorf("rejected uploads must fail with the reason, got %d %q", rec.Code, rec.Body.String())
+	}
+
+	body, contentType = multipartBody(t, "files", map[string]string{"ok.txt": "ok", ".simplefs": "x"}, nil)
+	rec = server.do(t, http.MethodPost, "/api/upload?path=inbox", body, map[string]string{"Content-Type": contentType})
+	if toast := toastMessage(t, rec); rec.Code != http.StatusOK || !strings.HasPrefix(toast, "error:") {
+		t.Errorf("partial uploads must swap the list and report failures, got %d %q", rec.Code, toast)
+	}
+
+	rec = server.do(t, http.MethodPost, "/api/upload", strings.NewReader("not multipart"), map[string]string{"Content-Type": "text/plain"})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid body, got %d", rec.Code)
+	}
+}
+
+func TestUploadSizeLimit(t *testing.T) {
+	server := newTestServer(t, nil, 1024)
+	body, contentType := multipartBody(t, "files", map[string]string{"big.bin": strings.Repeat("x", 4096)}, nil)
+	rec := server.do(t, http.MethodPost, "/api/upload", body, map[string]string{"Content-Type": contentType})
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("expected 413, got %d", rec.Code)
+	}
+	if server.exists("big.bin") {
+		t.Error("oversized upload must not be stored")
+	}
+
+	rec = server.do(t, http.MethodPut, "/api/v1/files/big.bin", strings.NewReader(strings.Repeat("x", 4096)), nil)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("expected 413 from API, got %d", rec.Code)
+	}
+}
+
+func TestUploadAndExtractZip(t *testing.T) {
+	server := newTestServer(t, nil, 0)
+	body, contentType := multipartBody(t, "zip_file", map[string]string{"project.zip": string(zipBytes(t, map[string]string{".env": "K=V", "src/main.go": "package main"}))}, nil)
+	rec := server.do(t, http.MethodPost, "/api/upload-zip?path=", body, map[string]string{"Content-Type": contentType})
+	if rec.Code != http.StatusOK || !server.exists("project/.env") || !server.exists("project/src/main.go") {
+		t.Fatalf("zip upload failed: %d %s", rec.Code, toastMessage(t, rec))
+	}
+
+	body, contentType = multipartBody(t, "zip_file", map[string]string{"evil.zip": string(zipBytes(t, map[string]string{"../evil.txt": "x"}))}, nil)
+	rec = server.do(t, http.MethodPost, "/api/upload-zip", body, map[string]string{"Content-Type": contentType})
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "Zip Slip") {
+		t.Errorf("zip slip must be rejected with 400, got %d %q", rec.Code, rec.Body.String())
+	}
+
+	server.write(t, "archive.zip", string(zipBytes(t, map[string]string{"a.txt": "a"})))
+	rec = server.do(t, http.MethodPost, "/api/extract-zip?path=archive.zip", nil, nil)
+	if rec.Code != http.StatusOK || !server.exists("archive/a.txt") {
+		t.Errorf("extract existing zip failed: %d", rec.Code)
+	}
+}
+
+func TestFormActions(t *testing.T) {
+	server := newTestServer(t, nil, 0)
+	form := func(values url.Values) io.Reader { return strings.NewReader(values.Encode()) }
+	formHeaders := map[string]string{"Content-Type": "application/x-www-form-urlencoded"}
+
+	rec := server.do(t, http.MethodPost, "/api/folder", form(url.Values{"path": {""}, "name": {"inbox"}}), formHeaders)
+	if rec.Code != http.StatusOK || !server.exists("inbox") {
+		t.Fatalf("create folder failed: %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodPost, "/api/folder", form(url.Values{"name": {".trash"}}), formHeaders)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("reserved folder name should be 400, got %d", rec.Code)
+	}
+
+	image := base64.StdEncoding.EncodeToString([]byte("PNGDATA"))
+	rec = server.do(t, http.MethodPost, "/api/create-file", form(url.Values{"path": {"inbox"}, "filename": {"shot.png"}, "content": {"data:image/png;base64," + image}, "is_base64": {"true"}}), formHeaders)
+	if content, _ := os.ReadFile(filepath.Join(server.root, "inbox", "shot.png")); rec.Code != http.StatusOK || string(content) != "PNGDATA" {
+		t.Errorf("clipboard image failed: %d %q", rec.Code, content)
+	}
+	rec = server.do(t, http.MethodPost, "/api/create-file", form(url.Values{"filename": {"x.png"}, "content": {"!!!"}, "is_base64": {"true"}}), formHeaders)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid base64 should be 400, got %d", rec.Code)
+	}
+
+	rec = server.do(t, http.MethodDelete, "/api/delete?path=inbox/shot.png", nil, nil)
+	if rec.Code != http.StatusOK || server.exists("inbox/shot.png") {
+		t.Fatalf("delete failed: %d", rec.Code)
+	}
+	if !strings.Contains(toastMessage(t, rec), "shot.png") {
+		t.Error("delete should confirm with a toast")
+	}
+	rec = server.do(t, http.MethodPost, "/api/trash/restore?name=shot.png", nil, nil)
+	if rec.Code != http.StatusOK || !server.exists("inbox/shot.png") {
+		t.Errorf("restore failed: %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodDelete, "/api/delete?path=", nil, nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("deleting the root must fail with 400, got %d", rec.Code)
+	}
+}
+
+func TestDownloadHeaders(t *testing.T) {
+	server := newTestServer(t, nil, 0)
+	server.write(t, "page.html", "<script>alert(1)</script>")
+	server.write(t, "image.svg", "<svg></svg>")
+	server.write(t, "notes.json", "{}")
+	server.write(t, "photo.png", "png")
+	server.write(t, "doc.pdf", "%PDF-1.4")
+	server.write(t, "folder/a.txt", "a")
+
+	for _, name := range []string{"page.html", "image.svg", "notes.json"} {
+		rec := server.do(t, http.MethodGet, "/download?path="+name, nil, nil)
+		if !strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") || !strings.Contains(rec.Header().Get("Content-Security-Policy"), "sandbox") {
+			t.Errorf("%s must be forced to download in a sandbox: %v", name, rec.Header())
 		}
-		body := trashRec.Body.String()
-		if !strings.Contains(body, "item_to_delete.txt") {
-			t.Errorf("expected trash to contain 'item_to_delete.txt', body: %s", body)
+	}
+
+	rec := server.do(t, http.MethodGet, "/download?path=photo.png", nil, nil)
+	if rec.Header().Get("Content-Disposition") != "" || rec.Header().Get("Content-Type") != "image/png" {
+		t.Errorf("images should be served inline: %v", rec.Header())
+	}
+
+	rec = server.do(t, http.MethodGet, "/download?path=photo.png&download=1", nil, nil)
+	if !strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") {
+		t.Error("download=1 must force an attachment")
+	}
+
+	rec = server.do(t, http.MethodGet, "/download?path=photo.png", nil, map[string]string{"Range": "bytes=0-1"})
+	if rec.Code != http.StatusPartialContent || rec.Body.String() != "pn" {
+		t.Errorf("range requests should be supported, got %d %q", rec.Code, rec.Body.String())
+	}
+
+	rec = server.do(t, http.MethodGet, "/download?path=folder", nil, nil)
+	if rec.Header().Get("Content-Type") != "application/zip" {
+		t.Errorf("folders should download as zip, got %q", rec.Header().Get("Content-Type"))
+	}
+
+	rec = server.do(t, http.MethodGet, "/download?path=../etc/passwd", nil, nil)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("traversal should be 403, got %d", rec.Code)
+	}
+}
+
+func TestErrorsDoNotLeakPaths(t *testing.T) {
+	server := newTestServer(t, nil, 0)
+	for _, target := range []string{"/api/preview?path=missing.txt", "/api/file-details?path=missing.txt", "/download?path=missing.txt", "/api/v1/files/missing.txt"} {
+		rec := server.do(t, http.MethodGet, target, nil, nil)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: expected 404, got %d", target, rec.Code)
 		}
-	})
-
-	t.Run("restore item from trash", func(t *testing.T) {
-		restoreReq := httptest.NewRequest(http.MethodPost, "/api/trash/restore?name=item_to_delete.txt&view=list&lang=es", nil)
-		restoreRec := httptest.NewRecorder()
-		handler.ApiTrashRestore(restoreRec, restoreReq)
-
-		if restoreRec.Code != http.StatusOK {
-			t.Fatalf("expected 200 OK, got %d", restoreRec.Code)
+		if strings.Contains(rec.Body.String(), server.root) {
+			t.Errorf("%s leaks the storage path: %s", target, rec.Body.String())
 		}
+	}
+}
 
-		// Verify file restored
-		if _, err := os.Stat(filepath.Join(tempDir, "item_to_delete.txt")); err != nil {
-			t.Errorf("restored file not found in tempDir: %v", err)
+func TestPreviewAndDetails(t *testing.T) {
+	server := newTestServer(t, nil, 0)
+	server.write(t, "main.go", "package main\n<script>")
+	server.write(t, "notes.md", "# Title")
+
+	rec := server.do(t, http.MethodGet, "/api/preview?path=main.go", nil, nil)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "<script>") {
+		t.Errorf("code preview must escape content: %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodGet, "/api/preview?path=notes.md", nil, nil)
+	if !strings.Contains(rec.Body.String(), "data-markdown=\"# Title\"") {
+		t.Error("markdown preview should carry the raw source")
+	}
+	rec = server.do(t, http.MethodGet, "/api/file-details?path=main.go", nil, nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "main.go") {
+		t.Errorf("details failed: %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodGet, "/api/file-details?path=", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Errorf("root details failed: %d", rec.Code)
+	}
+}
+
+func TestAPIFiles(t *testing.T) {
+	server := newTestServer(t, nil, 0)
+
+	rec := server.do(t, http.MethodPut, "/api/v1/files/inbox/deep/report.txt", strings.NewReader("hello"), nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("PUT failed: %d %s", rec.Code, rec.Body.String())
+	}
+	var result storage.WriteResult
+	decodeJSON(t, rec, &result)
+	if result.Path != "inbox/deep/report.txt" || result.Size != 5 || len(result.SHA256) != 64 {
+		t.Errorf("unexpected PUT result %+v", result)
+	}
+
+	rec = server.do(t, http.MethodPut, "/api/v1/files/inbox/deep/report.txt", strings.NewReader("again"), nil)
+	if rec.Code != http.StatusConflict {
+		t.Errorf("second PUT should conflict, got %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodPut, "/api/v1/files/inbox/deep/report.txt?overwrite=true", strings.NewReader("again"), nil)
+	if rec.Code != http.StatusOK {
+		t.Errorf("overwrite should return 200, got %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodPut, "/api/v1/files/inbox/deep/report.txt?conflict=rename", strings.NewReader("third"), nil)
+	decodeJSON(t, rec, &result)
+	if rec.Code != http.StatusCreated || result.Name != "report (1).txt" {
+		t.Errorf("rename policy failed: %d %+v", rec.Code, result)
+	}
+	rec = server.do(t, http.MethodPut, "/api/v1/files/new/x.txt?parents=false", strings.NewReader("x"), nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("parents=false into a missing folder should 404, got %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodPut, "/api/v1/files/", strings.NewReader("x"), nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("PUT without a path should 400, got %d", rec.Code)
+	}
+
+	rec = server.do(t, http.MethodGet, "/api/v1/files/inbox/deep/report.txt", nil, nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "again" || !strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") {
+		t.Errorf("GET file failed: %d %q", rec.Code, rec.Body.String())
+	}
+
+	rec = server.do(t, http.MethodGet, "/api/v1/files/inbox/deep/", nil, nil)
+	var listing struct {
+		Path    string          `json:"path"`
+		Entries []storage.Entry `json:"entries"`
+	}
+	decodeJSON(t, rec, &listing)
+	if listing.Path != "inbox/deep" || len(listing.Entries) != 2 {
+		t.Errorf("unexpected listing %+v", listing)
+	}
+
+	rec = server.do(t, http.MethodGet, "/api/v1/files/inbox/deep/report.txt?stat&checksum=true", nil, nil)
+	var entry storage.Entry
+	decodeJSON(t, rec, &entry)
+	if entry.SHA256 == "" || entry.Size != 5 {
+		t.Errorf("unexpected stat %+v", entry)
+	}
+
+	rec = server.do(t, http.MethodGet, "/api/v1/files/inbox/?archive=zip", nil, nil)
+	if rec.Header().Get("Content-Type") != "application/zip" {
+		t.Errorf("archive=zip should stream a zip, got %q", rec.Header().Get("Content-Type"))
+	}
+
+	body, contentType := multipartBody(t, "file", map[string]string{"a.txt": "a", "b.txt": "b"}, nil)
+	rec = server.do(t, http.MethodPost, "/api/v1/files/outbox", body, map[string]string{"Content-Type": contentType})
+	var posted struct {
+		Files  []storage.WriteResult `json:"files"`
+		Errors []map[string]string   `json:"errors"`
+	}
+	decodeJSON(t, rec, &posted)
+	if rec.Code != http.StatusCreated || len(posted.Files) != 2 || !server.exists("outbox/a.txt") {
+		t.Errorf("multipart POST failed: %d %+v", rec.Code, posted)
+	}
+
+	body, contentType = multipartBody(t, "file", map[string]string{".simplefs": "x"}, nil)
+	rec = server.do(t, http.MethodPost, "/api/v1/files/outbox", body, map[string]string{"Content-Type": contentType})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("rejected multipart upload should be 400, got %d", rec.Code)
+	}
+
+	rec = server.do(t, http.MethodPost, "/api/v1/folders/one/two", nil, nil)
+	if rec.Code != http.StatusCreated || !server.exists("one/two") {
+		t.Errorf("mkdir failed: %d", rec.Code)
+	}
+
+	rec = server.do(t, http.MethodDelete, "/api/v1/files/outbox/a.txt", nil, nil)
+	if rec.Code != http.StatusOK || server.exists("outbox/a.txt") {
+		t.Errorf("delete failed: %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodDelete, "/api/v1/files/outbox/b.txt?permanent=true", nil, nil)
+	if rec.Code != http.StatusOK || server.exists("outbox/b.txt") {
+		t.Errorf("permanent delete failed: %d", rec.Code)
+	}
+
+	for _, target := range []string{"/api/v1/files/.trash/x", "/api/v1/files/..%2Fsecret"} {
+		rec = server.do(t, http.MethodGet, target, nil, nil)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("%s should be 403, got %d", target, rec.Code)
 		}
-	})
+	}
+}
 
-	t.Run("empty trash", func(t *testing.T) {
-		// Delete again
-		delReq := httptest.NewRequest(http.MethodDelete, "/api/delete?path=item_to_delete.txt&view=list&lang=es", nil)
-		delRec := httptest.NewRecorder()
-		handler.Delete(delRec, delReq)
+func TestAPIQueries(t *testing.T) {
+	server := newTestServer(t, auth.New("tok", "ro"), 0)
+	bearer := map[string]string{"Authorization": "Bearer tok"}
+	readOnly := map[string]string{"Authorization": "Bearer ro"}
+	server.write(t, "inbox/report-2026.pdf", "%PDF")
+	server.write(t, "notes.txt", "n")
 
-		emptyReq := httptest.NewRequest(http.MethodDelete, "/api/trash/empty?view=list&lang=es", nil)
-		emptyRec := httptest.NewRecorder()
-		handler.ApiTrashEmpty(emptyRec, emptyReq)
+	rec := server.do(t, http.MethodGet, "/api/v1/whoami", nil, readOnly)
+	var whoami map[string]any
+	decodeJSON(t, rec, &whoami)
+	if whoami["role"] != "read" {
+		t.Errorf("unexpected whoami %+v", whoami)
+	}
 
-		if emptyRec.Code != http.StatusOK {
-			t.Fatalf("expected 200 OK, got %d", emptyRec.Code)
-		}
-		if !strings.Contains(emptyRec.Body.String(), "La papelera está vacía") {
-			t.Errorf("expected empty trash message in body")
-		}
-	})
+	rec = server.do(t, http.MethodGet, "/api/v1/search?q=report", nil, bearer)
+	var search struct {
+		Entries []storage.Entry `json:"entries"`
+	}
+	decodeJSON(t, rec, &search)
+	if len(search.Entries) != 1 || search.Entries[0].Path != "inbox/report-2026.pdf" {
+		t.Errorf("unexpected search %+v", search)
+	}
+
+	rec = server.do(t, http.MethodGet, "/api/v1/recent?limit=1", nil, bearer)
+	var recent struct {
+		Entries []storage.Entry `json:"entries"`
+	}
+	decodeJSON(t, rec, &recent)
+	if len(recent.Entries) != 1 {
+		t.Errorf("unexpected recent %+v", recent)
+	}
+
+	rec = server.do(t, http.MethodGet, "/api/v1/stamp?scope=dir&path=inbox", nil, bearer)
+	var stamp map[string]string
+	decodeJSON(t, rec, &stamp)
+	if stamp["stamp"] == "" {
+		t.Error("expected a stamp")
+	}
+
+	rec = server.do(t, http.MethodPut, "/api/v1/files/x.txt", strings.NewReader("x"), readOnly)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("read-only token must not write, got %d", rec.Code)
+	}
+	rec = server.do(t, http.MethodGet, "/api/v1/files/notes.txt", nil, readOnly)
+	if rec.Code != http.StatusOK {
+		t.Errorf("read-only token should download, got %d", rec.Code)
+	}
+
+	rec = server.do(t, http.MethodGet, "/", nil, readOnly)
+	if strings.Contains(rec.Body.String(), "hx-delete=") {
+		t.Error("read-only pages should not render delete actions")
+	}
+}
+
+func TestLoginFlow(t *testing.T) {
+	server := newTestServer(t, auth.New("tok", ""), 0)
+
+	rec := server.do(t, http.MethodGet, "/", nil, map[string]string{"Accept": "text/html"})
+	if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("Location"), "/login") {
+		t.Fatalf("expected redirect to login, got %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+
+	rec = server.do(t, http.MethodGet, "/login", nil, nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `name="token"`) {
+		t.Fatalf("login page failed: %d", rec.Code)
+	}
+
+	formHeaders := map[string]string{"Content-Type": "application/x-www-form-urlencoded"}
+	rec = server.do(t, http.MethodPost, "/login", strings.NewReader("token=wrong&next=/"), formHeaders)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("wrong token should be 401, got %d", rec.Code)
+	}
+
+	rec = server.do(t, http.MethodPost, "/login", strings.NewReader("token=tok&next=//evil.example"), formHeaders)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/" {
+		t.Fatalf("login should redirect safely, got %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != auth.SessionCookieName {
+		t.Fatalf("expected session cookie, got %+v", cookies)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(cookies[0])
+	page := httptest.NewRecorder()
+	server.mux.ServeHTTP(page, req)
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `action="/logout"`) {
+		t.Errorf("authenticated page failed: %d", page.Code)
+	}
 }

@@ -1,1029 +1,322 @@
 <!DOCTYPE html>
-<html lang="{{ if .Lang }}{{ .Lang }}{{ else }}es{{ end }}" class="dark">
+<html lang="{{ .Lang }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
   <title>{{ T .Lang "app.title" }}</title>
-  
-  <!-- Favicon and App Icon (Stitch Generated) -->
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="alternate icon" href="/favicon.ico">
-  <link rel="apple-touch-icon" href="/static/app-icon.svg">
-  
-  <!-- Vendor Styles (Fonts, Icons, Highlight.js) -->
-  <link rel="stylesheet" href="/static/vendor.css">
-  
-  <!-- Compiled Tailwind CSS -->
-  <link rel="stylesheet" href="/static/style.css">
-  
-  <!-- Vendor Scripts (HTMX, Highlight.js, Marked, DOMPurify) -->
-  <script src="/static/vendor.js"></script>
-
-  <!-- Immediate Theme Check to Prevent FOUC -->
-  <script>
-    (function() {
-      const savedTheme = localStorage.getItem('theme');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    })();
-  </script>
+  <link rel="icon" type="image/svg+xml" href="{{ asset "favicon.svg" }}">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="{{ asset "vendor.css" }}">
+  <link rel="stylesheet" href="{{ asset "style.css" }}">
+  <script src="{{ asset "theme.js" }}"></script>
+  <script src="{{ asset "vendor.js" }}" defer></script>
+  <script src="{{ asset "app.js" }}" defer></script>
 </head>
-<body class="bg-surface-light dark:bg-surface-dark font-body-md text-on-surface-light dark:text-on-surface-dark selection:bg-primary-container-dark selection:text-white min-h-screen flex flex-col">
-  
-  <!-- Sidebar Backdrop (Mobile) -->
-  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden md:hidden transition-opacity" onclick="toggleMobileSidebar()"></div>
+<body class="min-h-screen" data-icons="{{ asset "icons.svg" }}">
+  <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] btn-primary">{{ T .Lang "a11y.skip" }}</a>
 
-  <!-- Left Sidebar Navigation (Ambient Workspace) -->
-  <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-surface-container-low-light dark:bg-surface-container-low-dark z-50 flex flex-col pt-6 pb-6 border-r border-outline-variant-light dark:border-outline-variant-dark -translate-x-full md:translate-x-0 transition-transform duration-200 ease-in-out">
-    <!-- Brand Logo -->
+  <div id="i18n" hidden
+       data-copied="{{ T .Lang "toast.copied" }}"
+       data-copy-failed="{{ T .Lang "toast.copy_failed" }}"
+       data-uploading="{{ T .Lang "toast.uploading" }}"
+       data-network-error="{{ T .Lang "error.network" }}"
+       data-generic-error="{{ T .Lang "error.generic" }}"
+       data-preview-placeholder="{{ T .Lang "clipboard.preview_placeholder" }}"
+       data-stats-text="{{ T .Lang "clipboard.stats_text" }}"
+       data-stats-image="{{ T .Lang "clipboard.stats_image" }}"
+       data-image-prefix="{{ T .Lang "clipboard.image_prefix" }}"
+       data-title-text="{{ T .Lang "modal.clipboard.title_text" }}"
+       data-title-image="{{ T .Lang "modal.clipboard.title_image" }}"></div>
+
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-scrim/60 backdrop-blur-sm z-40 hidden md:hidden" data-action="toggle-sidebar"></div>
+
+  <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-surface-container-low z-50 flex flex-col py-6 border-r border-outline-variant -translate-x-full md:translate-x-0 transition-transform duration-200 ease-in-out" aria-label="{{ T .Lang "nav.navigation" }}">
     <div class="px-6 mb-8 flex items-center justify-between">
-      <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-         hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-         hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
-         hx-target="#file-list-container"
-         class="flex items-center gap-3 group"
-         aria-label="SimpleFS">
-        <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
-          <span class="material-symbols-outlined text-[22px]">folder_data</span>
-        </div>
-        <div class="flex flex-col">
-          <span class="font-title-md text-title-md text-on-surface-light dark:text-on-surface-dark tracking-tight leading-none">SimpleFS</span>
-          <span class="font-label-md text-label-md text-secondary mt-1">Storage Engine</span>
-        </div>
+      <a href="/" data-nav class="flex items-center gap-3 group" aria-label="SimpleFS">
+        <img src="{{ asset "app-icon.svg" }}" alt="" width="36" height="36" class="w-9 h-9 rounded-xl shadow-sm group-hover:scale-105 transition-transform">
+        <span class="flex flex-col">
+          <span class="text-title tracking-tight leading-none">SimpleFS</span>
+          <span class="text-label text-on-surface-variant mt-1">{{ T .Lang "brand.tagline" }}</span>
+        </span>
       </a>
-      <button onclick="toggleMobileSidebar()" class="md:hidden p-1 rounded-lg text-secondary hover:text-on-surface-light dark:hover:text-on-surface-dark" aria-label="Cerrar navegación">
-        <span class="material-symbols-outlined text-xl">close</span>
+      <button type="button" data-action="toggle-sidebar" class="md:hidden icon-btn" aria-label="{{ T .Lang "nav.close_menu" }}">
+        {{ icon "close" "text-xl" }}
       </button>
     </div>
 
-    <!-- Navigation Label -->
     <div class="px-4 mb-3">
-      <span class="px-3 font-label-md text-label-md uppercase tracking-wider text-secondary font-medium">{{ T .Lang "nav.navigation" }}</span>
+      <span class="px-3 text-label uppercase tracking-wider text-on-surface-variant">{{ T .Lang "nav.navigation" }}</span>
     </div>
 
-    <!-- Navigation Items -->
-    <nav class="flex-1 px-3 space-y-1" aria-label="{{ T .Lang "nav.navigation" }}">
-      <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
-         hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-         hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
-         hx-target="#file-list-container"
-         hx-indicator="#global-spinner"
-         onclick="if(window.innerWidth < 768) toggleMobileSidebar(); updateNavSelection(false);"
-         id="nav-all-files"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors {{ if not .IsTrash }}bg-primary dark:bg-primary-container-dark text-white font-medium shadow-sm{{ else }}text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark{{ end }}"
-         {{ if not .IsTrash }}aria-current="page"{{ end }}>
-        <span class="material-symbols-outlined text-[20px]">folder_open</span>
+    <nav class="flex-1 px-3 space-y-1" id="main-nav">
+      <a href="/" data-nav data-scope-link="dir" class="nav-item" {{ if not (or .IsTrash .IsRecent) }}aria-current="page"{{ end }}>
+        {{ icon "folder_open" "text-[20px]" }}
         <span>{{ T .Lang "nav.all_files" }}</span>
       </a>
-      <a href="/trash?view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
-         hx-get="/api/trash?view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-         hx-push-url="/trash?view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
-         hx-target="#file-list-container"
-         hx-indicator="#global-spinner"
-         onclick="if(window.innerWidth < 768) toggleMobileSidebar(); updateNavSelection(true);"
-         id="nav-trash"
-         class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors {{ if .IsTrash }}bg-primary dark:bg-primary-container-dark text-white font-medium shadow-sm{{ else }}text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark{{ end }}"
-         {{ if .IsTrash }}aria-current="page"{{ end }}>
-        <span class="material-symbols-outlined text-[20px]">delete</span>
+      <a href="/recent" data-nav data-scope-link="recent" class="nav-item" {{ if .IsRecent }}aria-current="page"{{ end }}>
+        {{ icon "schedule" "text-[20px]" }}
+        <span>{{ T .Lang "nav.recents" }}</span>
+      </a>
+      <a href="/trash" data-nav data-scope-link="trash" class="nav-item" {{ if .IsTrash }}aria-current="page"{{ end }}>
+        {{ icon "delete" "text-[20px]" }}
         <span>{{ T .Lang "nav.trash" }}</span>
       </a>
+      <button type="button" data-action="open-modal" data-target="connect-modal" class="nav-item w-full">
+        {{ icon "terminal" "text-[20px]" }}
+        <span>{{ T .Lang "nav.connect" }}</span>
+      </button>
     </nav>
+
+    <div class="px-4 space-y-3">
+      <div class="flex sm:hidden items-center justify-between px-2">
+        <span class="text-label text-on-surface-variant">{{ T .Lang "header.lang_switch" }}</span>
+        <div class="control p-1 gap-1 h-auto" role="group" aria-label="{{ T .Lang "header.lang_switch" }}">
+          <button type="button" data-action="set-lang" data-lang="es" class="segment px-2.5 py-1 text-label" aria-pressed="{{ if eq .Lang "es" }}true{{ else }}false{{ end }}">ES</button>
+          <button type="button" data-action="set-lang" data-lang="en" class="segment px-2.5 py-1 text-label" aria-pressed="{{ if eq .Lang "en" }}true{{ else }}false{{ end }}">EN</button>
+        </div>
+      </div>
+      {{ if .ReadOnly }}
+      <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 text-primary text-label">
+        {{ icon "visibility" "text-base" }}
+        <span>{{ T .Lang "auth.read_only" }}</span>
+      </div>
+      {{ end }}
+      {{ if .AuthEnabled }}
+      <form method="post" action="/logout">
+        <button type="submit" class="nav-item w-full">
+          {{ icon "logout" "text-[20px]" }}
+          <span>{{ T .Lang "auth.logout" }}</span>
+        </button>
+      </form>
+      {{ end }}
+    </div>
   </aside>
 
-  <!-- Top Navigation Bar -->
-  <header class="fixed top-0 left-0 md:left-64 right-0 h-16 bg-white/95 dark:bg-surface-dark/95 backdrop-blur-xl z-40 flex items-center justify-between px-4 md:px-6 border-b border-outline-variant-light dark:border-outline-variant-dark transition-all duration-200" role="banner">
-    <!-- Left: Hamburger (Mobile) + Search Bar -->
-    <div class="flex items-center gap-3 flex-1 max-w-lg mr-4">
-      <button onclick="toggleMobileSidebar()" class="md:hidden p-2 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark text-on-surface-light dark:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-dark" aria-label="Abrir menú">
-        <span class="material-symbols-outlined text-xl">menu</span>
-      </button>
+  <header class="fixed top-0 left-0 md:left-64 right-0 h-16 bg-surface-raised/95 backdrop-blur-xl z-40 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 md:px-6 border-b border-outline-variant no-print">
+    <button type="button" data-action="toggle-sidebar" class="md:hidden icon-btn border border-outline-variant shrink-0" aria-label="{{ T .Lang "nav.open_menu" }}">
+      {{ icon "menu" "text-xl" }}
+    </button>
 
-      <div class="relative flex items-center w-full">
-        <label for="global-search-input" class="sr-only">{{ T .Lang "header.search_placeholder" }}</label>
-        <span class="material-symbols-outlined absolute left-3.5 text-[20px] text-on-surface-variant-light dark:text-on-surface-variant-dark pointer-events-none">search</span>
-        <input type="text" 
-               id="global-search-input"
-               name="query" 
-               placeholder="{{ T .Lang "header.search_placeholder" }}" 
-               class="w-full h-10 pl-10 pr-12 rounded-full bg-surface-container-light dark:bg-surface-container-dark font-body-sm text-body-sm text-on-surface-light dark:text-on-surface-dark placeholder-secondary outline-none border border-outline-variant-light dark:border-outline-variant-dark focus:ring-1 focus:ring-primary dark:focus:ring-primary-dark transition-all"
-               hx-get="/api/files" 
-               hx-trigger="keyup changed delay:200ms, search" 
-               hx-target="#file-list-container" 
-               hx-include="[name='path'], [name='view'], [name='sort'], [name='order'], [name='lang']"
-               hx-indicator="#global-spinner"
-               aria-label="{{ T .Lang "header.search_placeholder" }}">
-        <span class="htmx-indicator spinner absolute right-12 top-1/2 -translate-y-1/2" id="global-spinner"></span>
-        <span class="hidden sm:inline-block absolute right-3.5 font-mono-tabular text-mono-tabular px-1.5 py-0.5 rounded bg-surface-container-highest-light dark:bg-surface-container-highest-dark text-secondary dark:text-on-surface-variant-dark border border-outline-variant-light dark:border-outline-variant-dark text-[11px]">⌘K</span>
-      </div>
+    <div class="relative flex items-center flex-1 min-w-0 max-w-lg">
+      <label for="global-search-input" class="sr-only">{{ T .Lang "header.search_placeholder" }}</label>
+      {{ icon "search" "absolute left-3.5 text-[20px] text-on-surface-variant pointer-events-none" }}
+      <input type="search" id="global-search-input" autocomplete="off" spellcheck="false"
+             value="{{ .Query }}"
+             placeholder="{{ T .Lang "header.search_placeholder" }}"
+             class="w-full h-10 pl-10 pr-10 sm:pr-14 rounded-full bg-surface-container border border-outline-variant text-body-sm text-on-surface placeholder:text-on-surface-variant outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-shadow">
+      <span class="htmx-indicator spinner absolute right-3 sm:right-12" id="global-spinner" aria-hidden="true"></span>
+      <kbd class="hidden sm:inline-block absolute right-3.5 font-mono text-[11px] px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant border border-outline-variant">Ctrl K</kbd>
     </div>
 
-    <!-- Right: Action Controls -->
-    <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-      <div id="header-create-actions" class="flex items-center gap-2 {{ if .IsTrash }}hidden{{ end }}">
-        <button onclick="openFolderModal()" 
-                class="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark font-body-sm text-body-sm text-on-surface-light dark:text-on-surface-dark transition-all shadow-sm" 
-                type="button"
-                title="{{ T .Lang "modal.folder.title" }}">
-          <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark">create_new_folder</span>
-          <span class="font-medium hidden sm:inline">{{ T .Lang "header.new_folder" }}</span>
+    <div class="flex items-center gap-2 shrink-0 ml-auto">
+      <div id="header-create-actions" class="hidden lg:flex items-center gap-2" {{ if or .ReadOnly .IsTrash .IsRecent }}hidden{{ end }}>
+        <button type="button" data-action="open-folder-modal" class="btn-secondary">
+          {{ icon "create_new_folder" "text-[18px] text-primary" }}
+          <span>{{ T .Lang "header.new_folder" }}</span>
         </button>
-        <button onclick="openClipboardModal()" 
-                class="flex items-center gap-2 h-9 px-3.5 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-all shadow-sm" 
-                type="button"
-                title="{{ T .Lang "modal.clipboard.title_text" }}">
-          <span class="material-symbols-outlined text-[18px]">content_paste</span>
-          <span class="font-medium hidden sm:inline">{{ T .Lang "header.paste" }}</span>
+        <button type="button" data-action="open-clipboard-modal" class="btn-secondary">
+          {{ icon "content_paste" "text-[18px] text-primary" }}
+          <span>{{ T .Lang "header.paste" }}</span>
         </button>
+        <span class="h-5 w-px bg-outline-variant mx-1" aria-hidden="true"></span>
       </div>
 
-      <div id="header-separator" class="hidden sm:block h-5 w-[1px] bg-outline-variant-light dark:bg-outline-variant-dark mx-1 {{ if .IsTrash }}!hidden{{ end }}"></div>
-
-      <!-- Language Selector -->
-      <div class="flex items-center border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark rounded-xl p-1 shadow-sm">
-        <button onclick="switchLanguage('es')" 
-                class="px-2.5 py-1 rounded-lg font-label-md text-label-md {{ if eq .Lang "es" }}bg-primary dark:bg-primary-container-dark text-white font-semibold shadow-sm{{ else }}text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark{{ end }} transition-all" 
-                type="button">ES</button>
-        <button onclick="switchLanguage('en')" 
-                class="px-2.5 py-1 rounded-lg font-label-md text-label-md {{ if eq .Lang "en" }}bg-primary dark:bg-primary-container-dark text-white font-semibold shadow-sm{{ else }}text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark{{ end }} transition-all" 
-                type="button">EN</button>
+      <div class="hidden sm:flex control p-1 gap-1 h-auto rounded-full" role="group" aria-label="{{ T .Lang "header.lang_switch" }}">
+        <button type="button" data-action="set-lang" data-lang="es" class="segment rounded-full px-2.5 py-1 text-label" aria-pressed="{{ if eq .Lang "es" }}true{{ else }}false{{ end }}">ES</button>
+        <button type="button" data-action="set-lang" data-lang="en" class="segment rounded-full px-2.5 py-1 text-label" aria-pressed="{{ if eq .Lang "en" }}true{{ else }}false{{ end }}">EN</button>
       </div>
 
-      <!-- Theme Toggle -->
-      <button id="theme-toggle-btn" 
-              onclick="toggleTheme()" 
-              class="w-9 h-9 rounded-xl border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark flex items-center justify-center text-accent-js hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark transition-all shadow-sm" 
-              type="button"
-              aria-label="{{ T .Lang "header.theme_toggle" }}"
-              title="{{ T .Lang "header.theme_toggle" }}">
-        <span class="material-symbols-outlined text-[20px]" id="theme-icon">dark_mode</span>
+      <button type="button" data-action="toggle-theme" class="w-9 h-9 rounded-full border border-outline-variant bg-surface-raised flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors shadow-sm"
+              aria-label="{{ T .Lang "header.theme_toggle" }}" title="{{ T .Lang "header.theme_toggle" }}">
+        {{ icon "dark_mode" "text-[20px] theme-icon-dark" }}
+        {{ icon "light_mode" "text-[20px] theme-icon-light" }}
       </button>
     </div>
   </header>
 
-  <!-- Main Content Canvas -->
-  <main class="relative pt-16 md:pl-64 min-h-screen bg-surface-light dark:bg-surface-dark transition-all flex flex-col" role="main">
-    <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-7 flex-1">
-      
-      <!-- Hidden Form Inputs for HTMX synchronization -->
-      <input type="hidden" name="path" id="current-path-input" value="{{ .Path }}">
-      <input type="hidden" name="view" id="current-view-input" value="{{ .ViewMode }}">
-      <input type="hidden" name="sort" id="current-sort-input" value="{{ .SortBy }}">
-      <input type="hidden" name="order" id="current-order-input" value="{{ .SortOrder }}">
-      <input type="hidden" name="lang" id="current-lang-input" value="{{ .Lang }}">
+  <div id="upload-progress" class="fixed top-0 left-0 right-0 h-1 z-[70] pointer-events-none" hidden>
+    <div id="upload-progress-bar" class="h-full bg-primary scale-x-0"></div>
+  </div>
 
-      <!-- Hidden Native File Upload Input -->
-      <form id="upload-form" 
-            hx-post="/api/upload" 
-            hx-target="#file-list-container" 
-            hx-encoding="multipart/form-data" 
-            hx-indicator="#global-spinner" 
-            class="hidden">
-        <input type="hidden" name="path" id="upload-form-path" value="{{ .Path }}">
-        <input type="hidden" name="view" id="upload-form-view" value="{{ .ViewMode }}">
-        <input type="hidden" name="sort" id="upload-form-sort" value="{{ .SortBy }}">
-        <input type="hidden" name="order" id="upload-form-order" value="{{ .SortOrder }}">
-        <input type="hidden" name="lang" id="upload-form-lang" value="{{ .Lang }}">
-        <input type="file" id="global-file-picker" name="files" multiple onchange="submitUploadForm()" aria-label="{{ T .Lang "fab.upload" }}">
+  <main id="main-content" class="pt-16 md:pl-64 min-h-screen flex flex-col">
+    <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1">
+      <form id="upload-form" hx-post="/api/upload" hx-encoding="multipart/form-data" hx-target="#file-list-container" hx-indicator="#global-spinner" hidden>
+        <input type="file" id="global-file-picker" name="files" multiple aria-label="{{ T .Lang "fab.upload" }}">
+      </form>
+      <form id="upload-zip-form" hx-post="/api/upload-zip" hx-encoding="multipart/form-data" hx-target="#file-list-container" hx-indicator="#global-spinner" hidden>
+        <input type="file" id="global-zip-picker" name="zip_file" accept=".zip,application/zip" aria-label="{{ T .Lang "fab.upload_zip" }}">
       </form>
 
-      <!-- Hidden Native ZIP Upload Input (Extracts into Folder) -->
-      <form id="upload-zip-form" 
-            hx-post="/api/upload-zip" 
-            hx-target="#file-list-container" 
-            hx-encoding="multipart/form-data" 
-            hx-indicator="#global-spinner" 
-            class="hidden">
-        <input type="hidden" name="path" id="upload-zip-form-path" value="{{ .Path }}">
-        <input type="hidden" name="view" id="upload-zip-form-view" value="{{ .ViewMode }}">
-        <input type="hidden" name="sort" id="upload-zip-form-sort" value="{{ .SortBy }}">
-        <input type="hidden" name="order" id="upload-zip-form-order" value="{{ .SortOrder }}">
-        <input type="hidden" name="lang" id="upload-zip-form-lang" value="{{ .Lang }}">
-        <input type="file" id="global-zip-picker" name="zip_file" accept=".zip" onchange="submitZipUploadForm()" aria-label="{{ T .Lang "fab.upload_zip" }}">
-      </form>
-
-      <!-- Dynamic File List Area -->
-      <div id="file-list-container" class="transition-opacity duration-150">
+      <div id="file-list-container" class="space-y-6" aria-live="polite">
         {{ template "file_list.html" . }}
       </div>
-
     </div>
   </main>
 
-  <!-- Floating Action Button (FAB) with Speed Dial (Stitch Style) -->
-  <div class="fixed bottom-8 right-8 z-50 flex flex-col-reverse items-end gap-3 {{ if .IsTrash }}hidden{{ end }}" id="speed-dial-container">
-    
-    <!-- Main Primary FAB Button -->
-    <button onclick="toggleSpeedDial()" 
-            class="w-14 h-14 rounded-2xl bg-primary dark:bg-primary-container-dark hover:bg-primary-container dark:hover:bg-primary text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
-            aria-label="{{ T .Lang "fab.actions" }}"
-            aria-expanded="false"
-            id="fab-main-btn"
-            title="{{ T .Lang "fab.actions" }}"
-            type="button">
-      <span class="material-symbols-outlined text-[28px] fab-icon transition-transform duration-300">add</span>
+  <div id="speed-dial-container" class="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 flex flex-col-reverse items-end gap-3 no-print" {{ if or .ReadOnly .IsTrash .IsRecent }}hidden{{ end }}>
+    <button type="button" data-action="toggle-speed-dial" id="fab-main-btn"
+            class="w-14 h-14 rounded-2xl bg-brand hover:bg-brand-hover text-on-brand flex items-center justify-center shadow-fab hover:scale-105 active:scale-95 transition-transform"
+            aria-label="{{ T .Lang "fab.actions" }}" aria-expanded="false" aria-controls="speed-dial-menu">
+      {{ icon "add" "text-[28px] fab-icon" }}
     </button>
-
-    <!-- Speed Dial Option 1: Upload Files -->
-    <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest-light/95 dark:bg-surface-container-high-dark/95 text-on-surface-light dark:text-on-surface-dark font-label-md text-label-md px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant-light dark:border-outline-variant-dark backdrop-blur-sm">{{ T .Lang "fab.upload" }}</span>
-      <button onclick="triggerFileUpload()" 
-              class="w-11 h-11 rounded-xl bg-white dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark hover:bg-primary dark:hover:bg-primary-container-dark hover:text-white shadow-md flex items-center justify-center transition-all border border-outline-variant-light dark:border-outline-variant-dark"
-              aria-label="{{ T .Lang "fab.upload" }}"
-              type="button">
-        <span class="material-symbols-outlined text-xl">upload_file</span>
-      </button>
+    <div id="speed-dial-menu" class="flex flex-col-reverse items-end gap-3">
+      {{ template "speed_dial_item" (dict "Action" "trigger-upload" "Icon" "upload_file" "Label" (T .Lang "fab.upload")) }}
+      {{ template "speed_dial_item" (dict "Action" "trigger-zip-upload" "Icon" "folder_zip" "Label" (T .Lang "fab.upload_zip")) }}
+      {{ template "speed_dial_item" (dict "Action" "open-clipboard-modal" "Icon" "content_paste" "Label" (T .Lang "fab.paste")) }}
+      {{ template "speed_dial_item" (dict "Action" "open-folder-modal" "Icon" "create_new_folder" "Label" (T .Lang "fab.new_folder")) }}
     </div>
-
-    <!-- Speed Dial Option 2: Upload ZIP & Extract -->
-    <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest-light/95 dark:bg-surface-container-high-dark/95 text-on-surface-light dark:text-on-surface-dark font-label-md text-label-md px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant-light dark:border-outline-variant-dark backdrop-blur-sm">{{ T .Lang "fab.upload_zip" }}</span>
-      <button onclick="triggerZipUpload()" 
-              class="w-11 h-11 rounded-xl bg-white dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark hover:bg-primary dark:hover:bg-primary-container-dark hover:text-white shadow-md flex items-center justify-center transition-all border border-outline-variant-light dark:border-outline-variant-dark"
-              aria-label="{{ T .Lang "fab.upload_zip" }}"
-              title="{{ T .Lang "fab.upload_zip" }}"
-              type="button">
-        <span class="material-symbols-outlined text-xl">folder_zip</span>
-      </button>
-    </div>
-
-    <!-- Speed Dial Option 3: Paste from Clipboard -->
-    <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest-light/95 dark:bg-surface-container-high-dark/95 text-on-surface-light dark:text-on-surface-dark font-label-md text-label-md px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant-light dark:border-outline-variant-dark backdrop-blur-sm">{{ T .Lang "fab.paste" }}</span>
-      <button onclick="openClipboardModal(); closeSpeedDial()" 
-              class="w-11 h-11 rounded-xl bg-white dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark hover:bg-primary dark:hover:bg-primary-container-dark hover:text-white shadow-md flex items-center justify-center transition-all border border-outline-variant-light dark:border-outline-variant-dark"
-              aria-label="{{ T .Lang "fab.paste" }}"
-              type="button">
-        <span class="material-symbols-outlined text-xl">content_paste</span>
-      </button>
-    </div>
-
-    <!-- Speed Dial Option 4: New Folder -->
-    <div class="speed-dial-item flex items-center gap-2">
-      <span class="bg-surface-container-highest-light/95 dark:bg-surface-container-high-dark/95 text-on-surface-light dark:text-on-surface-dark font-label-md text-label-md px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant-light dark:border-outline-variant-dark backdrop-blur-sm">{{ T .Lang "fab.new_folder" }}</span>
-      <button onclick="openFolderModal(); closeSpeedDial()" 
-              class="w-11 h-11 rounded-xl bg-white dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark hover:bg-primary dark:hover:bg-primary-container-dark hover:text-white shadow-md flex items-center justify-center transition-all border border-outline-variant-light dark:border-outline-variant-dark"
-              aria-label="{{ T .Lang "fab.new_folder" }}"
-              type="button">
-        <span class="material-symbols-outlined text-xl">create_new_folder</span>
-      </button>
-    </div>
-
   </div>
 
-  <!-- Global Modal Container for Details and Previews -->
-  <div id="modal-container" role="dialog" aria-live="polite"></div>
+  <div id="modal-container"></div>
 
-  <!-- New Folder Modal -->
-  <div id="folder-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop bg-inverse-surface/40 dark:bg-black/60 hidden" onclick="if(event.target===this) closeFolderModal()" role="dialog" aria-modal="true" aria-labelledby="folder-modal-heading">
-    <div class="bg-surface-container-low dark:bg-surface-container border border-outline-variant/30 rounded-3xl w-full max-w-md shadow-2xl p-6 transform transition-all duration-200">
-      <div class="flex items-center justify-between mb-4 border-b border-outline-variant/20 pb-3">
-        <h3 id="folder-modal-heading" class="text-lg font-bold text-on-surface flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">create_new_folder</span>
+  <div id="folder-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop bg-scrim/40" data-modal hidden role="dialog" aria-modal="true" aria-labelledby="folder-modal-heading">
+    <div class="modal-panel max-w-md p-6 animate-fade-in">
+      <div class="flex items-center justify-between mb-4 border-b border-outline-variant/60 pb-3">
+        <h2 id="folder-modal-heading" class="text-title flex items-center gap-2">
+          {{ iconFill "create_new_folder" "text-primary" }}
           {{ T .Lang "modal.folder.title" }}
-        </h3>
-        <button onclick="closeFolderModal()" class="p-1 rounded-full text-on-surface-variant hover:bg-surface-variant/40" aria-label="{{ T .Lang "details.close" }}">
-          <span class="material-symbols-outlined text-xl">close</span>
-        </button>
+        </h2>
+        <button type="button" data-action="close-modal" class="icon-btn" aria-label="{{ T .Lang "details.close" }}">{{ icon "close" "text-xl" }}</button>
       </div>
-      <form hx-post="/api/folder" 
-            hx-target="#file-list-container" 
-            hx-on::after-request="closeFolderModal(); this.reset()">
-        <input type="hidden" name="path" id="folder-modal-path" value="{{ .Path }}">
-        <input type="hidden" name="view" id="folder-modal-view" value="{{ .ViewMode }}">
-        <input type="hidden" name="sort" id="folder-modal-sort" value="{{ .SortBy }}">
-        <input type="hidden" name="order" id="folder-modal-order" value="{{ .SortOrder }}">
-        <input type="hidden" name="lang" id="folder-modal-lang" value="{{ .Lang }}">
-        <div class="mb-5">
-          <label for="new-folder-name-input" class="block text-xs font-semibold text-on-surface-variant mb-1.5">{{ T .Lang "modal.folder.placeholder" }}</label>
-          <input type="text" 
-                 id="new-folder-name-input" 
-                 name="name" 
-                 class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none placeholder:text-on-surface-variant/60" 
-                 placeholder="{{ T .Lang "modal.folder.placeholder" }}" 
-                 required autofocus>
-        </div>
+      <form id="folder-form" hx-post="/api/folder" hx-target="#file-list-container">
+        <input type="hidden" name="path" data-param="path">
+        <input type="hidden" name="view" data-param="view">
+        <input type="hidden" name="sort" data-param="sort">
+        <input type="hidden" name="order" data-param="order">
+        <label for="new-folder-name-input" class="block text-label text-on-surface-variant mb-1.5">{{ T .Lang "modal.folder.label" }}</label>
+        <input type="text" id="new-folder-name-input" name="name" class="field mb-5" placeholder="{{ T .Lang "modal.folder.placeholder" }}" required maxlength="255" autocomplete="off">
         <div class="flex justify-end gap-2">
-          <button type="button" onclick="closeFolderModal()" class="px-4 py-2 rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-variant/30">{{ T .Lang "modal.folder.cancel" }}</button>
-          <button type="submit" class="px-5 py-2 rounded-full text-sm font-medium bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container transition-all shadow-sm">{{ T .Lang "modal.folder.create" }}</button>
+          <button type="button" data-action="close-modal" class="btn-ghost">{{ T .Lang "modal.folder.cancel" }}</button>
+          <button type="submit" class="btn-primary">{{ T .Lang "modal.folder.create" }}</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Clipboard / Paste Modal -->
-  <div id="clipboard-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop bg-inverse-surface/40 dark:bg-black/60 hidden" onclick="if(event.target===this) closeClipboardModal()" role="dialog" aria-modal="true" aria-labelledby="clipboard-modal-title">
-    <div class="bg-surface-container-low dark:bg-surface-container border border-outline-variant/30 rounded-3xl w-full max-w-2xl shadow-2xl p-6 transform transition-all duration-200 max-h-[90vh] overflow-y-auto">
-      
-      <div class="flex items-center justify-between mb-4 border-b border-outline-variant/20 pb-3">
-        <h3 class="text-lg font-bold text-on-surface flex items-center gap-2" id="clipboard-modal-title">
-          <span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">content_paste</span>
-          {{ T .Lang "modal.clipboard.title_text" }}
-        </h3>
-        <button onclick="closeClipboardModal()" class="p-1 rounded-full text-on-surface-variant hover:bg-surface-variant/40" aria-label="{{ T .Lang "details.close" }}">
-          <span class="material-symbols-outlined text-xl">close</span>
-        </button>
+  <div id="clipboard-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop bg-scrim/40" data-modal hidden role="dialog" aria-modal="true" aria-labelledby="clipboard-modal-title">
+    <div class="modal-panel max-w-2xl p-6 max-h-[90vh] overflow-y-auto animate-fade-in">
+      <div class="flex items-center justify-between mb-4 border-b border-outline-variant/60 pb-3">
+        <h2 class="text-title flex items-center gap-2">
+          {{ iconFill "content_paste" "text-primary" }}
+          <span id="clipboard-modal-title">{{ T .Lang "modal.clipboard.title_text" }}</span>
+        </h2>
+        <button type="button" data-action="close-modal" class="icon-btn" aria-label="{{ T .Lang "details.close" }}">{{ icon "close" "text-xl" }}</button>
       </div>
 
-      <form hx-post="/api/create-file" 
-            hx-target="#file-list-container" 
-            hx-indicator="#global-spinner" 
-            hx-on::after-request="closeClipboardModal(); resetClipboardForm()">
-        <input type="hidden" name="path" id="clipboard-path-input" value="{{ .Path }}">
-        <input type="hidden" name="view" id="clipboard-view-input" value="{{ .ViewMode }}">
-        <input type="hidden" name="sort" id="clipboard-sort-input" value="{{ .SortBy }}">
-        <input type="hidden" name="order" id="clipboard-order-input" value="{{ .SortOrder }}">
-        <input type="hidden" name="lang" id="clipboard-modal-lang" value="{{ .Lang }}">
+      <form id="clipboard-form" hx-post="/api/create-file" hx-target="#file-list-container" hx-indicator="#global-spinner">
+        <input type="hidden" name="path" data-param="path">
+        <input type="hidden" name="view" data-param="view">
+        <input type="hidden" name="sort" data-param="sort">
+        <input type="hidden" name="order" data-param="order">
         <input type="hidden" name="is_base64" id="clipboard-is-base64" value="false">
         <input type="hidden" name="content" id="clipboard-hidden-content" value="">
 
-        <!-- Filename & Extension Pills -->
         <div class="mb-4">
           <div class="flex justify-between items-center mb-1.5">
-            <label for="clipboard-filename" class="text-xs font-semibold text-on-surface-variant">{{ T .Lang "modal.clipboard.filename" }}</label>
-            <button type="button" onclick="pasteFromClipboard()" class="text-xs text-primary dark:text-primary-fixed-dim hover:underline flex items-center gap-1 font-medium">
-              <span class="material-symbols-outlined text-sm">content_paste</span>
+            <label for="clipboard-filename" class="text-label text-on-surface-variant">{{ T .Lang "modal.clipboard.filename" }}</label>
+            <button type="button" data-action="paste-clipboard" class="text-label text-primary hover:underline flex items-center gap-1">
+              {{ icon "content_paste" "text-sm" }}
               {{ T .Lang "modal.clipboard.paste_btn" }}
             </button>
           </div>
-          <input type="text" 
-                 id="clipboard-filename" 
-                 name="filename" 
-                 class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl px-4 py-2 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none font-mono placeholder:text-on-surface-variant/60" 
-                 placeholder="{{ T .Lang "modal.clipboard.filename_placeholder" }}" 
-                 oninput="updateMiniPreview()" 
-                 required>
-          
-          <!-- Extension Quick Selector Pills -->
+          <input type="text" id="clipboard-filename" name="filename" class="field font-mono" placeholder="{{ T .Lang "modal.clipboard.filename_placeholder" }}" required maxlength="255" autocomplete="off">
           <div class="flex flex-wrap gap-1.5 mt-2.5">
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.png')">.png</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.jpg')">.jpg</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.webp')">.webp</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.go')">.go</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.md')">.md</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.json')">.json</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.js')">.js</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.py')">.py</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.txt')">.txt</button>
-            <button type="button" class="px-2.5 py-0.5 rounded-lg text-xs font-mono bg-surface-container-high dark:bg-surface-container-high text-on-surface-variant cursor-pointer hover:bg-primary hover:text-on-primary dark:hover:bg-primary dark:hover:text-on-primary transition-colors border border-outline-variant/20" onclick="setExtension('.sh')">.sh</button>
+            {{ range $ext := list ".txt" ".md" ".json" ".png" ".jpg" ".go" ".js" ".py" ".sh" ".log" }}
+            <button type="button" data-action="set-ext" data-ext="{{ $ext }}" class="chip font-mono">{{ $ext }}</button>
+            {{ end }}
           </div>
         </div>
 
-        <!-- Text Input Area -->
         <div id="text-input-group" class="mb-4">
-          <label for="clipboard-content" class="block text-xs font-semibold text-on-surface-variant mb-1.5">{{ T .Lang "modal.clipboard.content" }}</label>
-          <textarea id="clipboard-content" 
-                    rows="5" 
-                    class="w-full bg-surface-container-lowest dark:bg-surface-container-low border border-outline-variant/40 rounded-xl p-3 text-xs font-mono text-on-surface focus:ring-2 focus:ring-primary focus:outline-none placeholder:text-on-surface-variant/60 leading-relaxed" 
-                    placeholder="..." 
-                    oninput="updateMiniPreview()"></textarea>
+          <label for="clipboard-content" class="block text-label text-on-surface-variant mb-1.5">{{ T .Lang "modal.clipboard.content" }}</label>
+          <textarea id="clipboard-content" rows="6" class="field font-mono text-mono leading-relaxed" placeholder="..."></textarea>
         </div>
 
-        <!-- Image Preview Area -->
-        <div id="image-preview-group" class="hidden mb-4 text-center">
-          <div class="p-3 bg-surface-container-lowest dark:bg-surface-container-low rounded-2xl border border-outline-variant/30 flex items-center justify-center max-h-60 overflow-hidden">
-            <img id="pasted-image-preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E" alt="Preview" class="max-h-52 max-w-full rounded-lg object-contain">
+        <div id="image-preview-group" class="mb-4" hidden>
+          <div class="p-3 bg-surface-container-lowest rounded-2xl border border-outline-variant/60 flex items-center justify-center max-h-60 overflow-hidden">
+            <img id="pasted-image-preview" alt="" class="max-h-52 max-w-full rounded-lg object-contain">
           </div>
         </div>
 
-        <!-- Live Stats & Code Box -->
-        <div class="mb-5 bg-surface-container-lowest dark:bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/25">
-          <div class="flex justify-between items-center text-xs text-on-surface-variant font-mono mb-1.5">
-            <span class="font-semibold">{{ T .Lang "files.actions.preview" "" }}</span>
-            <span id="mini-preview-stats">{{ if eq .Lang "es" }}Líneas: 0 | Caracteres: 0 | Tamaño: 0 B{{ else }}Lines: 0 | Characters: 0 | Size: 0 B{{ end }}</span>
+        <div class="mb-5 bg-surface-container-lowest p-3.5 rounded-2xl border border-outline-variant/60">
+          <div class="flex justify-between items-center gap-3 text-mono font-mono text-on-surface-variant mb-1.5">
+            <span class="font-semibold">{{ T .Lang "clipboard.preview" }}</span>
+            <span id="mini-preview-stats" class="truncate"></span>
           </div>
-          <pre class="max-h-32 overflow-auto font-mono text-xs p-2.5 rounded-lg bg-surface-container/70 dark:bg-surface-container-high/50 border border-outline-variant/20" id="mini-preview-text-box"><code id="mini-preview-code" class="language-plaintext">// ...</code></pre>
+          <pre id="mini-preview-text-box" class="code-block max-h-32 overflow-auto font-mono text-mono p-2.5 rounded-lg border border-outline-variant/60"><code id="mini-preview-code" class="language-plaintext"></code></pre>
         </div>
 
-        <!-- Action Buttons -->
         <div class="flex justify-end gap-2">
-          <button type="button" onclick="closeClipboardModal()" class="px-4 py-2 rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-variant/30">{{ T .Lang "modal.folder.cancel" }}</button>
-          <button type="submit" class="px-5 py-2 rounded-full text-sm font-medium bg-primary text-on-primary hover:bg-primary-container dark:bg-primary-container dark:text-on-primary-container shadow-sm transition-all">{{ T .Lang "modal.clipboard.save_btn" }}</button>
+          <button type="button" data-action="close-modal" class="btn-ghost">{{ T .Lang "modal.folder.cancel" }}</button>
+          <button type="submit" class="btn-primary">{{ T .Lang "modal.clipboard.save_btn" }}</button>
         </div>
       </form>
-
     </div>
   </div>
 
-  <!-- Drag and Drop Overlay Indicator -->
-  <div id="drag-overlay" class="fixed inset-0 z-50 bg-primary/20 dark:bg-primary/30 backdrop-blur-sm border-4 border-dashed border-primary flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200">
-    <div class="bg-surface-container-lowest dark:bg-surface-container p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-3 border border-outline-variant/30 animate-pulse">
-      <span class="material-symbols-outlined text-6xl text-primary dark:text-primary-fixed-dim filled">cloud_upload</span>
-      <h2 class="text-xl font-bold text-on-surface">{{ T .Lang "drag.title" }}</h2>
-      <p class="text-sm text-on-surface-variant">{{ T .Lang "drag.desc" }}</p>
+  <div id="connect-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop bg-scrim/40" data-modal hidden role="dialog" aria-modal="true" aria-labelledby="connect-modal-title">
+    <div class="modal-panel max-w-2xl p-6 max-h-[90vh] overflow-y-auto animate-fade-in">
+      <div class="flex items-center justify-between mb-4 border-b border-outline-variant/60 pb-3">
+        <h2 id="connect-modal-title" class="text-title flex items-center gap-2">
+          {{ icon "terminal" "text-primary" }}
+          {{ T .Lang "connect.title" }}
+        </h2>
+        <button type="button" data-action="close-modal" class="icon-btn" aria-label="{{ T .Lang "details.close" }}">{{ icon "close" "text-xl" }}</button>
+      </div>
+      <p class="text-body text-on-surface-variant mb-4">{{ T .Lang "connect.desc" }}</p>
+      <ol class="space-y-4 text-body">
+        {{ template "connect_step" (dict "Title" (T .Lang "connect.step_token") "Code" "export SIMPLEFS_URL=__ORIGIN__\nexport SIMPLEFS_TOKEN=<token>   # simplefs token" "Copy" (T .Lang "connect.copy")) }}
+        {{ template "connect_step" (dict "Title" (T .Lang "connect.step_upload") "Code" "curl -fsS -T report.pdf -H \"Authorization: Bearer $SIMPLEFS_TOKEN\" \\\n  \"$SIMPLEFS_URL/api/v1/files/inbox/report.pdf\"" "Copy" (T .Lang "connect.copy")) }}
+        {{ template "connect_step" (dict "Title" (T .Lang "connect.step_download") "Code" "curl -fsSLO -H \"Authorization: Bearer $SIMPLEFS_TOKEN\" \\\n  \"$SIMPLEFS_URL/api/v1/files/outbox/data.zip\"" "Copy" (T .Lang "connect.copy")) }}
+        {{ template "connect_step" (dict "Title" (T .Lang "connect.step_list") "Code" "curl -fsS -H \"Authorization: Bearer $SIMPLEFS_TOKEN\" \"$SIMPLEFS_URL/api/v1/files/outbox/\"\ncurl -fsS -H \"Authorization: Bearer $SIMPLEFS_TOKEN\" \"$SIMPLEFS_URL/api/v1/recent\"" "Copy" (T .Lang "connect.copy")) }}
+      </ol>
+      <p class="mt-4 text-label text-on-surface-variant">{{ T .Lang "connect.footer" }}</p>
     </div>
   </div>
 
-  <!-- Main Application Logic Scripts -->
-  <script>
-    // Theme Management (Light / Dark)
-    function updateThemeUI() {
-      const isDark = document.documentElement.classList.contains('dark');
-      const icon = document.getElementById('theme-icon');
-      if (icon) {
-        icon.innerText = isDark ? 'light_mode' : 'dark_mode';
-      }
-    }
-
-    function toggleTheme() {
-      const isDark = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('theme', isDark ? 'dark' : 'light');
-      updateThemeUI();
-    }
-
-    // Language Management (ES / EN)
-    function switchLanguage(lang) {
-      localStorage.setItem('simplefs_lang', lang);
-      document.cookie = `lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
-      const current = getCurrentParams();
-      window.location.href = `/?path=${encodeURIComponent(current.path)}&view=${encodeURIComponent(current.view)}&sort=${encodeURIComponent(current.sort)}&order=${encodeURIComponent(current.order)}&lang=${lang}`;
-    }
-
-    // Navigation and Query Parameter State Synchronization
-    function getCurrentParams() {
-      const activePath = document.getElementById('active-path');
-      const path = activePath ? (activePath.getAttribute('data-path') || '') : (document.getElementById('current-path-input')?.value || '');
-      const view = activePath ? (activePath.getAttribute('data-view') || localStorage.getItem('viewMode') || 'list') : (document.getElementById('current-view-input')?.value || 'list');
-      const sort = activePath ? (activePath.getAttribute('data-sort') || 'name') : (document.getElementById('current-sort-input')?.value || 'name');
-      const order = activePath ? (activePath.getAttribute('data-order') || 'asc') : (document.getElementById('current-order-input')?.value || 'asc');
-      const lang = activePath ? (activePath.getAttribute('data-lang') || 'es') : (document.getElementById('current-lang-input')?.value || localStorage.getItem('simplefs_lang') || 'es');
-      const query = document.getElementById('global-search-input') ? document.getElementById('global-search-input').value : '';
-      return { path, view, sort, order, query, lang };
-    }
-
-    function navigateWithParams(params, pushState = true) {
-      const p = { ...getCurrentParams(), ...params };
-      if (document.getElementById('current-path-input')) document.getElementById('current-path-input').value = p.path;
-      if (document.getElementById('current-view-input')) document.getElementById('current-view-input').value = p.view;
-      if (document.getElementById('current-sort-input')) document.getElementById('current-sort-input').value = p.sort;
-      if (document.getElementById('current-order-input')) document.getElementById('current-order-input').value = p.order;
-      if (document.getElementById('current-lang-input')) document.getElementById('current-lang-input').value = p.lang;
-
-      const activePath = document.getElementById('active-path');
-      const isTrash = (activePath && activePath.getAttribute('data-is-trash') === 'true') || window.location.pathname.startsWith('/trash');
-
-      let url, pushUrl;
-      if (isTrash) {
-        const trashQuery = `view=${encodeURIComponent(p.view)}&sort=${encodeURIComponent(p.sort)}&order=${encodeURIComponent(p.order)}&lang=${encodeURIComponent(p.lang)}`;
-        url = `/api/trash?${trashQuery}`;
-        pushUrl = `/trash?${trashQuery}`;
-      } else {
-        const queryString = `path=${encodeURIComponent(p.path)}&view=${encodeURIComponent(p.view)}&sort=${encodeURIComponent(p.sort)}&order=${encodeURIComponent(p.order)}&lang=${encodeURIComponent(p.lang)}${p.query ? '&query=' + encodeURIComponent(p.query) : ''}`;
-        url = `/api/files?${queryString}`;
-        pushUrl = `/?${queryString}`;
-      }
-
-      htmx.ajax('GET', url, {
-        target: '#file-list-container',
-        indicator: '#global-spinner'
-      });
-
-      if (pushState) {
-        history.pushState(p, '', pushUrl);
-      }
-    }
-
-    // View Mode Management (Grid / List)
-    function switchViewMode(mode) {
-      localStorage.setItem('viewMode', mode);
-      navigateWithParams({ view: mode });
-    }
-
-    // Sorting Handlers
-    function applySort(val) {
-      const [sort, order] = val.split(':');
-      navigateWithParams({ sort, order });
-    }
-
-    function toggleColumnSort(columnName) {
-      const current = getCurrentParams();
-      let newOrder = 'asc';
-      if (current.sort === columnName) {
-        newOrder = current.order === 'asc' ? 'desc' : 'asc';
-      }
-      navigateWithParams({ sort: columnName, order: newOrder });
-    }
-
-    // Speed Dial Toggle
-    function toggleSpeedDial() {
-      const container = document.getElementById('speed-dial-container');
-      const mainBtn = document.getElementById('fab-main-btn');
-      const isOpen = container.classList.toggle('speed-dial-open');
-      if (mainBtn) {
-        mainBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-      }
-    }
-
-    function closeSpeedDial() {
-      const container = document.getElementById('speed-dial-container');
-      const mainBtn = document.getElementById('fab-main-btn');
-      if (container) container.classList.remove('speed-dial-open');
-      if (mainBtn) mainBtn.setAttribute('aria-expanded', 'false');
-    }
-
-    // Modal Control Functions
-    function openFolderModal() {
-      const current = getCurrentParams();
-      document.getElementById('folder-modal-path').value = current.path;
-      document.getElementById('folder-modal-view').value = current.view;
-      document.getElementById('folder-modal-sort').value = current.sort;
-      document.getElementById('folder-modal-order').value = current.order;
-      document.getElementById('folder-modal').classList.remove('hidden');
-      document.body.classList.add('overflow-hidden');
-    }
-
-    function closeFolderModal() {
-      document.getElementById('folder-modal').classList.add('hidden');
-      document.body.classList.remove('overflow-hidden');
-    }
-
-    function triggerFileUpload() {
-      closeSpeedDial();
-      const current = getCurrentParams();
-      document.getElementById('upload-form-path').value = current.path;
-      document.getElementById('upload-form-view').value = current.view;
-      document.getElementById('upload-form-sort').value = current.sort;
-      document.getElementById('upload-form-order').value = current.order;
-      document.getElementById('global-file-picker').click();
-    }
-
-    function submitUploadForm() {
-      const form = document.getElementById('upload-form');
-      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-    }
-
-    function triggerZipUpload() {
-      closeSpeedDial();
-      const current = getCurrentParams();
-      document.getElementById('upload-zip-form-path').value = current.path;
-      document.getElementById('upload-zip-form-view').value = current.view;
-      document.getElementById('upload-zip-form-sort').value = current.sort;
-      document.getElementById('upload-zip-form-order').value = current.order;
-      document.getElementById('global-zip-picker').click();
-    }
-
-    function submitZipUploadForm() {
-      const form = document.getElementById('upload-zip-form');
-      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-    }
-
-    // Clipboard and Paste Handlers
-    let isImageMode = false;
-    let pastedDataUrl = '';
-
-    window.addEventListener('paste', function(e) {
-      const items = e.clipboardData && e.clipboardData.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.indexOf('image') !== -1) {
-          const file = item.getAsFile();
-          if (file) {
-            handlePastedImageFile(file);
-            e.preventDefault();
-            return;
-          }
-        }
-      }
-    });
-
-    function handlePastedImageFile(file) {
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        pastedDataUrl = evt.target.result;
-        isImageMode = true;
-        
-        openClipboardModal();
-
-        document.getElementById('text-input-group').classList.add('hidden');
-        document.getElementById('image-preview-group').classList.remove('hidden');
-        document.getElementById('mini-preview-text-box').classList.add('hidden');
-        document.getElementById('clipboard-modal-title').innerHTML = '<span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">image</span> {{ T .Lang "modal.clipboard.title_image" }}';
-
-        const img = document.getElementById('pasted-image-preview');
-        img.src = pastedDataUrl;
-
-        const now = new Date();
-        const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + '_' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
-        const ext = file.type === 'image/jpeg' ? '.jpg' : file.type === 'image/webp' ? '.webp' : '.png';
-        const defaultImagePrefix = {{ if eq .Lang "es" }}'captura_'{{ else }}'screenshot_'{{ end }};
-        
-        document.getElementById('clipboard-filename').value = defaultImagePrefix + dateStr + ext;
-        document.getElementById('clipboard-is-base64').value = 'true';
-        document.getElementById('clipboard-hidden-content').value = pastedDataUrl;
-
-        img.onload = function() {
-          const bytes = Math.round((pastedDataUrl.length * 3) / 4);
-          const sizeKb = (bytes / 1024).toFixed(1);
-          const dimensionsLabel = {{ if eq .Lang "es" }}'Dimensiones'{{ else }}'Dimensions'{{ end }};
-          document.getElementById('mini-preview-stats').innerText = `${dimensionsLabel}: ${img.naturalWidth} x ${img.naturalHeight} px | ${file.type} | ${sizeKb} KB`;
-        };
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function openClipboardModal() {
-      const current = getCurrentParams();
-      document.getElementById('clipboard-path-input').value = current.path;
-      document.getElementById('clipboard-view-input').value = current.view;
-      document.getElementById('clipboard-sort-input').value = current.sort;
-      document.getElementById('clipboard-order-input').value = current.order;
-      document.getElementById('clipboard-modal').classList.remove('hidden');
-      document.body.classList.add('overflow-hidden');
-      
-      if (!isImageMode) {
-        pasteFromClipboard();
-      }
-    }
-
-    function closeClipboardModal() {
-      document.getElementById('clipboard-modal').classList.add('hidden');
-      document.body.classList.remove('overflow-hidden');
-      resetClipboardForm();
-    }
-
-    function resetClipboardForm() {
-      isImageMode = false;
-      pastedDataUrl = '';
-      document.getElementById('text-input-group').classList.remove('hidden');
-      document.getElementById('image-preview-group').classList.add('hidden');
-      document.getElementById('mini-preview-text-box').classList.remove('hidden');
-      document.getElementById('clipboard-modal-title').innerHTML = '<span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim filled">content_paste</span> {{ T .Lang "modal.clipboard.title_text" }}';
-      document.getElementById('clipboard-is-base64').value = 'false';
-      document.getElementById('clipboard-hidden-content').value = '';
-      document.getElementById('clipboard-content').value = '';
-      document.getElementById('clipboard-filename').value = '';
-      const img = document.getElementById('pasted-image-preview');
-      if (img) img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E";
-      updateMiniPreview();
-    }
-
-    async function pasteFromClipboard() {
-      try {
-        if (navigator.clipboard && navigator.clipboard.read) {
-          const items = await navigator.clipboard.read();
-          for (const item of items) {
-            for (const type of item.types) {
-              if (type.startsWith('image/')) {
-                const blob = await item.getType(type);
-                handlePastedImageFile(blob);
-                return;
-              }
-            }
-          }
-        }
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          const text = await navigator.clipboard.readText();
-          if (text) {
-            document.getElementById('clipboard-content').value = text;
-            updateMiniPreview();
-          }
-        }
-      } catch (err) {
-        console.log('Clipboard access info:', err);
-      }
-    }
-
-    function setExtension(ext) {
-      const input = document.getElementById('clipboard-filename');
-      let val = input.value.trim();
-      const lastDot = val.lastIndexOf('.');
-      if (lastDot > 0) val = val.substring(0, lastDot);
-      const defaultImageBase = {{ if eq .Lang "es" }}'captura'{{ else }}'screenshot'{{ end }};
-      if (!val) val = isImageMode ? defaultImageBase : 'snippet';
-      input.value = val + ext;
-      updateMiniPreview();
-    }
-
-    function updateMiniPreview() {
-      if (isImageMode) {
-        document.getElementById('clipboard-hidden-content').value = pastedDataUrl;
-        return;
-      }
-
-      const content = document.getElementById('clipboard-content').value;
-      const filename = document.getElementById('clipboard-filename').value;
-      const codeBlock = document.getElementById('mini-preview-code');
-      const stats = document.getElementById('mini-preview-stats');
-
-      document.getElementById('clipboard-hidden-content').value = content;
-      document.getElementById('clipboard-is-base64').value = 'false';
-
-      const lines = content ? content.split('\n').length : 0;
-      const chars = content.length;
-      const bytes = new Blob([content]).size;
-      const linesLabel = {{ if eq .Lang "es" }}'Líneas'{{ else }}'Lines'{{ end }};
-      const charsLabel = {{ if eq .Lang "es" }}'Caracteres'{{ else }}'Characters'{{ end }};
-      const sizeLabel = {{ if eq .Lang "es" }}'Tamaño'{{ else }}'Size'{{ end }};
-      stats.innerText = `${linesLabel}: ${lines} | ${charsLabel}: ${chars} | ${sizeLabel}: ${bytes} B`;
-
-      if (!content.trim()) {
-        codeBlock.className = 'language-plaintext';
-        const placeholderText = {{ if eq .Lang "es" }}'// La vista previa aparecerá aquí al pegar contenido...'{{ else }}'// Preview will appear here after pasting content...'{{ end }};
-        codeBlock.textContent = placeholderText;
-        return;
-      }
-
-      const ext = filename.includes('.') ? '.' + filename.split('.').pop().toLowerCase() : '';
-      const langMap = {
-        '.go': 'language-go',
-        '.js': 'language-javascript',
-        '.ts': 'language-typescript',
-        '.py': 'language-python',
-        '.rs': 'language-rust',
-        '.css': 'language-css',
-        '.html': 'language-html',
-        '.json': 'language-json',
-        '.sh': 'language-bash',
-        '.sql': 'language-sql',
-        '.yml': 'language-yaml',
-        '.md': 'language-markdown'
-      };
-
-      codeBlock.className = langMap[ext] || 'language-plaintext';
-      codeBlock.textContent = content;
-
-      if (window.hljs) {
-        delete codeBlock.dataset.highlighted;
-        hljs.highlightElement(codeBlock);
-      }
-    }
-
-    // Drag & Drop on Whole Window
-    let dragCounter = 0;
-    const dragOverlay = document.getElementById('drag-overlay');
-
-    window.addEventListener('dragenter', (e) => {
-      e.preventDefault();
-      dragCounter++;
-      dragOverlay.classList.remove('opacity-0');
-      dragOverlay.classList.add('opacity-100');
-    });
-
-    window.addEventListener('dragleave', (e) => {
-      e.preventDefault();
-      dragCounter--;
-      if (dragCounter <= 0) {
-        dragCounter = 0;
-        dragOverlay.classList.remove('opacity-100');
-        dragOverlay.classList.add('opacity-0');
-      }
-    });
-
-    window.addEventListener('dragover', (e) => {
-      e.preventDefault();
-    });
-
-    window.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dragCounter = 0;
-      dragOverlay.classList.remove('opacity-100');
-      dragOverlay.classList.add('opacity-0');
-
-      if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-        const fileInput = document.getElementById('global-file-picker');
-        fileInput.files = e.dataTransfer.files;
-        const current = getCurrentParams();
-        document.getElementById('upload-form-path').value = current.path;
-        document.getElementById('upload-form-view').value = current.view;
-        document.getElementById('upload-form-sort').value = current.sort;
-        document.getElementById('upload-form-order').value = current.order;
-        submitUploadForm();
-      }
-    });
-
-    // Close speed dial on outside click
-    document.addEventListener('click', (e) => {
-      const container = document.getElementById('speed-dial-container');
-      if (container && !container.contains(e.target)) {
-        closeSpeedDial();
-      }
-    });
-
-    // Global Escape Key Listener for Keyboard Accessibility
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' || e.key === 'Esc') {
-        const previewModal = document.getElementById('preview-modal');
-        if (previewModal) {
-          closePreviewModal();
-          return;
-        }
-        const detailsModal = document.getElementById('details-modal-backdrop');
-        if (detailsModal) {
-          closeDetailsModal();
-          return;
-        }
-        const folderModal = document.getElementById('folder-modal');
-        if (folderModal && !folderModal.classList.contains('hidden')) {
-          closeFolderModal();
-          return;
-        }
-        const clipboardModal = document.getElementById('clipboard-modal');
-        if (clipboardModal && !clipboardModal.classList.contains('hidden')) {
-          closeClipboardModal();
-          return;
-        }
-        const speedDial = document.getElementById('speed-dial-container');
-        if (speedDial && speedDial.classList.contains('speed-dial-open')) {
-          closeSpeedDial();
-          return;
-        }
-      }
-    });
-
-    // Browser History popstate Handler (Back / Forward)
-    window.addEventListener('popstate', function(e) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const path = urlParams.get('path') || '';
-      const view = urlParams.get('view') || localStorage.getItem('viewMode') || 'list';
-      const sort = urlParams.get('sort') || 'name';
-      const order = urlParams.get('order') || 'asc';
-      const query = urlParams.get('query') || '';
-
-      if (document.getElementById('global-search-input')) {
-        document.getElementById('global-search-input').value = query;
-      }
-
-      navigateWithParams({ path, view, sort, order, query }, false);
-    });
-
-    // HTMX afterSwap synchronization
-    document.body.addEventListener('htmx:afterSwap', function(evt) {
-      const activePath = document.getElementById('active-path');
-      if (activePath) {
-        const pathVal = activePath.getAttribute('data-path') || '';
-        const viewVal = activePath.getAttribute('data-view') || localStorage.getItem('viewMode') || 'list';
-        const sortVal = activePath.getAttribute('data-sort') || 'name';
-        const orderVal = activePath.getAttribute('data-order') || 'asc';
-        
-        document.getElementById('current-path-input').value = pathVal;
-        document.getElementById('current-view-input').value = viewVal;
-        document.getElementById('current-sort-input').value = sortVal;
-        document.getElementById('current-order-input').value = orderVal;
-
-        document.getElementById('upload-form-path').value = pathVal;
-        document.getElementById('upload-form-view').value = viewVal;
-        document.getElementById('upload-form-sort').value = sortVal;
-        document.getElementById('upload-form-order').value = orderVal;
-
-        document.getElementById('upload-zip-form-path').value = pathVal;
-        document.getElementById('upload-zip-form-view').value = viewVal;
-        document.getElementById('upload-zip-form-sort').value = sortVal;
-        document.getElementById('upload-zip-form-order').value = orderVal;
-
-        document.getElementById('clipboard-path-input').value = pathVal;
-        document.getElementById('clipboard-view-input').value = viewVal;
-        document.getElementById('clipboard-sort-input').value = sortVal;
-        document.getElementById('clipboard-order-input').value = orderVal;
-
-        document.getElementById('folder-modal-path').value = pathVal;
-        document.getElementById('folder-modal-view').value = viewVal;
-        document.getElementById('folder-modal-sort').value = sortVal;
-        document.getElementById('folder-modal-order').value = orderVal;
-      }
-
-      const isTrashEl = document.querySelector('[data-is-trash="true"]');
-      updateNavSelection(!!isTrashEl);
-
-      initRichHighlight();
-    });
-
-    function updateNavSelection(isTrash) {
-      const navAll = document.getElementById('nav-all-files');
-      const navTrash = document.getElementById('nav-trash');
-      const createActions = document.getElementById('header-create-actions');
-      const headerSep = document.getElementById('header-separator');
-      const speedDial = document.getElementById('speed-dial-container');
-
-      const activeClass = 'bg-primary dark:bg-primary-container-dark text-white font-medium shadow-sm';
-      const inactiveClass = 'text-on-surface-variant-light dark:text-on-surface-variant-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark hover:text-on-surface-light dark:hover:text-on-surface-dark';
-
-      if (isTrash) {
-        if (navTrash) {
-          navTrash.className = 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ' + activeClass;
-          navTrash.setAttribute('aria-current', 'page');
-        }
-        if (navAll) {
-          navAll.className = 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ' + inactiveClass;
-          navAll.removeAttribute('aria-current');
-        }
-        if (createActions) createActions.classList.add('hidden');
-        if (headerSep) headerSep.classList.add('!hidden');
-        if (speedDial) speedDial.classList.add('hidden');
-      } else {
-        if (navAll) {
-          navAll.className = 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ' + activeClass;
-          navAll.setAttribute('aria-current', 'page');
-        }
-        if (navTrash) {
-          navTrash.className = 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ' + inactiveClass;
-          navTrash.removeAttribute('aria-current');
-        }
-        if (createActions) createActions.classList.remove('hidden');
-        if (headerSep) headerSep.classList.remove('!hidden');
-        if (speedDial) speedDial.classList.remove('hidden');
-      }
-    }
-
-    // Global HTMX error handler for notifications (e.g. security rejection on ZIP)
-    document.body.addEventListener('htmx:responseError', function(evt) {
-      if (evt.detail && evt.detail.xhr) {
-        const errorMsg = evt.detail.xhr.responseText || 'Error en la operación';
-        alert(errorMsg);
-      }
-    });
-
-    function initRichHighlight() {
-      document.querySelectorAll('pre code').forEach((block) => {
-        if (window.hljs && !block.classList.contains('hljs-done')) {
-          hljs.highlightElement(block);
-          block.classList.add('hljs-done');
-        }
-      });
-      document.querySelectorAll('.markdown-content').forEach((container) => {
-        const rawContent = container.getAttribute('data-markdown');
-        if (rawContent && window.marked) {
-          const parsed = marked.parse(rawContent);
-          if (window.DOMPurify) {
-            container.innerHTML = DOMPurify.sanitize(parsed);
-          } else {
-            container.textContent = rawContent;
-          }
-        }
-      });
-    }
-
-    // Mobile Sidebar Control
-    function toggleMobileSidebar() {
-      const sidebar = document.getElementById('sidebar');
-      const backdrop = document.getElementById('sidebar-backdrop');
-      if (sidebar && backdrop) {
-        const isClosed = sidebar.classList.contains('-translate-x-full');
-        if (isClosed) {
-          sidebar.classList.remove('-translate-x-full');
-          backdrop.classList.remove('hidden');
-        } else {
-          sidebar.classList.add('-translate-x-full');
-          backdrop.classList.add('hidden');
-        }
-      }
-    }
-
-    // Categorical Filter for Files
-    function filterByCategory(category, btn) {
-      const container = document.getElementById('filter-container');
-      if (container) {
-        const chips = container.querySelectorAll('.filter-chip');
-        chips.forEach(c => {
-          c.className = 'filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark transition-colors';
-        });
-        if (btn) {
-          btn.className = 'filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-primary dark:bg-primary-container-dark text-white font-medium tracking-wide shadow-sm';
-        }
-      }
-
-      const items = document.querySelectorAll('.file-item');
-      items.forEach(item => {
-        const cat = item.getAttribute('data-category') || '';
-        if (category === 'all') {
-          item.classList.remove('hidden');
-        } else if (category === 'code' && (cat === 'code' || cat === 'markdown')) {
-          item.classList.remove('hidden');
-        } else if (category === 'docs' && (cat === 'pdf' || cat === 'binary' || cat === 'markdown')) {
-          item.classList.remove('hidden');
-        } else if (category === 'media' && (cat === 'image' || cat === 'video' || cat === 'audio')) {
-          item.classList.remove('hidden');
-        } else {
-          item.classList.add('hidden');
-        }
-      });
-    }
-
-    // Keyboard Shortcuts (Cmd+K / Ctrl+K)
-    document.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        const searchInput = document.getElementById('global-search-input');
-        if (searchInput) searchInput.focus();
-      }
-    });
-
-    // Initialize on load
-    document.addEventListener('DOMContentLoaded', () => {
-      updateThemeUI();
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlView = urlParams.get('view');
-      const savedView = localStorage.getItem('viewMode');
-      if (!urlView && savedView && savedView === 'grid') {
-        const current = getCurrentParams();
-        navigateWithParams({ view: 'grid' }, false);
-      }
-    });
-  </script>
+  <div id="drag-overlay" class="fixed inset-0 z-[55] bg-primary/15 backdrop-blur-sm border-4 border-dashed border-primary flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200" aria-hidden="true">
+    <div class="bg-surface-container p-8 rounded-3xl shadow-modal flex flex-col items-center gap-3 border border-outline-variant/60">
+      {{ iconFill "cloud_upload" "text-6xl text-primary" }}
+      <p class="text-title">{{ T .Lang "drag.title" }}</p>
+      <p class="text-body text-on-surface-variant">{{ T .Lang "drag.desc" }}</p>
+    </div>
+  </div>
+
+  <div id="toast-region" class="fixed bottom-24 sm:bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-28 sm:translate-x-0 z-[80] flex flex-col gap-2 w-[min(92vw,26rem)]" role="status" aria-live="polite"></div>
+
+  <template id="toast-template">
+    <div class="toast flex items-start gap-3 rounded-2xl border border-outline-variant bg-surface-raised text-on-surface shadow-modal px-4 py-3 animate-fade-in">
+      <span class="toast-icon mt-0.5"></span>
+      <p class="toast-message flex-1 text-body break-words"></p>
+      <button type="button" class="toast-close icon-btn -mr-1 -mt-0.5" aria-label="{{ T .Lang "details.close" }}">{{ icon "close" "text-base" }}</button>
+    </div>
+  </template>
+  <template id="toast-icon-success">{{ iconFill "check_circle" "text-xl text-success" }}</template>
+  <template id="toast-icon-error">{{ iconFill "error" "text-xl text-error" }}</template>
+  <template id="toast-icon-info">{{ iconFill "info" "text-xl text-primary" }}</template>
+  <template id="icon-check">{{ icon "check" "text-xl text-success" }}</template>
 </body>
 </html>
+
+{{ define "speed_dial_item" }}
+<div class="speed-dial-item flex items-center gap-2">
+  <span class="bg-surface-container-highest/95 text-on-surface text-label px-3 py-1.5 rounded-xl shadow-sm border border-outline-variant backdrop-blur-sm">{{ .Label }}</span>
+  <button type="button" data-action="{{ .Action }}" tabindex="-1"
+          class="w-11 h-11 rounded-xl bg-surface-raised text-on-surface hover:bg-brand hover:text-on-brand shadow-card flex items-center justify-center transition-colors border border-outline-variant"
+          aria-label="{{ .Label }}">
+    {{ icon .Icon "text-xl" }}
+  </button>
+</div>
+{{ end }}
+
+{{ define "connect_step" }}
+<li>
+  <div class="flex items-center justify-between mb-1.5">
+    <span class="text-label text-on-surface-variant">{{ .Title }}</span>
+    <button type="button" data-action="copy-code" class="text-label text-primary hover:underline flex items-center gap-1">{{ icon "content_copy" "text-sm" }}{{ .Copy }}</button>
+  </div>
+  <pre class="code-block font-mono text-mono p-3 rounded-xl border border-outline-variant/60 overflow-x-auto whitespace-pre" data-origin-template>{{ .Code }}</pre>
+</li>
+{{ end }}

@@ -1,91 +1,73 @@
+# syntax=docker/dockerfile:1
 # ==============================================================================
-# SimpleFS Multi-Stage Dockerfile
-# Stage 1: Frontend Asset Compilation (Node.js + pnpm)
-# Stage 2: Backend Compilation (Go 1.22)
-# Stage 3: Minimal and Secure Runtime Image (Alpine Linux)
+# SimpleFS multi-stage build
+#   1. frontend: compiles CSS/JS/icons once on the build host (output is arch independent)
+#   2. backend:  cross-compiles a static Go binary for the target platform (no QEMU)
+#   3. runtime:  scratch image with only the binary (~10 MB)
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# Stage 1: Frontend Builder
+# Stage 1: frontend assets
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend
 WORKDIR /app
+RUN corepack enable
 
-# Enable corepack and activate pnpm matching project specs
-RUN corepack enable && corepack prepare pnpm@9 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
-# Copy dependency specifications and lockfile for caching layer
-COPY package.json pnpm-lock.yaml ./
-
-# Install dependencies deterministically
-RUN pnpm install --frozen-lockfile
-
-# Copy required assets and configuration for compilation
+COPY scripts/build-icons.mjs ./scripts/
 COPY tailwind.config.js ./
-COPY web/ ./web/
-
-# Compile frontend vendor bundle and minified Tailwind CSS
+COPY web/src/ ./web/src/
+COPY web/templates/ ./web/templates/
+COPY web/static/ ./web/static/
+COPY internal/ ./internal/
 RUN pnpm run build:vendor && pnpm run build:css
 
 # ------------------------------------------------------------------------------
-# Stage 2: Go Backend Builder
+# Stage 2: Go binary, cross-compiled natively on the build host
 # ------------------------------------------------------------------------------
-FROM golang:1.22-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS backend
 WORKDIR /app
+ARG TARGETOS
+ARG TARGETARCH
+ARG VERSION=dev
 
-# Copy Go module definitions and download dependencies
 COPY go.mod ./
 RUN go mod download
 
-# Copy backend source code and web templates
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
+COPY web/embed.go ./web/
 COPY web/templates/ ./web/templates/
-COPY web/embed.go ./web/embed.go
+COPY --from=frontend /app/web/static/ ./web/static/
 
-# Copy compiled frontend assets from Stage 1 into the static directory for go:embed
-COPY --from=frontend-builder /app/web/static/ ./web/static/
-
-# Compile a statically-linked standalone binary without CGO
-RUN CGO_ENABLED=0 GOOS=linux go build \
-    -trimpath \
-    -ldflags="-s -w" \
-    -o /app/bin/simplefs \
-    ./cmd/simplefs/main.go
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+      -trimpath \
+      -tags timetzdata \
+      -ldflags="-s -w -X main.version=${VERSION}" \
+      -o /out/simplefs ./cmd/simplefs \
+ && mkdir -p /out/data
 
 # ------------------------------------------------------------------------------
-# Stage 3: Final Secure Runtime Image
+# Stage 3: runtime
 # ------------------------------------------------------------------------------
-FROM alpine:3.20 AS runtime
+FROM scratch AS runtime
 
-# Install CA certificates for secure connections and tzdata for timezone support
-RUN apk --no-cache add ca-certificates tzdata
+COPY --from=backend /out/simplefs /simplefs
+COPY --from=backend --chown=10001:10001 /out/data /data
 
-# Create dedicated unprivileged group and user (UID/GID 10001)
-RUN addgroup -g 10001 -S simplefs && \
-    adduser -u 10001 -S simplefs -G simplefs -h /home/simplefs
-
-# Create storage volume directory and assign ownership
-RUN mkdir -p /data && \
-    chown -R simplefs:simplefs /data
-
-# Copy binary from the backend-builder stage
-COPY --from=backend-builder /app/bin/simplefs /usr/local/bin/simplefs
-
-# Default environment configuration
 ENV PORT=8080 \
     STORAGE_DIR=/data
 
-# Switch to the non-root user
-USER simplefs:simplefs
+USER 10001:10001
 WORKDIR /data
-
-# Expose default HTTP port
 EXPOSE 8080
-
-# Expose persistent data volume
 VOLUME ["/data"]
 
-# Define entrypoint and default command
-ENTRYPOINT ["/usr/local/bin/simplefs"]
-CMD []
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD ["/simplefs", "healthcheck"]
+
+ENTRYPOINT ["/simplefs"]

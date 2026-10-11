@@ -13,8 +13,10 @@ func TestAssets_EmbeddedFiles(t *testing.T) {
 		"templates/file_list.html",
 		"templates/details_modal.html",
 		"templates/preview_modal.html",
+		"templates/login.html",
 		"static/favicon.svg",
 		"static/app-icon.svg",
+		"static/apple-touch-icon.png",
 	}
 
 	for _, file := range requiredFiles {

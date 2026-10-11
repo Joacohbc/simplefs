@@ -11,6 +11,12 @@ import urllib.request
 import urllib.error
 
 BASE_URL = os.getenv("SIMPLEFS_URL", "http://127.0.0.1:8080")
+TOKEN = os.getenv("SIMPLEFS_TOKEN", "")
+
+if TOKEN:
+    _opener = urllib.request.build_opener()
+    _opener.addheaders = [("Authorization", f"Bearer {TOKEN}")]
+    urllib.request.install_opener(_opener)
 
 def test_download_folder_as_zip(folder_path="sample_docs"):
     print(f"[*] Testing download of folder '{folder_path}' as ZIP...")

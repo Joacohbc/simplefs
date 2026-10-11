@@ -3,14 +3,12 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"simplefs/internal/filetype"
 	"simplefs/internal/i18n"
 	"simplefs/internal/models"
 )
@@ -27,12 +25,22 @@ type TrashMetaStore struct {
 
 var trashMutex sync.Mutex
 
+const trashMetaFileName = ".meta.json"
+
 func (s *Service) getTrashDir() string {
-	return filepath.Join(s.baseDirectory, ".trash")
+	return filepath.Join(s.baseDirectory, trashDirName)
 }
 
 func (s *Service) getTrashMetaFile() string {
-	return filepath.Join(s.getTrashDir(), ".meta.json")
+	return filepath.Join(s.getTrashDir(), trashMetaFileName)
+}
+
+func validTrashName(trashName string) (string, error) {
+	cleanName := filepath.Base(filepath.Clean(strings.TrimSpace(trashName)))
+	if cleanName == "" || cleanName == "." || cleanName == ".." || cleanName == trashMetaFileName || cleanName == string(filepath.Separator) {
+		return "", ErrInvalidName
+	}
+	return cleanName, nil
 }
 
 func (s *Service) ensureTrashDir() error {
@@ -71,24 +79,13 @@ func (s *Service) MoveToTrash(relativePath string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
-	normalized := strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/")
-	cleanRelative := filepath.Clean(filepath.FromSlash(normalized))
-	if cleanRelative == "" || cleanRelative == "." || cleanRelative == "/" {
-		return ErrCannotDeleteRoot
-	}
-
-	for _, segment := range strings.Split(cleanRelative, string(filepath.Separator)) {
-		if isRestrictedSegment(segment) {
-			return ErrProtectedItem
-		}
-	}
-
-	absolutePath, err := s.ResolvePath(relativePath)
+	cleanRelative := cleanRelativePath(relativePath)
+	absolutePath, err := s.validateDeletable(cleanRelative)
 	if err != nil {
 		return err
 	}
 
-	fileInfo, err := os.Stat(absolutePath)
+	fileInfo, err := os.Lstat(absolutePath)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -105,17 +102,18 @@ func (s *Service) MoveToTrash(relativePath string) error {
 	destinationPath := filepath.Join(trashDir, targetTrashName)
 
 	// If name collision in trash, append timestamp
-	if _, err := os.Stat(destinationPath); err == nil {
+	if _, err := os.Lstat(destinationPath); err == nil {
 		ext := filepath.Ext(baseName)
 		nameWithoutExt := strings.TrimSuffix(baseName, ext)
 		targetTrashName = fmt.Sprintf("%s_%s%s", nameWithoutExt, time.Now().Format("20060102_150405"), ext)
+		targetTrashName = uniqueName(trashDir, targetTrashName)
 		destinationPath = filepath.Join(trashDir, targetTrashName)
 	}
 
 	// Move item into trash
 	if err := os.Rename(absolutePath, destinationPath); err != nil {
 		// Fallback for cross-device moves
-		if copyErr := moveCrossDevice(absolutePath, destinationPath, fileInfo.IsDir()); copyErr != nil {
+		if copyErr := moveCrossDevice(absolutePath, destinationPath, fileInfo.IsDir(), s.options); copyErr != nil {
 			return fmt.Errorf("cannot move to trash: %w", copyErr)
 		}
 	}
@@ -152,7 +150,7 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.HasPrefix(name, ".") {
+		if name == trashMetaFileName {
 			continue
 		}
 
@@ -167,39 +165,10 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 			originalPath = meta.OriginalPath
 		}
 
-		extension := filepath.Ext(name)
-		typeDef := filetype.Resolve(extension, entry.IsDir())
-
-		childCount := 0
-		folderBgClass := ""
-		folderDotClass := ""
-		if entry.IsDir() {
-			childCount = countDirectoryChildren(filepath.Join(trashDir, name))
-			folderBgClass = "bg-primary/10 dark:bg-primary-container-dark/30 text-primary dark:text-primary-dark"
-			folderDotClass = "bg-primary dark:bg-primary-dark"
-		}
-
-		itemObj := models.FileInfo{
-			Name:              name,
-			RelPath:           name,
-			TrashOriginalPath: originalPath,
-			IsDir:             entry.IsDir(),
-			Size:              info.Size(),
-			FormattedSize:     FormatBytes(info.Size()),
-			ModTime:           info.ModTime(),
-			FormattedMod:      i18n.FormatDate(info.ModTime(), normalizedLang),
-			FormattedCreated:  i18n.FormatDate(info.ModTime(), normalizedLang),
-			ItemCount:         childCount,
-			TypeLabel:         typeDef.Label,
-			MaterialIcon:      typeDef.Icon,
-			IconColorClass:    typeDef.ColorClass,
-			FolderBgClass:     folderBgClass,
-			FolderDotClass:    folderDotClass,
-			IsImage:           typeDef.Category == filetype.CategoryImage,
-			IsZip:             !entry.IsDir() && strings.EqualFold(extension, ".zip"),
-			Category:          string(typeDef.Category),
-			Extension:         strings.TrimPrefix(strings.ToUpper(extension), "."),
-		}
+		itemObj := s.toFileInfo(name, info, "", trashDir, normalizedLang)
+		itemObj.RelPath = name
+		itemObj.ParentPath = ""
+		itemObj.TrashOriginalPath = originalPath
 
 		if entry.IsDir() {
 			folders = append(folders, itemObj)
@@ -209,12 +178,8 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 	}
 
 	normalizedSortBy, normalizedSortOrder := NormalizeSortParams(sortBy, sortOrder)
-	sortFolders(folders, normalizedSortBy, normalizedSortOrder)
-	sortFiles(files, normalizedSortBy, normalizedSortOrder)
-
-	if viewMode == "" {
-		viewMode = models.ViewModeList
-	}
+	sortItems(folders, normalizedSortBy, normalizedSortOrder)
+	sortItems(files, normalizedSortBy, normalizedSortOrder)
 
 	return models.PageData{
 		Path:        "",
@@ -224,7 +189,7 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 		Breadcrumbs: nil,
 		Folders:     folders,
 		Files:       files,
-		ViewMode:    viewMode,
+		ViewMode:    NormalizeViewMode(viewMode),
 		Lang:        normalizedLang,
 		IsTrash:     true,
 	}, nil
@@ -235,15 +200,15 @@ func (s *Service) RestoreFromTrash(trashName string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
-	cleanName := filepath.Base(filepath.Clean(trashName))
-	if cleanName == "" || cleanName == "." || cleanName == ".." || strings.HasPrefix(cleanName, ".") {
-		return ErrInvalidName
+	cleanName, err := validTrashName(trashName)
+	if err != nil {
+		return err
 	}
 
 	trashDir := s.getTrashDir()
 	sourcePath := filepath.Join(trashDir, cleanName)
 
-	fileInfo, err := os.Stat(sourcePath)
+	fileInfo, err := os.Lstat(sourcePath)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -256,32 +221,23 @@ func (s *Service) RestoreFromTrash(trashName string) error {
 		targetRelPath = meta.OriginalPath
 	}
 
-	cleanTarget := filepath.Clean(filepath.FromSlash(targetRelPath))
-	if strings.HasPrefix(cleanTarget, "..") || filepath.IsAbs(cleanTarget) {
-		cleanTarget = cleanName
-	}
-
-	absBase, err := filepath.Abs(s.baseDirectory)
+	// Resolve through ResolvePath so a parent swapped for a symlink cannot redirect the restore outside the root.
+	destPath, err := s.ResolvePath(targetRelPath)
 	if err != nil {
-		return err
+		destPath, err = s.ResolvePath(cleanName)
+		if err != nil {
+			return err
+		}
 	}
 
-	destPath := filepath.Join(absBase, cleanTarget)
 	destParent := filepath.Dir(destPath)
-
-	if err := os.MkdirAll(destParent, 0700); err != nil {
+	if err := os.MkdirAll(destParent, s.options.DirMode); err != nil {
 		return err
 	}
-
-	// If destination already exists, append "_restored" to prevent overwriting
-	if _, err := os.Stat(destPath); err == nil {
-		ext := filepath.Ext(destPath)
-		noExt := strings.TrimSuffix(destPath, ext)
-		destPath = fmt.Sprintf("%s_restored%s", noExt, ext)
-	}
+	destPath = filepath.Join(destParent, uniqueName(destParent, filepath.Base(destPath)))
 
 	if err := os.Rename(sourcePath, destPath); err != nil {
-		if copyErr := moveCrossDevice(sourcePath, destPath, fileInfo.IsDir()); copyErr != nil {
+		if copyErr := moveCrossDevice(sourcePath, destPath, fileInfo.IsDir(), s.options); copyErr != nil {
 			return copyErr
 		}
 	}
@@ -295,9 +251,9 @@ func (s *Service) DeletePermanentFromTrash(trashName string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
-	cleanName := filepath.Base(filepath.Clean(trashName))
-	if cleanName == "" || cleanName == "." || cleanName == ".." || strings.HasPrefix(cleanName, ".") {
-		return ErrInvalidName
+	cleanName, err := validTrashName(trashName)
+	if err != nil {
+		return err
 	}
 
 	trashDir := s.getTrashDir()
@@ -328,7 +284,7 @@ func (s *Service) EmptyTrash() error {
 	}
 
 	for _, entry := range entries {
-		if entry.Name() == ".meta.json" {
+		if entry.Name() == trashMetaFileName {
 			continue
 		}
 		_ = os.RemoveAll(filepath.Join(trashDir, entry.Name()))
@@ -338,9 +294,9 @@ func (s *Service) EmptyTrash() error {
 	return s.saveTrashMeta(store)
 }
 
-func moveCrossDevice(src, dst string, isDir bool) error {
+func moveCrossDevice(src, dst string, isDir bool, options Options) error {
 	if isDir {
-		if err := os.MkdirAll(dst, 0700); err != nil {
+		if err := os.MkdirAll(dst, options.DirMode); err != nil {
 			return err
 		}
 		entries, err := os.ReadDir(src)
@@ -348,28 +304,15 @@ func moveCrossDevice(src, dst string, isDir bool) error {
 			return err
 		}
 		for _, e := range entries {
-			if err := moveCrossDevice(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()), e.IsDir()); err != nil {
+			if err := moveCrossDevice(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()), e.IsDir(), options); err != nil {
 				return err
 			}
 		}
 		return os.RemoveAll(src)
 	}
 
-	srcFile, err := os.Open(src)
-	if err != nil {
+	if err := copyFile(src, dst, options.FileMode); err != nil {
 		return err
 	}
-	defer srcFile.Close()
-
-	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer dstFile.Close()
-
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return err
-	}
-
 	return os.Remove(src)
 }

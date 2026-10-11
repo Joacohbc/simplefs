@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="{{ .Lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>{{ T .Lang "login.title" }} · SimpleFS</title>
+  <link rel="icon" type="image/svg+xml" href="{{ asset "favicon.svg" }}">
+  <link rel="stylesheet" href="{{ asset "vendor.css" }}">
+  <link rel="stylesheet" href="{{ asset "style.css" }}">
+  <script src="{{ asset "theme.js" }}"></script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <main class="w-full max-w-sm">
+    <div class="flex flex-col items-center text-center mb-8">
+      <img src="{{ asset "app-icon.svg" }}" alt="" width="64" height="64" class="w-16 h-16 rounded-2xl shadow-card mb-4">
+      <h1 class="text-headline">SimpleFS</h1>
+      <p class="text-body text-on-surface-variant mt-1">{{ T .Lang "login.subtitle" }}</p>
+    </div>
+    <form method="post" action="/login" class="modal-panel p-6 space-y-4">
+      <input type="hidden" name="next" value="{{ .Next }}">
+      <input type="hidden" name="lang" value="{{ .Lang }}">
+      <div>
+        <label for="token" class="block text-label text-on-surface-variant mb-1.5">{{ T .Lang "login.token" }}</label>
+        <input type="password" id="token" name="token" class="field font-mono" autocomplete="current-password" required autofocus
+               {{ if .Error }}aria-invalid="true" aria-describedby="login-error"{{ end }}>
+      </div>
+      {{ if .Error }}
+      <p id="login-error" class="flex items-center gap-2 text-body-sm text-error" role="alert">{{ icon "error" "text-lg" }}{{ .Error }}</p>
+      {{ end }}
+      <button type="submit" class="btn-primary w-full">
+        {{ icon "login" "text-lg" }}
+        {{ T .Lang "login.submit" }}
+      </button>
+      <p class="text-label text-on-surface-variant">{{ T .Lang "login.help" }}</p>
+    </form>
+  </main>
+</body>
+</html>

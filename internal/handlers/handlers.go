@@ -1,71 +1,163 @@
 package handlers
 
 import (
-	"embed"
-	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
-	"net/url"
-	"path/filepath"
 	"strings"
+	"time"
 
+	"simplefs/internal/assets"
+	"simplefs/internal/auth"
 	"simplefs/internal/i18n"
 	"simplefs/internal/models"
 	"simplefs/internal/storage"
 )
 
-const maxUploadMemoryBytes = 32 << 20
-const maxUploadRequestBytes = 100 << 20
+const (
+	maxClipboardRequestBytes = 64 << 20
+	maxFormRequestBytes      = 1 << 20
+	maxFormFieldBytes        = 4 << 10
+	uiRequestTimeout         = 60 * time.Second
+	defaultZipConcurrency    = 2
+)
+
+type Config struct {
+	Auth           *auth.Authenticator
+	Assets         *assets.Assets
+	MaxUploadBytes int64
+	ZipConcurrency int
+}
 
 type Handler struct {
 	storageService *storage.Service
 	templateEngine *template.Template
+	config         Config
+	zipSlots       chan struct{}
 }
 
-func NewHandler(storageService *storage.Service, templateEngine *template.Template) *Handler {
+func NewHandler(storageService *storage.Service, templateEngine *template.Template, config Config) *Handler {
+	if config.Auth == nil {
+		config.Auth = auth.Disabled()
+	}
+	if config.ZipConcurrency <= 0 {
+		config.ZipConcurrency = defaultZipConcurrency
+	}
 	return &Handler{
 		storageService: storageService,
 		templateEngine: templateEngine,
+		config:         config,
+		zipSlots:       make(chan struct{}, config.ZipConcurrency),
 	}
 }
 
-func (h *Handler) RegisterRoutes(mux *http.ServeMux, embeddedAssets embed.FS) {
-	mux.Handle("GET /static/", http.FileServer(http.FS(embeddedAssets)))
-	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		data, err := embeddedAssets.ReadFile("static/favicon.svg")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "image/svg+xml")
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		_, _ = w.Write(data)
-	})
-	mux.HandleFunc("GET /", h.Index)
-	mux.HandleFunc("GET /api/files", h.Files)
-	mux.HandleFunc("GET /api/file-details", h.FileDetails)
-	mux.HandleFunc("POST /api/upload", h.Upload)
-	mux.HandleFunc("POST /api/upload-zip", h.UploadZip)
-	mux.HandleFunc("POST /api/extract-zip", h.ExtractZip)
-	mux.HandleFunc("POST /api/folder", h.Folder)
-	mux.HandleFunc("POST /api/create-file", h.CreateFile)
-	mux.HandleFunc("DELETE /api/delete", h.Delete)
-	mux.HandleFunc("GET /trash", h.Trash)
-	mux.HandleFunc("GET /api/trash", h.ApiTrash)
-	mux.HandleFunc("POST /api/trash/restore", h.ApiTrashRestore)
-	mux.HandleFunc("DELETE /api/trash/delete", h.ApiTrashDelete)
-	mux.HandleFunc("DELETE /api/trash/empty", h.ApiTrashEmpty)
-	mux.HandleFunc("GET /api/preview", h.Preview)
-	mux.HandleFunc("GET /api/download-folder", h.DownloadFolder)
-	mux.HandleFunc("GET /download", h.Download)
+// withDeadline bounds quick UI requests; transfer endpoints are registered without it
+// so large uploads and downloads are never cut off by a global timeout.
+func withDeadline(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		controller := http.NewResponseController(w)
+		deadline := time.Now().Add(uiRequestTimeout)
+		_ = controller.SetReadDeadline(deadline)
+		_ = controller.SetWriteDeadline(deadline)
+		next(w, r)
+	}
 }
 
-func (h *Handler) setLangCookie(w http.ResponseWriter, r *http.Request) string {
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	if h.config.Assets != nil {
+		mux.Handle("GET /static/", h.config.Assets.Handler())
+		mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+			h.config.Assets.ServeFile(w, r, "favicon.svg")
+		})
+		mux.HandleFunc("GET /apple-touch-icon.png", func(w http.ResponseWriter, r *http.Request) {
+			h.config.Assets.ServeFile(w, r, "apple-touch-icon.png")
+		})
+	}
+	mux.HandleFunc("GET /healthz", h.Healthz)
+	mux.HandleFunc("GET /login", withDeadline(h.LoginPage))
+	mux.HandleFunc("POST /login", withDeadline(h.Login))
+	mux.HandleFunc("POST /logout", withDeadline(h.Logout))
+
+	mux.HandleFunc("GET /{$}", withDeadline(h.Index))
+	mux.HandleFunc("GET /recent", withDeadline(h.RecentPage))
+	mux.HandleFunc("GET /trash", withDeadline(h.Trash))
+	mux.HandleFunc("GET /api/files", withDeadline(h.Files))
+	mux.HandleFunc("GET /api/recent", withDeadline(h.ApiRecent))
+	mux.HandleFunc("GET /api/trash", withDeadline(h.ApiTrash))
+	mux.HandleFunc("GET /api/file-details", withDeadline(h.FileDetails))
+	mux.HandleFunc("GET /api/preview", withDeadline(h.Preview))
+	mux.HandleFunc("POST /api/folder", withDeadline(h.Folder))
+	mux.HandleFunc("POST /api/create-file", withDeadline(h.CreateFile))
+	mux.HandleFunc("DELETE /api/delete", withDeadline(h.Delete))
+	mux.HandleFunc("POST /api/extract-zip", withDeadline(h.ExtractZip))
+	mux.HandleFunc("POST /api/trash/restore", withDeadline(h.ApiTrashRestore))
+	mux.HandleFunc("DELETE /api/trash/delete", withDeadline(h.ApiTrashDelete))
+	mux.HandleFunc("DELETE /api/trash/empty", withDeadline(h.ApiTrashEmpty))
+
+	mux.HandleFunc("POST /api/upload", h.Upload)
+	mux.HandleFunc("POST /api/upload-zip", h.UploadZip)
+	mux.HandleFunc("GET /api/download-folder", h.DownloadFolder)
+	mux.HandleFunc("GET /download", h.Download)
+
+	h.registerAPIRoutes(mux)
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+}
+
+func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write([]byte("ok\n"))
+}
+
+type viewParams struct {
+	Path  string
+	Query string
+	View  string
+	Sort  string
+	Order string
+	Lang  string
+}
+
+// readParams only looks at the URL and at an already parsed form, so it never
+// consumes a streaming multipart body.
+func readParams(r *http.Request) viewParams {
+	value := func(key string) string {
+		if v := r.URL.Query().Get(key); v != "" {
+			return v
+		}
+		if r.PostForm != nil {
+			return r.PostForm.Get(key)
+		}
+		return ""
+	}
+	view := value("view")
+	if view == "" {
+		if cookie, err := r.Cookie("view"); err == nil {
+			view = cookie.Value
+		}
+	}
+	return viewParams{
+		Path:  value("path"),
+		Query: value("query"),
+		View:  view,
+		Sort:  value("sort"),
+		Order: value("order"),
+		Lang:  value("lang"),
+	}
+}
+
+func (h *Handler) resolveLang(w http.ResponseWriter, r *http.Request, params viewParams) string {
 	lang := i18n.ResolveLang(r)
-	if queryLang := r.URL.Query().Get("lang"); queryLang != "" {
+	if params.Lang != "" {
+		lang = i18n.NormalizeLang(params.Lang)
+	}
+	if r.URL.Query().Get("lang") != "" {
 		http.SetCookie(w, &http.Cookie{
 			Name:     "lang",
 			Value:    lang,
@@ -78,513 +170,123 @@ func (h *Handler) setLangCookie(w http.ResponseWriter, r *http.Request) string {
 	return lang
 }
 
-func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	relativePath := r.URL.Query().Get("path")
-	viewMode := r.URL.Query().Get("view")
-	sortBy := r.URL.Query().Get("sort")
-	sortOrder := r.URL.Query().Get("order")
+func (h *Handler) decorate(r *http.Request, page *models.PageData) {
+	page.ReadOnly = auth.RoleFrom(r.Context()) == auth.RoleRead
+	page.AuthEnabled = h.config.Auth.Enabled()
+}
 
-	pageData, err := h.storageService.GetDirectoryPage(relativePath, "", viewMode, sortBy, sortOrder, lang)
-	isNotFound := false
-	if err != nil {
-		if relativePath != "" {
-			normalizedSortBy, normalizedSortOrder := storage.NormalizeSortParams(sortBy, sortOrder)
-			if viewMode == "" {
-				viewMode = models.ViewModeList
-			}
-			pageData = models.PageData{
-				Path:         filepath.ToSlash(relativePath),
-				SortBy:       normalizedSortBy,
-				SortOrder:    normalizedSortOrder,
-				Breadcrumbs:  storage.BuildBreadcrumbs(relativePath),
-				ViewMode:     viewMode,
-				Lang:         i18n.NormalizeLang(lang),
-				NotFound:     true,
-				NotFoundPath: relativePath,
-			}
-			isNotFound = true
-		} else {
-			log.Printf("root directory error: %v", err)
-			http.Error(w, "Storage directory unavailable", http.StatusInternalServerError)
-			return
-		}
-	}
-
+func (h *Handler) render(w http.ResponseWriter, status int, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if isNotFound {
-		w.WriteHeader(http.StatusNotFound)
+	w.Header().Set("Cache-Control", "no-store")
+	if status != http.StatusOK {
+		w.WriteHeader(status)
 	}
-	if err := h.templateEngine.ExecuteTemplate(w, "index.html", pageData); err != nil {
-		log.Printf("template render error: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	if err := h.templateEngine.ExecuteTemplate(w, name, data); err != nil {
+		log.Printf("template render error (%s): %v", name, err)
 	}
 }
 
-func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	relativePath := r.URL.Query().Get("path")
-	searchQuery := r.URL.Query().Get("query")
-	viewMode := r.URL.Query().Get("view")
-	sortBy := r.URL.Query().Get("sort")
-	sortOrder := r.URL.Query().Get("order")
-
-	pageData, err := h.storageService.GetDirectoryPage(relativePath, searchQuery, viewMode, sortBy, sortOrder, lang)
-	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			normalizedSortBy, normalizedSortOrder := storage.NormalizeSortParams(sortBy, sortOrder)
-			if viewMode == "" {
-				viewMode = models.ViewModeList
-			}
-			pageData = models.PageData{
-				Path:         filepath.ToSlash(relativePath),
-				Query:        searchQuery,
-				SortBy:       normalizedSortBy,
-				SortOrder:    normalizedSortOrder,
-				Breadcrumbs:  storage.BuildBreadcrumbs(relativePath),
-				ViewMode:     viewMode,
-				Lang:         i18n.NormalizeLang(lang),
-				NotFound:     true,
-				NotFoundPath: relativePath,
-			}
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			if err := h.templateEngine.ExecuteTemplate(w, "file_list.html", pageData); err != nil {
-				log.Printf("template render error: %v", err)
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-			}
-			return
-		}
-		log.Printf("get directory error: %v", err)
-		http.Error(w, "Invalid path or directory not accessible", http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templateEngine.ExecuteTemplate(w, "file_list.html", pageData); err != nil {
-		log.Printf("template render error: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
+type toast struct {
+	Level   string `json:"level"`
+	Message string `json:"message"`
 }
 
-func (h *Handler) FileDetails(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	relativePath := r.URL.Query().Get("path")
-	detailsData, err := h.storageService.GetFileDetails(relativePath, lang)
+// setToast asks the client to show a notification via the HX-Trigger header.
+// Non-ASCII characters are escaped so the header survives Latin-1 decoding in browsers.
+func setToast(w http.ResponseWriter, level, message string) {
+	payload, err := json.Marshal(map[string]toast{"simplefs:toast": {Level: level, Message: message}})
 	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templateEngine.ExecuteTemplate(w, "details_modal.html", detailsData); err != nil {
-		log.Printf("template render error: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
+	w.Header().Set("HX-Trigger", asciiJSON(payload))
 }
 
-func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBytes)
-	if err := r.ParseMultipartForm(maxUploadMemoryBytes); err != nil {
-		http.Error(w, "Upload payload too large or invalid form", http.StatusBadRequest)
-		return
-	}
-	defer func() {
-		if r.MultipartForm != nil {
-			_ = r.MultipartForm.RemoveAll()
-		}
-	}()
-
-	lang := h.setLangCookie(w, r)
-	relativePath := r.FormValue("path")
-	viewMode := r.FormValue("view")
-	sortBy := r.FormValue("sort")
-	sortOrder := r.FormValue("order")
-
-	files := r.MultipartForm.File["files"]
-	for _, fileHeader := range files {
-		fileStream, err := fileHeader.Open()
-		if err != nil {
+func asciiJSON(payload []byte) string {
+	var builder strings.Builder
+	for _, r := range string(payload) {
+		if r < 128 {
+			builder.WriteRune(r)
 			continue
 		}
-
-		if err := h.storageService.SaveUploadedFile(relativePath, fileHeader.Filename, fileStream); err != nil {
-			log.Printf("save uploaded file error: %v", err)
+		if r > 0xFFFF {
+			r -= 0x10000
+			fmt.Fprintf(&builder, `\u%04x\u%04x`, 0xD800+(r>>10), 0xDC00+(r&0x3FF))
+			continue
 		}
-		fileStream.Close()
+		fmt.Fprintf(&builder, `\u%04x`, r)
 	}
-
-	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
+	return builder.String()
 }
 
-func (h *Handler) UploadZip(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBytes)
-	if err := r.ParseMultipartForm(maxUploadMemoryBytes); err != nil {
-		http.Error(w, "Upload payload too large or invalid form", http.StatusBadRequest)
-		return
+// errorStatus maps storage errors to an HTTP status and a translation key.
+func errorStatus(err error) (int, string) {
+	var maxBytesError *http.MaxBytesError
+	switch {
+	case errors.As(err, &maxBytesError):
+		return http.StatusRequestEntityTooLarge, "error.too_large"
+	case errors.Is(err, storage.ErrNotFound):
+		return http.StatusNotFound, "error.not_found"
+	case errors.Is(err, storage.ErrInvalidName):
+		return http.StatusBadRequest, "error.invalid_name"
+	case errors.Is(err, storage.ErrAlreadyExists), errors.Is(err, storage.ErrIsDirectory), errors.Is(err, storage.ErrNotADirectory):
+		return http.StatusConflict, "error.conflict"
+	case errors.Is(err, storage.ErrCannotDeleteRoot):
+		return http.StatusBadRequest, "error.cannot_delete_root"
+	case errors.Is(err, storage.ErrInvalidPath), errors.Is(err, storage.ErrAccessDenied), errors.Is(err, storage.ErrProtectedItem),
+		errors.Is(err, storage.ErrSymlinkForbidden), errors.Is(err, storage.ErrSymlinkOverwrite):
+		return http.StatusForbidden, "error.forbidden"
+	case isZipError(err):
+		return http.StatusBadRequest, "error.zip"
 	}
-	defer func() {
-		if r.MultipartForm != nil {
-			_ = r.MultipartForm.RemoveAll()
-		}
-	}()
-
-	lang := h.setLangCookie(w, r)
-	relativePath := r.FormValue("path")
-	viewMode := r.FormValue("view")
-	sortBy := r.FormValue("sort")
-	sortOrder := r.FormValue("order")
-
-	files := r.MultipartForm.File["zip_file"]
-	if len(files) == 0 {
-		files = r.MultipartForm.File["files"]
-	}
-	if len(files) == 0 {
-		http.Error(w, "No zip file provided", http.StatusBadRequest)
-		return
-	}
-
-	for _, fileHeader := range files {
-		if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".zip") {
-			http.Error(w, "Only .zip files are allowed for archive extraction", http.StatusBadRequest)
-			return
-		}
-
-		fileStream, err := fileHeader.Open()
-		if err != nil {
-			http.Error(w, "Failed to read uploaded file", http.StatusBadRequest)
-			return
-		}
-
-		_, err = h.storageService.ExtractZipFile(relativePath, fileHeader.Filename, fileStream)
-		fileStream.Close()
-		if err != nil {
-			log.Printf("secure zip extraction error: %v", err)
-			http.Error(w, fmt.Sprintf("Error extracting ZIP: %v", err), http.StatusBadRequest)
-			return
-		}
-	}
-
-	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
+	return http.StatusInternalServerError, "error.generic"
 }
 
-func (h *Handler) ExtractZip(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	relativePath := r.URL.Query().Get("path")
-	if relativePath == "" {
-		relativePath = r.FormValue("path")
-	}
-	viewMode := r.FormValue("view")
-	if viewMode == "" {
-		viewMode = r.URL.Query().Get("view")
-	}
-	sortBy := r.FormValue("sort")
-	if sortBy == "" {
-		sortBy = r.URL.Query().Get("sort")
-	}
-	sortOrder := r.FormValue("order")
-	if sortOrder == "" {
-		sortOrder = r.URL.Query().Get("order")
-	}
-
-	parentPath := extractParentPath(relativePath)
-	filename := filepath.Base(relativePath)
-
-	_, err := h.storageService.ExtractExistingZip(parentPath, filename)
-	if err != nil {
-		log.Printf("extract existing zip error: %v", err)
-		http.Error(w, fmt.Sprintf("Error extracting ZIP: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	h.renderFileList(w, parentPath, "", viewMode, sortBy, sortOrder, lang)
-}
-
-func (h *Handler) Folder(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	lang := h.setLangCookie(w, r)
-	relativePath := r.FormValue("path")
-	viewMode := r.FormValue("view")
-	sortBy := r.FormValue("sort")
-	sortOrder := r.FormValue("order")
-	folderName := r.FormValue("name")
-
-	if err := h.storageService.CreateFolder(relativePath, folderName); err != nil {
-		log.Printf("create folder error: %v", err)
-		http.Error(w, "Failed to create folder", http.StatusBadRequest)
-		return
-	}
-
-	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
-}
-
-func (h *Handler) CreateFile(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
-	lang := h.setLangCookie(w, r)
-	relativePath := r.FormValue("path")
-	viewMode := r.FormValue("view")
-	sortBy := r.FormValue("sort")
-	sortOrder := r.FormValue("order")
-	filename := r.FormValue("filename")
-	rawContent := r.FormValue("content")
-	isBase64Content := r.FormValue("is_base64") == "true"
-
-	var contentBytes []byte
-	if isBase64Content {
-		cleanedBase64 := rawContent
-		if commaIndex := strings.Index(rawContent, ","); commaIndex != -1 {
-			cleanedBase64 = rawContent[commaIndex+1:]
+func isZipError(err error) bool {
+	for _, zipErr := range []error{
+		storage.ErrZipEmpty, storage.ErrZipTooManyFiles, storage.ErrZipTotalSizeLimit, storage.ErrZipSingleFileSizeLimit,
+		storage.ErrZipCompressionRatio, storage.ErrZipPathTraversal, storage.ErrZipSymlinkForbidden,
+		storage.ErrZipRestrictedSegment, storage.ErrZipInvalidName, storage.ErrNotAZipArchive,
+	} {
+		if errors.Is(err, zipErr) {
+			return true
 		}
-
-		decodedBytes, err := base64.StdEncoding.DecodeString(cleanedBase64)
-		if err != nil {
-			http.Error(w, "Invalid base64 payload", http.StatusBadRequest)
-			return
-		}
-		contentBytes = decodedBytes
-	} else {
-		contentBytes = []byte(rawContent)
 	}
-
-	if err := h.storageService.CreateFile(relativePath, filename, contentBytes); err != nil {
-		log.Printf("create file error: %v", err)
-		http.Error(w, "Failed to create file", http.StatusBadRequest)
-		return
-	}
-
-	h.renderFileList(w, relativePath, "", viewMode, sortBy, sortOrder, lang)
+	return false
 }
 
-func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	relativePath := r.URL.Query().Get("path")
-	viewMode := r.URL.Query().Get("view")
-	sortBy := r.URL.Query().Get("sort")
-	sortOrder := r.URL.Query().Get("order")
-
-	if err := h.storageService.DeleteItem(relativePath); err != nil {
-		log.Printf("delete item error: %v", err)
-		http.Error(w, "Cannot delete item", http.StatusForbidden)
-		return
+// errorMessage returns a user-facing message that never includes internal paths.
+func errorMessage(lang string, err error) string {
+	status, key := errorStatus(err)
+	if key == "error.zip" {
+		return i18n.T(lang, key) + ": " + err.Error()
 	}
-
-	parentPath := extractParentPath(relativePath)
-	h.renderFileList(w, parentPath, "", viewMode, sortBy, sortOrder, lang)
+	if status == http.StatusInternalServerError {
+		log.Printf("internal error: %v", err)
+	}
+	return i18n.T(lang, key)
 }
 
-func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	relativePath := r.URL.Query().Get("path")
-	previewData, err := h.storageService.GetFilePreview(relativePath, lang)
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templateEngine.ExecuteTemplate(w, "preview_modal.html", previewData); err != nil {
-		log.Printf("template render error: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
-}
-
-func (h *Handler) DownloadFolder(w http.ResponseWriter, r *http.Request) {
-	relativePath := r.URL.Query().Get("path")
-	folderPath, archiveFilename, err := h.storageService.GetFolderDownloadInfo(relativePath)
-	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			http.Error(w, "Folder not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "Invalid folder path or access denied", http.StatusBadRequest)
-		return
-	}
-
-	encodedFilename := url.PathEscape(archiveFilename)
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", archiveFilename, encodedFilename))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-
-	if err := h.storageService.StreamFolderZip(folderPath, w); err != nil {
-		log.Printf("stream folder zip error: %v", err)
-	}
-}
-
-func (h *Handler) Download(w http.ResponseWriter, r *http.Request) {
-	relativePath := r.URL.Query().Get("path")
-
-	// If explicitly requested as zip archive, or if it is a directory, stream folder as zip
-	if r.URL.Query().Get("archive") == "zip" {
-		h.DownloadFolder(w, r)
-		return
-	}
-
-	filePath, filename, mimeType, isDangerousType, err := h.storageService.GetDownloadFile(relativePath)
-	if err != nil {
-		// Check if the requested path is a directory
-		if _, _, folderErr := h.storageService.GetFolderDownloadInfo(relativePath); folderErr == nil {
-			h.DownloadFolder(w, r)
-			return
-		}
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
-	}
-
-	forceAttachment := r.URL.Query().Get("download") == "true" || isDangerousType
-	if forceAttachment {
-		encodedFilename := url.PathEscape(filename)
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", filename, encodedFilename))
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
-	}
-
-	if mimeType != "" {
-		w.Header().Set("Content-Type", mimeType)
-	}
-
-	http.ServeFile(w, r, filePath)
-}
-
-func (h *Handler) renderFileList(w http.ResponseWriter, path, query, view, sort, order, lang string) {
-	pageData, err := h.storageService.GetDirectoryPage(path, query, view, sort, order, lang)
-	if err != nil {
-		log.Printf("render file list error: %v", err)
-		http.Error(w, "Failed to load directory", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = h.templateEngine.ExecuteTemplate(w, "file_list.html", pageData)
+func (h *Handler) httpError(w http.ResponseWriter, lang string, err error) {
+	status, _ := errorStatus(err)
+	http.Error(w, errorMessage(lang, err), status)
 }
 
 func extractParentPath(relativePath string) string {
-	cleanRel := strings.TrimSpace(relativePath)
+	cleanRel := strings.Trim(strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/"), "/")
 	if cleanRel == "" || cleanRel == "." {
 		return ""
 	}
-	parent := strings.ReplaceAll(cleanRel, "\\", "/")
-	lastSlash := strings.LastIndex(parent, "/")
+	lastSlash := strings.LastIndex(cleanRel, "/")
 	if lastSlash == -1 {
 		return ""
 	}
-	return parent[:lastSlash]
+	return cleanRel[:lastSlash]
 }
 
-func (h *Handler) Trash(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	viewMode := r.URL.Query().Get("view")
-	sortBy := r.URL.Query().Get("sort")
-	sortOrder := r.URL.Query().Get("order")
-
-	pageData, err := h.storageService.GetTrashPage(viewMode, sortBy, sortOrder, lang)
-	if err != nil {
-		log.Printf("get trash page error: %v", err)
-		http.Error(w, "Trash unavailable", http.StatusInternalServerError)
-		return
+func baseName(relativePath string) string {
+	cleanRel := strings.Trim(strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/"), "/")
+	if lastSlash := strings.LastIndex(cleanRel, "/"); lastSlash != -1 {
+		return cleanRel[lastSlash+1:]
 	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templateEngine.ExecuteTemplate(w, "index.html", pageData); err != nil {
-		log.Printf("template render error: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
-}
-
-func (h *Handler) ApiTrash(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	viewMode := r.URL.Query().Get("view")
-	sortBy := r.URL.Query().Get("sort")
-	sortOrder := r.URL.Query().Get("order")
-
-	h.renderTrashList(w, viewMode, sortBy, sortOrder, lang)
-}
-
-func (h *Handler) ApiTrashRestore(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		name = r.FormValue("name")
-	}
-	viewMode := r.URL.Query().Get("view")
-	if viewMode == "" {
-		viewMode = r.FormValue("view")
-	}
-	sortBy := r.URL.Query().Get("sort")
-	if sortBy == "" {
-		sortBy = r.FormValue("sort")
-	}
-	sortOrder := r.URL.Query().Get("order")
-	if sortOrder == "" {
-		sortOrder = r.FormValue("order")
-	}
-
-	if err := h.storageService.RestoreFromTrash(name); err != nil {
-		log.Printf("restore from trash error: %v", err)
-		http.Error(w, "Failed to restore item", http.StatusBadRequest)
-		return
-	}
-
-	h.renderTrashList(w, viewMode, sortBy, sortOrder, lang)
-}
-
-func (h *Handler) ApiTrashDelete(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		name = r.FormValue("name")
-	}
-	viewMode := r.URL.Query().Get("view")
-	if viewMode == "" {
-		viewMode = r.FormValue("view")
-	}
-	sortBy := r.URL.Query().Get("sort")
-	if sortBy == "" {
-		sortBy = r.FormValue("sort")
-	}
-	sortOrder := r.URL.Query().Get("order")
-	if sortOrder == "" {
-		sortOrder = r.FormValue("order")
-	}
-
-	if err := h.storageService.DeletePermanentFromTrash(name); err != nil {
-		log.Printf("delete permanent from trash error: %v", err)
-		http.Error(w, "Failed to delete item", http.StatusBadRequest)
-		return
-	}
-
-	h.renderTrashList(w, viewMode, sortBy, sortOrder, lang)
-}
-
-func (h *Handler) ApiTrashEmpty(w http.ResponseWriter, r *http.Request) {
-	lang := h.setLangCookie(w, r)
-	viewMode := r.URL.Query().Get("view")
-	if viewMode == "" {
-		viewMode = r.FormValue("view")
-	}
-	sortBy := r.URL.Query().Get("sort")
-	if sortBy == "" {
-		sortBy = r.FormValue("sort")
-	}
-	sortOrder := r.URL.Query().Get("order")
-	if sortOrder == "" {
-		sortOrder = r.FormValue("order")
-	}
-
-	if err := h.storageService.EmptyTrash(); err != nil {
-		log.Printf("empty trash error: %v", err)
-		http.Error(w, "Failed to empty trash", http.StatusInternalServerError)
-		return
-	}
-
-	h.renderTrashList(w, viewMode, sortBy, sortOrder, lang)
-}
-
-func (h *Handler) renderTrashList(w http.ResponseWriter, view, sort, order, lang string) {
-	pageData, err := h.storageService.GetTrashPage(view, sort, order, lang)
-	if err != nil {
-		log.Printf("render trash list error: %v", err)
-		http.Error(w, "Failed to load trash", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = h.templateEngine.ExecuteTemplate(w, "file_list.html", pageData)
+	return cleanRel
 }

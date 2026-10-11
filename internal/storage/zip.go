@@ -20,17 +20,17 @@ const (
 )
 
 var (
-	ErrZipEmpty                 = errors.New("zip archive is empty")
-	ErrZipTooManyFiles          = errors.New("zip archive exceeds maximum file count limit (10,000 files)")
-	ErrZipTotalSizeLimit        = errors.New("zip archive uncompressed size exceeds maximum limit (500 MB)")
-	ErrZipSingleFileSizeLimit   = errors.New("zip entry uncompressed size exceeds limit (200 MB)")
-	ErrZipCompressionRatio      = errors.New("zip entry exceeds compression ratio threshold (potential zip bomb)")
-	ErrZipPathTraversal         = errors.New("illegal file path in zip entry (Zip Slip attempt detected)")
-	ErrZipSymlinkForbidden      = errors.New("zip entry contains symlink or special device (forbidden for security)")
-	ErrZipRestrictedSegment     = errors.New("zip entry contains protected or restricted folder name")
-	ErrZipInvalidName           = errors.New("zip entry has invalid or dangerous characters in filename")
-	ErrNotAZipArchive           = errors.New("uploaded file is not a valid zip archive")
-	ErrNotADirectory            = errors.New("target path is not a directory")
+	ErrZipEmpty               = errors.New("zip archive is empty")
+	ErrZipTooManyFiles        = errors.New("zip archive exceeds maximum file count limit (10,000 files)")
+	ErrZipTotalSizeLimit      = errors.New("zip archive uncompressed size exceeds maximum limit (500 MB)")
+	ErrZipSingleFileSizeLimit = errors.New("zip entry uncompressed size exceeds limit (200 MB)")
+	ErrZipCompressionRatio    = errors.New("zip entry exceeds compression ratio threshold (potential zip bomb)")
+	ErrZipPathTraversal       = errors.New("illegal file path in zip entry (Zip Slip attempt detected)")
+	ErrZipSymlinkForbidden    = errors.New("zip entry contains symlink or special device (forbidden for security)")
+	ErrZipRestrictedSegment   = errors.New("zip entry contains protected or restricted folder name")
+	ErrZipInvalidName         = errors.New("zip entry has invalid or dangerous characters in filename")
+	ErrNotAZipArchive         = errors.New("uploaded file is not a valid zip archive")
+	ErrNotADirectory          = errors.New("target path is not a directory")
 )
 
 // ValidateZipEntryHeader inspects a single zip file header for security threats before extraction.
@@ -56,9 +56,11 @@ func ValidateZipEntryHeader(f *zip.File) error {
 		return ErrZipPathTraversal
 	}
 
-	// 3. Reject any occurrence of ".." in the raw or normalized path
-	if strings.Contains(normalized, "..") {
-		return ErrZipPathTraversal
+	// 3. Reject any ".." path segment
+	for _, segment := range strings.Split(normalized, "/") {
+		if segment == ".." {
+			return ErrZipPathTraversal
+		}
 	}
 
 	cleanRel := filepath.Clean(filepath.FromSlash(normalized))
@@ -76,7 +78,7 @@ func ValidateZipEntryHeader(f *zip.File) error {
 		return ErrZipPathTraversal
 	}
 
-	// 5. Check restricted segments (e.g. .git, .env, node_modules, simplefs, etc.)
+	// 5. Check segments reserved by SimpleFS (.trash, .simplefs)
 	for _, segment := range segments {
 		if isRestrictedSegment(segment) {
 			return ErrZipRestrictedSegment
@@ -133,6 +135,10 @@ func ValidateZipReader(zr *zip.Reader) error {
 // ExtractZipReader safely extracts all entries from a zip.Reader into targetFolderPath.
 // If any error occurs or limits are exceeded during decompression, all extracted files are removed.
 func ExtractZipReader(zr *zip.Reader, targetFolderPath string) error {
+	return extractZipReader(zr, targetFolderPath, DefaultOptions())
+}
+
+func extractZipReader(zr *zip.Reader, targetFolderPath string, options Options) error {
 	var totalExtractedBytes int64
 	var extractionSuccessful bool
 
@@ -160,14 +166,14 @@ func ExtractZipReader(zr *zip.Reader, targetFolderPath string) error {
 		isDir := f.Mode().IsDir() || strings.HasSuffix(f.Name, "/") || strings.HasSuffix(f.Name, "\\")
 
 		if isDir {
-			if err := os.MkdirAll(destPath, 0755); err != nil {
+			if err := os.MkdirAll(destPath, options.DirMode); err != nil {
 				return fmt.Errorf("failed to create directory in zip: %w", err)
 			}
 			continue
 		}
 
 		// Ensure parent directory exists
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(destPath), options.DirMode); err != nil {
 			return fmt.Errorf("failed to create parent directory in zip: %w", err)
 		}
 
@@ -175,7 +181,7 @@ func ExtractZipReader(zr *zip.Reader, targetFolderPath string) error {
 			return err
 		}
 
-		destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, options.FileMode)
 		if err != nil {
 			return fmt.Errorf("failed to create extracted file: %w", err)
 		}
@@ -284,8 +290,8 @@ func (s *Service) ExtractZipFile(targetDirectoryRelativePath, originalFilename s
 		return "", ErrNotFound
 	}
 
-	// 1. Save uploaded stream to a secure temporary file
-	tempFile, err := os.CreateTemp("", "simplefs-upload-*.zip")
+	// 1. Save uploaded stream to a temporary file inside the storage's internal directory
+	tempFile, err := s.createTempFile()
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary upload file: %w", err)
 	}
@@ -316,7 +322,7 @@ func (s *Service) ExtractZipFile(targetDirectoryRelativePath, originalFilename s
 
 	// 4. Determine destination folder name
 	cleanZipName := strings.TrimSuffix(filepath.Base(originalFilename), filepath.Ext(originalFilename))
-	safeFolderName, err := validateItemName(cleanZipName)
+	safeFolderName, err := s.validateItemName(cleanZipName)
 	if err != nil || safeFolderName == "" {
 		safeFolderName = "extracted_archive"
 	}
@@ -324,12 +330,12 @@ func (s *Service) ExtractZipFile(targetDirectoryRelativePath, originalFilename s
 	uniqueFolderName := findUniqueFolderName(targetDirectory, safeFolderName)
 	destFolderPath := filepath.Join(targetDirectory, uniqueFolderName)
 
-	if err := os.MkdirAll(destFolderPath, 0755); err != nil {
+	if err := os.MkdirAll(destFolderPath, s.options.DirMode); err != nil {
 		return "", fmt.Errorf("failed to create destination folder: %w", err)
 	}
 
 	// 5. Extract with dynamic limits and rollback
-	if err := ExtractZipReader(&zipReader.Reader, destFolderPath); err != nil {
+	if err := extractZipReader(&zipReader.Reader, destFolderPath, s.options); err != nil {
 		return "", err
 	}
 
@@ -361,7 +367,7 @@ func (s *Service) ExtractExistingZip(parentRelativePath, zipFilename string) (st
 
 	targetDirectory := filepath.Dir(resolvedZipPath)
 	cleanZipName := strings.TrimSuffix(filepath.Base(zipFilename), filepath.Ext(zipFilename))
-	safeFolderName, err := validateItemName(cleanZipName)
+	safeFolderName, err := s.validateItemName(cleanZipName)
 	if err != nil || safeFolderName == "" {
 		safeFolderName = "extracted_archive"
 	}
@@ -369,11 +375,11 @@ func (s *Service) ExtractExistingZip(parentRelativePath, zipFilename string) (st
 	uniqueFolderName := findUniqueFolderName(targetDirectory, safeFolderName)
 	destFolderPath := filepath.Join(targetDirectory, uniqueFolderName)
 
-	if err := os.MkdirAll(destFolderPath, 0755); err != nil {
+	if err := os.MkdirAll(destFolderPath, s.options.DirMode); err != nil {
 		return "", fmt.Errorf("failed to create destination folder: %w", err)
 	}
 
-	if err := ExtractZipReader(&zipReader.Reader, destFolderPath); err != nil {
+	if err := extractZipReader(&zipReader.Reader, destFolderPath, s.options); err != nil {
 		return "", err
 	}
 
@@ -429,7 +435,7 @@ func (s *Service) StreamFolderZip(folderAbsPath string, w io.Writer) error {
 		}
 
 		name := d.Name()
-		if isRestrictedSegment(name) {
+		if s.isHidden(name) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -457,10 +463,11 @@ func (s *Service) StreamFolderZip(folderAbsPath string, w io.Writer) error {
 			if err != nil || strings.HasPrefix(evalRel, "..") {
 				return nil // Skip external symlinks
 			}
-			// Update info to the target file if needed
-			if targetInfo, err := os.Stat(evaluated); err == nil {
-				info = targetInfo
+			targetInfo, err := os.Stat(evaluated)
+			if err != nil || targetInfo.IsDir() {
+				return nil // Directory symlinks are not followed
 			}
+			info = targetInfo
 		}
 
 		if d.IsDir() {

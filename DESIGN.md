@@ -1,68 +1,67 @@
 ---
 name: simplefs
-description: "High-performance, minimalist file explorer and server with HTMX, Tailwind CSS and Go"
+description: "Lightweight file exchange server with HTMX, Tailwind CSS and Go"
 colors:
-  primary: "#00488d"
-  primary-container: "#005fb8"
-  on-primary: "#ffffff"
-  on-primary-container: "#cadcff"
-  primary-fixed: "#d6e3ff"
-  primary-fixed-dim: "#a8c8ff"
-  surface: "#f9f9fc"
+  # Light theme. Every token is redefined for dark mode in web/src/input.css.
+  background: "#f9f9fc"
   surface-container-lowest: "#ffffff"
   surface-container-low: "#f3f3f6"
   surface-container: "#eeeef0"
   surface-container-high: "#e8e8ea"
   surface-container-highest: "#e2e2e5"
+  surface-raised: "#ffffff"
   on-surface: "#1a1c1e"
   on-surface-variant: "#424752"
-  secondary: "#535f70"
-  secondary-container: "#d7e3f8"
-  on-secondary-container: "#596576"
-  error: "#ba1a1a"
-  error-container: "#ffdad6"
   outline: "#727783"
   outline-variant: "#c2c6d4"
+  primary: "#00488d"
+  primary-container: "#d6e3ff"
+  brand: "#00488d"
+  brand-hover: "#005fb8"
+  on-brand: "#ffffff"
+  secondary: "#535f70"
+  error: "#ba1a1a"
+  error-container: "#ffdad6"
+  success: "#059669"
+  accent-code: "#155e75"
+  accent-media: "#6d28d9"
+  accent-audio: "#9d174d"
+  accent-archive: "#92400e"
+  accent-sheet: "#065f46"
+colors-dark:
+  background: "#111316"
+  surface-container-lowest: "#0d0e10"
+  surface-container-low: "#181a1d"
+  surface-container: "#1e2024"
+  surface-container-high: "#24272c"
+  surface-container-highest: "#2e3238"
+  surface-raised: "#1e2024"
+  on-surface: "#e2e2e5"
+  on-surface-variant: "#c2c6d4"
+  outline-variant: "#383c44"
+  primary: "#a8c8ff"
+  brand: "#005fb8"
+  brand-hover: "#1a73d2"
+  error: "#ffb4ab"
+  accent-code: "#22d3ee"
+  accent-media: "#a78bfa"
+  accent-audio: "#f472b6"
+  accent-archive: "#fbbf24"
+  accent-sheet: "#34d399"
 typography:
-  display:
-    fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "2rem"
-    fontWeight: 700
-    lineHeight: 1.2
-    letterSpacing: "-0.02em"
-  headline:
-    fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "1.5rem"
-    fontWeight: 700
-    lineHeight: 1.3
-    letterSpacing: "-0.01em"
-  title:
-    fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "1.125rem"
-    fontWeight: 600
-    lineHeight: 1.4
-  body:
-    fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 400
-    lineHeight: 1.5
-  label:
-    fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "0.75rem"
-    fontWeight: 500
-    letterSpacing: "0.05em"
-  mono:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
-    fontSize: "0.75rem"
-    fontWeight: 400
-  icon:
-    fontFamily: "Material Symbols Outlined"
-    fontSize: "1.5rem"
+  display: { fontFamily: "Inter Variable", fontSize: "2rem", fontWeight: 700, lineHeight: "2.5rem", letterSpacing: "-0.02em" }
+  headline: { fontFamily: "Inter Variable", fontSize: "1.5rem", fontWeight: 700, lineHeight: "2rem", letterSpacing: "-0.01em" }
+  title: { fontFamily: "Inter Variable", fontSize: "1.125rem", fontWeight: 600, lineHeight: "1.5rem" }
+  body: { fontFamily: "Inter Variable", fontSize: "0.875rem", fontWeight: 400, lineHeight: "1.25rem" }
+  body-sm: { fontFamily: "Inter Variable", fontSize: "0.8125rem", fontWeight: 400, lineHeight: "1.125rem" }
+  label: { fontFamily: "Inter Variable", fontSize: "0.75rem", fontWeight: 500, letterSpacing: "0.04em" }
+  mono: { fontFamily: "JetBrains Mono Variable", fontSize: "0.75rem", fontWeight: 400 }
+  icon: { family: "Material Symbols Outlined (SVG sprite)", size: "1em of the current font size" }
 rounded:
-  sm: "8px"
-  md: "12px"
-  lg: "16px"
-  xl: "24px"
+  lg: "8px"
+  xl: "12px"
+  2xl: "16px"
+  3xl: "24px"
   full: "9999px"
 spacing:
   xs: "4px"
@@ -71,26 +70,11 @@ spacing:
   lg: "24px"
   xl: "32px"
 components:
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
-    rounded: "{rounded.full}"
-    padding: "10px 20px"
-  button-primary-hover:
-    backgroundColor: "{colors.primary-container}"
-  button-secondary:
-    backgroundColor: "{colors.surface-container-high}"
-    textColor: "{colors.on-surface}"
-    rounded: "{rounded.full}"
-    padding: "8px 16px"
-  card-folder:
-    backgroundColor: "{colors.surface-container-low}"
-    rounded: "{rounded.lg}"
-    padding: "16px"
-  fab-action:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
-    rounded: "{rounded.lg}"
+  btn-primary: { backgroundColor: "{colors.brand}", textColor: "{colors.on-brand}", rounded: "{rounded.full}", height: "40px" }
+  btn-secondary: { backgroundColor: "{colors.surface-raised}", border: "{colors.outline-variant}", rounded: "{rounded.full}", height: "36px" }
+  card: { backgroundColor: "{colors.surface-container-low}", border: "{colors.outline-variant} 60%", rounded: "{rounded.2xl}" }
+  modal: { backgroundColor: "{colors.surface-container}", rounded: "{rounded.3xl}" }
+  fab: { backgroundColor: "{colors.brand}", textColor: "{colors.on-brand}", rounded: "{rounded.2xl}", size: "56px" }
 ---
 
 # Design System: simplefs
@@ -99,118 +83,101 @@ components:
 
 **Creative North Star: "The Ambient Workspace"**
 
-SimpleFS adopta el lenguaje visual Material Design 3 con un balance refinado entre sobriedad estructural y claridad interactiva. La interfaz se fundamenta en tonos neutros tonales multicapa, acentos azul cobalto de alta confianza y tipografía `Inter` optimizada para escaneo rápido de datos y archivos.
+SimpleFS sigue el lenguaje visual de Material Design 3: superficies neutras en capas, azul cobalto para la identidad y las acciones principales, tipografía `Inter` y datos en `JetBrains Mono`. Todo prioriza la utilidad directa: ver qué llegó, enviarlo o descargarlo con el menor número de clics.
 
-Toda la experiencia visual prioriza la utilidad directa y la ausencia de fricción: las carpetas se presentan como bloques táctiles superiores, los archivos ofrecen conmutación instantánea entre lista y cuadrícula, y las previsualizaciones ricas (código, Markdown, PDF, imágenes y video) se integran con barras de herramientas funcionales completas.
-
-**Key Characteristics:**
-- Superficies tonales adaptativas para modo Claro (`#f9f9fc`) y Oscuro (`#121316`).
-- Azul Cobalto Primario (`#00488d` / `#005fb8`) para identidad, jerarquía de acciones y navegación activa.
-- Vista dual para archivos: Cuadrícula visual con miniaturas responsivas y Lista Refinada tabular con metadatos.
-- Botón de Acción Flotante (FAB `+`) con menú Speed Dial interactivo para subida rápida, creación de carpetas y captura desde portapapeles.
-- Vistas previas en vivo enriquecidas con toolbar de herramientas (zoom, copiado de sintaxis, impresión y descarga).
+**Fuente de verdad:** los tokens viven como variables CSS (canales RGB) en [`web/src/input.css`](./web/src/input.css) y Tailwind los expone en [`tailwind.config.js`](./tailwind.config.js) con un único nombre semántico (`bg-surface-container-low`, `text-on-surface`, `bg-brand`…). **El modo oscuro solo redefine las variables**: las plantillas nunca usan variantes `-light`/`-dark` ni `dark:` para colores.
 
 ## Colors
 
-El sistema cromático sigue la arquitectura tonal de Material Design 3, asegurando contraste accesible en temas Claro y Oscuro.
+### Superficies (claro / oscuro)
+- **background** (`#f9f9fc` / `#111316`): fondo de la aplicación.
+- **surface-container-low** (`#f3f3f6` / `#181a1d`): barra lateral, tarjetas de carpetas y archivos, lienzo de vistas previas.
+- **surface-container** (`#eeeef0` / `#1e2024`): modales y cabeceras de tabla.
+- **surface-container-high / highest**: estados hover, chips y controles secundarios.
+- **surface-raised** (`#ffffff` / `#1e2024`): elementos elevados sobre el fondo: cabecera, controles, tarjeta en hover y toasts.
+- **on-surface / on-surface-variant**: texto principal y metadatos.
+- **outline-variant**: bordes de 1 px y divisores.
 
-### Primary
-- **Cobalt Blue** (`#00488d` / Dark: `#a8c8ff`): Utilizado para la identidad de marca, navegación principal y botón de acción flotante (FAB).
-- **Primary Container** (`#005fb8` / Dark: `#00468b`): Estados de interacción hover y chips de acción activa.
-- **On Primary** (`#ffffff`): Texto e iconografía sobre elementos primarios.
+### Marca y acento
+- **brand** (`#00488d` / `#005fb8`) con **on-brand** blanco: botones primarios, FAB, navegación activa y chips seleccionados. Contraste ≥ 4.5:1 en ambos temas.
+- **primary** (`#00488d` / `#a8c8ff`): iconos de acento, enlaces y texto destacado sobre superficies neutras.
 
-### Neutral
-- **Base Surface** (`#f9f9fc` / Dark: `#121316`): Fondo base de la aplicación.
-- **Surface Container Low** (`#f3f3f6` / Dark: `#181a1d`): Fondo de tarjetas de carpetas, elementos en lista y contenedores de archivos.
-- **Surface Container** (`#eeeef0` / Dark: `#1e2024`): Fondo de modales de configuración y detalles.
-- **Surface Container High** (`#e8e8ea` / Dark: `#24272c`): Barra superior y controles secundarios.
-- **Surface Container Highest** (`#e2e2e5` / Dark: `#2e3238`): Inputs de búsqueda y estados de hover.
-- **Primary Text (On-Surface)** (`#1a1c1e` / Dark: `#e2e2e5`): Texto principal de alto contraste.
-- **Secondary Text (On-Surface-Variant)** (`#424752` / Dark: `#c2c6d4`): Metadatos, fechas, tamaños y etiquetas.
-- **Outline Variant** (`#c2c6d4` / Dark: `#383c44`): Bordes sutiles y divisores estructurales.
-
-### Functional Accents
-- **Error Red** (`#ba1a1a` / Dark: `#ffb4ab`): Acciones destructivas (eliminar) e iconos de PDF.
-- **Success Emerald** (`#10b981`): Confirmaciones de copia y estados de éxito.
-- **Tech Accents**: Colores semánticos para extensiones (Cyan para Go, Amarillo para JavaScript/TypeScript, Verde para hojas de cálculo, Púrpura para video).
+### Funcionales
+- **error** para acciones destructivas y PDF; **success** para confirmaciones.
+- **Acentos por tipo de archivo**, más oscuros en claro y más luminosos en oscuro para que el texto de los badges cumpla ≈4.5:1 sobre su propio tinte: `accent-code` (cian: código), `accent-media` (violeta: imagen y vídeo), `accent-audio` (rosa), `accent-archive` (ámbar: ZIP y carpetas de build), `accent-sheet` (esmeralda: hojas de cálculo y carpetas de documentación).
+- El backend no emite colores sueltos. Cada tipo declara un *acento* semántico (`internal/filetype`) que se traduce a clases literales `text-accent-*` / `bg-accent-*/15`. Tailwind escanea también los `.go`, así que esas clases siempre existen en el CSS.
 
 ### Named Rules
-**The Clarity Contrast Rule.** Las acciones primarias y la navegación usan Cobalt Blue de alto contraste; los contenedores de datos permanecen en tonos neutros para que los archivos destaquen por su contenido.
+**The Clarity Contrast Rule.** `brand` se reserva para navegación y acciones clave; los contenedores de datos permanecen neutros para que destaque el contenido.
 
 ## Typography
 
-**Display Font:** `Inter, system-ui, -apple-system, sans-serif`
-**Body Font:** `Inter, system-ui, -apple-system, sans-serif`
-**Mono Font:** `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`
+- **Sans:** `Inter Variable` (un solo archivo latin/latin-ext con todos los pesos 100–900, sin negritas sintéticas).
+- **Mono:** `JetBrains Mono Variable` (latin) para fechas, tamaños, rutas, código y badges.
 
-### Hierarchy
-- **Display** (Bold 700, 2rem / 32px, -0.02em tracking): Título de marca en el encabezado.
-- **Headline** (Bold 700, 1.5rem / 24px, -0.01em tracking): Título de la vista previa y modales de archivo.
-- **Title** (SemiBold 600, 1.125rem / 18px): Títulos de sección ("Carpetas", "Archivos").
-- **Body** (Regular 400, 0.875rem / 14px, line-height 1.5): Nombres de archivo, texto de lectura y descripciones.
-- **Label / Mono** (Medium 500, 0.75rem / 12px, font-mono): Tamaños de archivo, fechas y fragmentos de código.
+| Token | Uso |
+|---|---|
+| `text-display` 32/40 bold | Reservado para portadas. |
+| `text-headline` 24/32 bold | Título de la vista actual. |
+| `text-title` 18/24 semibold | Secciones ("Carpetas", "Archivos"), títulos de modal y de vista previa. |
+| `text-body` 14/20 | Texto general y nombres en tarjetas. |
+| `text-body-sm` 13/18 | Tabla de archivos, breadcrumbs, controles. |
+| `text-label` 12 medium +0.04em | Etiquetas, chips y cabeceras de tabla (en mayúsculas). |
+| `text-mono` 12 mono | Metadatos tabulares. |
 
-### Named Rules
-**The Readable Data Rule.** Los metadatos de archivos (fechas, pesos y rutas) utilizan siempre alineación tabular o fuente monoespaciada para facilitar la comparación rápida.
+**The Readable Data Rule.** Fechas, tamaños y rutas usan siempre la fuente monoespaciada.
+
+## Iconography
+
+Material Symbols Outlined como **sprite SVG** (`/static/icons.svg`), generado por `scripts/build-icons.mjs` con solo los iconos usados (~75 símbolos, 25 KB). En las plantillas se escribe `{{ icon "nombre" "clases" }}` o `{{ iconFill ... }}`. El tamaño sigue a `font-size` (`text-xl`, `text-[20px]`…) y el color a `currentColor`. Usar un nombre que no exista hace fallar el build.
 
 ## Layout
 
-SimpleFS utiliza una cuadrícula fluida responsiva contenida en un ancho máximo de 1280px (`max-w-7xl`).
-
-- **Ritmo Espacial**: Escala de 8px (4px xs, 8px sm, 16px md, 24px lg, 32px xl).
-- **Sección de Carpetas**: Cuadrícula adaptable de 1 a 4 columnas (`grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4`).
-- **Sección de Archivos (Grid)**: Cuadrícula visual de 2 a 6 columnas (`grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6`).
-- **Sección de Archivos (Lista)**: Tabla responsiva con columnas: Nombre (expansible), Creado (130px), Modificado (130px), Tamaño (90px) y Acciones (110px).
+- Barra lateral fija de 256 px desde `md`; en móvil es un panel deslizante con fondo semitransparente.
+- Cabecera de 64 px con búsqueda (Ctrl/⌘ K o `/`). Bajo `sm` el selector de idioma pasa a la barra lateral y las acciones de creación al FAB.
+- Contenido con ancho máximo de 1280 px (`max-w-7xl`) y secciones separadas por `space-y-6`.
+- **Carpetas:** tarjetas en cuadrícula de 1 → 4 columnas (`sm:2 lg:3 xl:4`).
+- **Archivos (cuadrícula):** 2 → 6 columnas (`sm:3 lg:4 xl:5 2xl:6`) con miniatura 4:3.
+- **Archivos (lista):** Nombre · Ubicación (solo en búsqueda, recientes y papelera) · Modificado · Tamaño · Acciones.
 
 ## Elevation & Depth
 
-SimpleFS prioriza la estratificación tonal sobre sombras pesadas, reservando elevación física para elementos flotantes interactivos.
-
-### Shadow Vocabulary
-- **Modal Shadow** (`0 25px 50px -12px rgba(0, 0, 0, 0.25)`): Elevación máxima para modales y visor a pantalla completa.
-- **FAB Shadow** (`0 20px 25px -5px rgba(0, 72, 141, 0.25)`): Profundidad del botón flotante de acción rápida.
-- **Card Hover Shadow** (`0 4px 6px -1px rgba(0, 0, 0, 0.08)`): Elevación sutil al interactuar con carpetas y tarjetas de archivo.
-
-### Named Rules
-**The Surface-First Depth Rule.** La jerarquía visual se establece mediante variación tonal de superficies (`surface-container-low` → `surface-container-high`); las sombras se reservan para elementos que flotan sobre el flujo del documento (FAB, modales).
+**The Surface-First Depth Rule.** La jerarquía se construye con tonos de superficie; las sombras quedan para lo que flota.
+- `shadow-modal`: modales, toasts y vistas previas.
+- `shadow-fab`: FAB (sombra teñida con `brand`).
+- `shadow-card`: tarjeta en hover.
 
 ## Shapes
 
-- **Corner Radius**:
-  - `sm` (`8px`): Badges, botones de acción en miniatura, pills de extensiones.
-  - `md` (`12px`): Inputs, controles de toolbar, contenedores de código.
-  - `lg` (`16px`): Tarjetas de carpetas y archivos en vista cuadrícula.
-  - `xl` (`24px` / `28px`): Modales de detalles y creación de carpeta.
-  - `full` (`9999px`): Botones de acción, pills de navegación y barra de búsqueda.
-- **Bordes**: 1px sutil (`outline-variant/30`) para definir bordes de contenedores sin recargar visualmente.
+`rounded-lg` (8 px) para botones de icono y badges · `rounded-xl` (12 px) para controles, inputs y elementos de navegación · `rounded-2xl` (16 px) para tarjetas, tablas y FAB · `rounded-3xl` (24 px) para modales · `rounded-full` para botones de texto, chips y búsqueda. Los bordes son de 1 px con `outline-variant` (60 % en tarjetas).
 
 ## Components
 
-### Buttons
-- **Primary Pill**: Redondeado completo (`rounded-full`), fondo Cobalt Blue (`#00488d`), texto blanco, padding (`10px 20px`).
-- **Secondary Pill**: Redondeado completo (`rounded-full`), fondo `surface-container-high`, texto `on-surface`.
-- **FAB**: Botón redondeado de 56x56px a 64x64px (`rounded-2xl`), fondo Cobalt Blue con elevación de 20px.
+Las clases de componente están en `@layer components` de `input.css`:
+- **`btn-primary` / `btn-secondary` / `btn-ghost` / `btn-danger`**: botones de texto en pastilla.
+- **`icon-btn` / `icon-btn-danger`**: acciones de 32 px en filas y tarjetas.
+- **`control`, `segment`**: selectores (orden, vista, idioma); el estado activo se expresa con `aria-pressed`/`aria-current`, no con clases.
+- **`chip`**: filtros por categoría.
+- **`nav-item`**: navegación lateral (`aria-current="page"` = activo).
+- **`card`, `modal-panel`, `field`, `badge`**.
+- **Toasts** (abajo a la derecha, encima del FAB en móvil): éxito, error e info. El servidor los dispara con la cabecera `HX-Trigger`.
 
-### Folder Cards
-- **Forma**: Radio de 16px (`rounded-2xl`), padding de 16px (`p-md`), fondo `surface-container-low`.
-- **Icono**: Icono de carpeta de 40x40px en contenedor redondeado primario suave.
+## Interaction & Accessibility
 
-### File Cards (Grid)
-- **Forma**: Radio de 16px (`rounded-2xl`), padding de 12px (`p-3`).
-- **Área de Miniatura**: Contenedor cuadrado con relación de aspecto 1:1, centrado de imagen o icono semántico.
-
-### Modals
-- **Detalles del Archivo**: Diálogo de 480px centrado con radio de 24px (`rounded-3xl`), cuadrícula de metadatos en 2 columnas y botón de descarga directa.
-- **Visor a Pantalla Completa**: Interfaz completa fija con toolbar superior flotante, visor responsivo de PDF y renderizadores enriquecidos de Markdown y código.
+- Las acciones de cada archivo aparecen al hacer hover o al enfocar con teclado (`.reveal`). **En pantallas táctiles siempre se ven.**
+- Las carpetas son enlaces reales: se pueden abrir con teclado y en una pestaña nueva. Las vistas previas son `<button>`.
+- Los modales atrapan el foco, se cierran con Escape o al hacer clic fuera y devuelven el foco al elemento que los abrió.
+- Se respeta `prefers-reduced-motion` y las barras de scroll siempre son visibles.
+- La vista se refresca sola cuando cambia el contenido (polling ligero de `/api/v1/stamp`).
 
 ## Do's and Don'ts
 
-### Do:
-- **Do** mantener el tema Claro y Oscuro sincronizado en todos los modales y estados interactivos.
-- **Do** usar la tipografía monoespaciada para fechas, tamaños en bytes y bloques de código.
-- **Do** asegurar que el FAB Speed Dial cierre al hacer clic fuera o al seleccionar una acción.
+### Do
+- **Do** usar solo tokens semánticos; si falta uno, añadirlo en `input.css` (claro y oscuro) y en `tailwind.config.js`.
+- **Do** usar la fuente monoespaciada para fechas, tamaños y rutas.
+- **Do** cablear las interacciones con `data-action` (delegación en `web/src/app.js`). La CSP no permite scripts inline.
 
-### Don't:
-- **Don't** utilizar bordes gruesos o sombras duras que compitan con el contenido de los archivos.
-- **Don't** requerir recargas de página completa; todas las transiciones y filtros deben operar vía fragmentos HTMX.
-- **Don't** saturar la pantalla con colores primarios: Cobalt Blue se reserva para navegación y acciones clave.
+### Don't
+- **Don't** usar colores de la paleta por defecto de Tailwind (`text-blue-600`…), hex sueltos ni variantes `dark:` para colores.
+- **Don't** usar bordes gruesos ni sombras duras que compitan con el contenido.
+- **Don't** recargar la página completa: navegación, filtros y acciones van por fragmentos HTMX.

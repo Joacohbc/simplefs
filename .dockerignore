@@ -15,3 +15,10 @@ simplefs
 *.so
 *.dylib
 *.log
+*.md
+dist
+web/static/*
+!web/static/.gitkeep
+!web/static/favicon.svg
+!web/static/app-icon.svg
+!web/static/apple-touch-icon.png

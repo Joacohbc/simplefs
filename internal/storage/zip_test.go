@@ -121,10 +121,10 @@ func TestZip_PathTraversalZipSlip(t *testing.T) {
 				t.Fatalf("expected ErrZipPathTraversal for %q, got %v", tc.entryPath, err)
 			}
 
-			// Verify rollback: no folder was left behind
-			entries, _ := os.ReadDir(tempDir)
-			if len(entries) != 0 {
-				t.Fatalf("expected empty directory after rollback, found %d entries", len(entries))
+			// Verify rollback: no visible folder was left behind
+			page, err := svc.GetDirectoryPage("", "", "", "", "", "en")
+			if err != nil || page.HasItems() {
+				t.Fatalf("expected empty directory after rollback, got %+v (err %v)", page, err)
 			}
 		})
 	}
@@ -174,12 +174,31 @@ func TestZip_SpecialDeviceForbidden(t *testing.T) {
 	}
 }
 
+func TestZip_DotfilesAreExtracted(t *testing.T) {
+	tempDir := t.TempDir()
+	svc := storage.NewService(tempDir)
+
+	buf := createTestZipBuffer(t, map[string]string{
+		".gitignore":          "node_modules\n",
+		"nested/.env":         "KEY=1",
+		"weird..name/file.go": "package weird",
+	})
+	folder, err := svc.ExtractZipFile("", "project.zip", buf)
+	if err != nil {
+		t.Fatalf("expected archive with dotfiles to extract, got %v", err)
+	}
+	for _, path := range []string{".gitignore", "nested/.env", "weird..name/file.go"} {
+		if _, err := os.Stat(filepath.Join(tempDir, folder, filepath.FromSlash(path))); err != nil {
+			t.Errorf("expected %s to be extracted: %v", path, err)
+		}
+	}
+}
+
 func TestZip_RestrictedSegment(t *testing.T) {
 	restrictedCases := []string{
-		".git/config",
-		"nested/.env",
-		"app/node_modules/pkg/index.js",
-		"simplefs",
+		".trash/item",
+		"nested/.simplefs/token",
+		".simplefs-upload.part",
 	}
 
 	for _, entryName := range restrictedCases {
