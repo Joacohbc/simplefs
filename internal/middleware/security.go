@@ -25,34 +25,38 @@ func isUnsafeMethod(method string) bool {
 	return method == http.MethodPost || method == http.MethodDelete || method == http.MethodPut || method == http.MethodPatch
 }
 
+func hasSameHost(rawURL, host string) bool {
+	parsed, err := url.Parse(rawURL)
+	return err == nil && parsed.Host == host
+}
+
+// crossOriginRejection explains why a state-changing request must be rejected,
+// or returns "" when it comes from this origin or from a non-browser client.
+func crossOriginRejection(r *http.Request) string {
+	origin := r.Header.Get("Origin")
+	referer := r.Header.Get("Referer")
+	switch {
+	case r.Header.Get("Sec-Fetch-Site") == "cross-site":
+		return "Forbidden: Cross-site request rejected"
+	case origin == "null":
+		return "Forbidden: Opaque origin rejected"
+	case origin != "" && !hasSameHost(origin, r.Host):
+		return "Forbidden: Cross-origin request rejected"
+	case origin == "" && referer != "" && !hasSameHost(referer, r.Host):
+		return "Forbidden: Invalid referer"
+	}
+	return ""
+}
+
 func CSRFProtectionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isUnsafeMethod(r.Method) {
-			if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
-				http.Error(w, "Forbidden: Cross-site request rejected", http.StatusForbidden)
-				return
-			}
-
-			origin := r.Header.Get("Origin")
-			referer := r.Header.Get("Referer")
-			host := r.Host
-
-			if origin != "" && origin != "null" {
-				parsedOrigin, err := url.Parse(origin)
-				if err != nil || parsedOrigin.Host != host {
-					http.Error(w, "Forbidden: Cross-origin request rejected", http.StatusForbidden)
-					return
-				}
-			} else if origin == "null" {
-				http.Error(w, "Forbidden: Opaque origin rejected", http.StatusForbidden)
-				return
-			} else if referer != "" {
-				parsedReferer, err := url.Parse(referer)
-				if err != nil || parsedReferer.Host != host {
-					http.Error(w, "Forbidden: Invalid referer", http.StatusForbidden)
-					return
-				}
-			}
+		if !isUnsafeMethod(r.Method) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if rejection := crossOriginRejection(r); rejection != "" {
+			http.Error(w, rejection, http.StatusForbidden)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -63,27 +67,27 @@ func CSRFProtectionMiddleware(next http.Handler) http.Handler {
 // localhost are always accepted; any other name must be listed in allowedHosts.
 // A "*" entry disables the check. Entries starting with "." match subdomains.
 type HostGuard struct {
-	allowAll bool
-	exact    map[string]bool
-	suffixes []string
+	allowsAnyHost     bool
+	exactHosts        map[string]bool
+	subdomainSuffixes []string
 }
 
 func NewHostGuard(allowedHosts []string) *HostGuard {
-	guard := &HostGuard{exact: make(map[string]bool)}
+	guard := &HostGuard{exactHosts: make(map[string]bool)}
 	for _, entry := range allowedHosts {
 		host := strings.ToLower(strings.TrimSpace(entry))
 		if host == "" {
 			continue
 		}
 		if host == "*" {
-			guard.allowAll = true
+			guard.allowsAnyHost = true
 			continue
 		}
 		if strings.HasPrefix(host, ".") {
-			guard.suffixes = append(guard.suffixes, host)
+			guard.subdomainSuffixes = append(guard.subdomainSuffixes, host)
 			continue
 		}
-		guard.exact[stripPort(host)] = true
+		guard.exactHosts[stripPort(host)] = true
 	}
 	return guard
 }
@@ -96,7 +100,7 @@ func stripPort(hostport string) string {
 }
 
 func (g *HostGuard) Allowed(hostport string) bool {
-	if g.allowAll {
+	if g.allowsAnyHost {
 		return true
 	}
 	host := strings.ToLower(stripPort(hostport))
@@ -106,10 +110,10 @@ func (g *HostGuard) Allowed(hostport string) bool {
 	if net.ParseIP(host) != nil || host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return true
 	}
-	if g.exact[host] {
+	if g.exactHosts[host] {
 		return true
 	}
-	for _, suffix := range g.suffixes {
+	for _, suffix := range g.subdomainSuffixes {
 		if strings.HasSuffix(host, suffix) {
 			return true
 		}

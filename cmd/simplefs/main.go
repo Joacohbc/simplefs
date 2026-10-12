@@ -27,6 +27,16 @@ import (
 
 var version = "dev"
 
+const (
+	exitUsageError       = 2
+	healthcheckTimeout   = 3 * time.Second
+	readHeaderTimeout    = 10 * time.Second
+	idleConnTimeout      = 120 * time.Second
+	maxHeaderBytes       = 1 << 20
+	shutdownGracePeriod  = 30 * time.Second
+	defaultDisplayedHost = "localhost"
+)
+
 type Config struct {
 	Port             string
 	Bind             string
@@ -239,7 +249,7 @@ func runHealthcheck(config Config) int {
 	if host == "" || host == "0.0.0.0" || host == "::" {
 		host = "127.0.0.1"
 	}
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := &http.Client{Timeout: healthcheckTimeout}
 	response, err := client.Get("http://" + net.JoinHostPort(host, config.Port) + "/healthz")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "unhealthy:", err)
@@ -278,98 +288,81 @@ func buildServer(config Config, authenticator *auth.Authenticator) (*http.Server
 		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}
 
-	storageService := storage.NewServiceWithOptions(config.StorageDirectory, storage.Options{
+	fileStore := storage.NewFileStoreWithOptions(config.StorageDirectory, storage.Options{
 		FileMode:     config.FileMode,
 		DirMode:      config.DirMode,
 		HideDotfiles: config.HideDotfiles,
 	})
-	if err := storageService.CleanupTemp(); err != nil {
+	if err := fileStore.CleanupTemp(); err != nil {
 		log.Printf("warning: cannot clean temporary uploads: %v", err)
 	}
 
-	appHandler := handlers.NewHandler(storageService, templateEngine, handlers.Config{
+	webApp := handlers.NewWebApp(fileStore, templateEngine, handlers.Config{
 		Auth:           authenticator,
 		Assets:         staticAssets,
 		MaxUploadBytes: config.MaxUploadBytes,
 	})
 	mux := http.NewServeMux()
-	appHandler.RegisterRoutes(mux)
-
-	var handler http.Handler = middleware.RecordRole(mux)
-	handler = authenticator.Middleware(handler)
-	handler = middleware.CSRFProtectionMiddleware(handler)
-	handler = middleware.NewHostGuard(config.AllowedHosts).Middleware(handler)
-	handler = middleware.NewSecurityHeadersMiddleware(handler)
-	if config.AccessLog {
-		handler = middleware.AccessLog(log.Default(), handler)
-	}
+	webApp.RegisterRoutes(mux)
 
 	// No global read/write timeouts: transfers of any size must be able to finish.
 	// Slow-header clients are still cut by ReadHeaderTimeout and UI routes set their own deadlines.
 	return &http.Server{
 		Addr:              listenAddress(config),
-		Handler:           handler,
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       120 * time.Second,
-		MaxHeaderBytes:    1 << 20,
+		Handler:           secureHandler(mux, config, authenticator),
+		ReadHeaderTimeout: readHeaderTimeout,
+		IdleTimeout:       idleConnTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
 	}, nil
 }
 
-func main() {
-	arguments := os.Args[1:]
-	command := ""
+func secureHandler(routes http.Handler, config Config, authenticator *auth.Authenticator) http.Handler {
+	securedHandler := middleware.RecordRole(routes)
+	securedHandler = authenticator.Middleware(securedHandler)
+	securedHandler = middleware.CSRFProtectionMiddleware(securedHandler)
+	securedHandler = middleware.NewHostGuard(config.AllowedHosts).Middleware(securedHandler)
+	securedHandler = middleware.NewSecurityHeadersMiddleware(securedHandler)
+	if !config.AccessLog {
+		return securedHandler
+	}
+	return middleware.AccessLog(log.Default(), securedHandler)
+}
+
+func splitCommand(arguments []string) (command string, remaining []string) {
 	if len(arguments) > 0 && !strings.HasPrefix(arguments[0], "-") {
-		command, arguments = arguments[0], arguments[1:]
+		return arguments[0], arguments[1:]
 	}
+	return "", arguments
+}
 
-	config, err := parseConfiguration(arguments, os.Stderr)
-	if err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			os.Exit(0)
-		}
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(2)
-	}
-
+func runCommand(command string, config Config) int {
 	switch command {
-	case "":
 	case "healthcheck":
-		os.Exit(runHealthcheck(config))
+		return runHealthcheck(config)
 	case "token":
-		os.Exit(runPrintToken(config))
+		return runPrintToken(config)
 	case "version":
 		fmt.Println(version)
-		return
-	default:
-		fmt.Fprintf(os.Stderr, "unknown command %q\n\n", command)
-		printUsage(os.Stderr)
-		os.Exit(2)
+		return 0
 	}
+	fmt.Fprintf(os.Stderr, "unknown command %q\n\n", command)
+	printUsage(os.Stderr)
+	return exitUsageError
+}
 
-	if err := os.MkdirAll(config.StorageDirectory, config.DirMode); err != nil {
-		log.Fatalf("Failed to initialize storage directory: %v", err)
-	}
-
-	authenticator, err := buildAuthenticator(config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	server, err := buildServer(config, authenticator)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func logStartup(server *http.Server, config Config, authenticator *auth.Authenticator) {
 	absoluteStoragePath, _ := filepath.Abs(config.StorageDirectory)
-	displayHost := config.Bind
-	if displayHost == "" {
-		displayHost = "localhost"
+	displayedHost := config.Bind
+	if displayedHost == "" {
+		displayedHost = defaultDisplayedHost
 	}
-	log.Printf("🚀 SimpleFS %s listening on %s (http://%s) serving %s", version, server.Addr, net.JoinHostPort(displayHost, config.Port), absoluteStoragePath)
+	log.Printf("🚀 SimpleFS %s listening on %s (http://%s) serving %s", version, server.Addr, net.JoinHostPort(displayedHost, config.Port), absoluteStoragePath)
 	if !authenticator.Enabled() {
 		log.Printf("⚠️  Authentication is DISABLED: anyone who can reach %s has full access", server.Addr)
 	}
+}
 
+func serveUntilSignal(server *http.Server) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -380,15 +373,46 @@ func main() {
 
 	select {
 	case err := <-serverErrors:
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Server stopped: %v", err)
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
 		}
+		return err
 	case <-ctx.Done():
-		log.Printf("Shutting down, waiting up to 30s for active transfers...")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		log.Printf("Shutting down, waiting up to %s for active transfers...", shutdownGracePeriod)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
 		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Forced shutdown: %v", err)
-		}
+		return server.Shutdown(shutdownCtx)
+	}
+}
+
+func main() {
+	command, arguments := splitCommand(os.Args[1:])
+	config, err := parseConfiguration(arguments, os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		os.Exit(0)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(exitUsageError)
+	}
+	if command != "" {
+		os.Exit(runCommand(command, config))
+	}
+
+	if err := os.MkdirAll(config.StorageDirectory, config.DirMode); err != nil {
+		log.Fatalf("Failed to initialize storage directory: %v", err)
+	}
+	authenticator, err := buildAuthenticator(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	server, err := buildServer(config, authenticator)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	logStartup(server, config, authenticator)
+	if err := serveUntilSignal(server); err != nil {
+		log.Fatalf("Server stopped: %v", err)
 	}
 }

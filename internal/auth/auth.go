@@ -42,6 +42,10 @@ const (
 	sessionMaxAge     = 30 * 24 * time.Hour
 	maxLoginFailures  = 10
 	loginWindow       = 15 * time.Minute
+	failedLoginDelay  = 400 * time.Millisecond
+	tokenEntropyBytes = 24
+	privateDirMode    = 0700
+	privateFileMode   = 0600
 )
 
 type contextKey struct{}
@@ -214,7 +218,7 @@ func (a *Authenticator) Login(r *http.Request, token string) (*http.Cookie, erro
 	role := a.RoleForToken(token)
 	if role == RoleNone {
 		a.limiter.fail(clientIP)
-		time.Sleep(400 * time.Millisecond)
+		time.Sleep(failedLoginDelay)
 		return nil, ErrInvalidToken
 	}
 	a.limiter.reset(clientIP)
@@ -313,18 +317,18 @@ func (l *loginLimiter) reset(ip string) {
 
 // GenerateToken returns a random URL-safe token.
 func GenerateToken() (string, error) {
-	buffer := make([]byte, 24)
-	if _, err := rand.Read(buffer); err != nil {
+	randomBytes := make([]byte, tokenEntropyBytes)
+	if _, err := rand.Read(randomBytes); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(buffer), nil
+	return hex.EncodeToString(randomBytes), nil
 }
 
 // LoadOrCreateToken reads the token stored at path, creating a new one when missing.
 // The bool result reports whether a new token was generated.
 func LoadOrCreateToken(path string) (string, bool, error) {
-	if data, err := os.ReadFile(path); err == nil {
-		if token := strings.TrimSpace(string(data)); token != "" {
+	if storedToken, err := os.ReadFile(path); err == nil {
+		if token := strings.TrimSpace(string(storedToken)); token != "" {
 			return token, false, nil
 		}
 	}
@@ -332,10 +336,10 @@ func LoadOrCreateToken(path string) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), privateDirMode); err != nil {
 		return "", false, err
 	}
-	if err := os.WriteFile(path, []byte(token+"\n"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(token+"\n"), privateFileMode); err != nil {
 		return "", false, err
 	}
 	return token, true, nil

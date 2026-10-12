@@ -175,7 +175,7 @@ Las clases de componente están en `@layer components` de `input.css`:
 ### Do
 - **Do** usar solo tokens semánticos; si falta uno, añadirlo en `input.css` (claro y oscuro) y en `tailwind.config.js`.
 - **Do** usar la fuente monoespaciada para fechas, tamaños y rutas.
-- **Do** cablear las interacciones con `data-action` (delegación en `web/src/app.js`). La CSP no permite scripts inline.
+- **Do** cablear las interacciones con `data-action` (delegación en `web/src/app/actions.js`; cada módulo de `web/src/app/` tiene una responsabilidad). La CSP no permite scripts inline.
 
 ### Don't
 - **Don't** usar colores de la paleta por defecto de Tailwind (`text-blue-600`…), hex sueltos ni variantes `dark:` para colores.

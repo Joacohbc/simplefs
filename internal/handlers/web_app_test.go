@@ -41,7 +41,7 @@ func newTestServer(t *testing.T, authenticator *auth.Authenticator, maxUpload in
 	if authenticator == nil {
 		authenticator = auth.Disabled()
 	}
-	handler := handlers.NewHandler(storage.NewService(root), templates, handlers.Config{
+	handler := handlers.NewWebApp(storage.NewFileStore(root), templates, handlers.Config{
 		Auth:           authenticator,
 		Assets:         staticAssets,
 		MaxUploadBytes: maxUpload,

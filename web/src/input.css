@@ -227,7 +227,6 @@
   }
 }
 
-/* Theme toggle shows the icon of the theme you would switch to. */
 .theme-icon-light {
   display: none;
 }
@@ -317,12 +316,10 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* Drag & drop overlay */
 .drag-active #drag-overlay {
   opacity: 1;
 }
 
-/* Upload progress bar */
 #upload-progress-bar {
   transform-origin: left;
   transition: transform 120ms linear;
@@ -333,7 +330,6 @@
   transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--scale, 1)) rotate(var(--rotate, 0deg));
 }
 
-/* Markdown */
 .markdown-content {
   color: rgb(var(--c-on-surface));
   line-height: 1.65;

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf16"
 
 	"simplefs/internal/assets"
 	"simplefs/internal/auth"
@@ -27,27 +29,27 @@ const (
 
 type Config struct {
 	Auth           *auth.Authenticator
-	Assets         *assets.Assets
+	Assets         *assets.Bundle
 	MaxUploadBytes int64
 	ZipConcurrency int
 }
 
-type Handler struct {
-	storageService *storage.Service
+type WebApp struct {
+	fileStore      *storage.FileStore
 	templateEngine *template.Template
 	config         Config
 	zipSlots       chan struct{}
 }
 
-func NewHandler(storageService *storage.Service, templateEngine *template.Template, config Config) *Handler {
+func NewWebApp(fileStore *storage.FileStore, templateEngine *template.Template, config Config) *WebApp {
 	if config.Auth == nil {
 		config.Auth = auth.Disabled()
 	}
 	if config.ZipConcurrency <= 0 {
 		config.ZipConcurrency = defaultZipConcurrency
 	}
-	return &Handler{
-		storageService: storageService,
+	return &WebApp{
+		fileStore:      fileStore,
 		templateEngine: templateEngine,
 		config:         config,
 		zipSlots:       make(chan struct{}, config.ZipConcurrency),
@@ -66,7 +68,7 @@ func withDeadline(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+func (h *WebApp) RegisterRoutes(mux *http.ServeMux) {
 	if h.config.Assets != nil {
 		mux.Handle("GET /static/", h.config.Assets.Handler())
 		mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +111,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	})
 }
 
-func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
+func (h *WebApp) Healthz(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write([]byte("ok\n"))
@@ -127,7 +129,7 @@ type viewParams struct {
 // readParams only looks at the URL and at an already parsed form, so it never
 // consumes a streaming multipart body.
 func readParams(r *http.Request) viewParams {
-	value := func(key string) string {
+	paramValue := func(key string) string {
 		if v := r.URL.Query().Get(key); v != "" {
 			return v
 		}
@@ -136,23 +138,23 @@ func readParams(r *http.Request) viewParams {
 		}
 		return ""
 	}
-	view := value("view")
+	view := paramValue("view")
 	if view == "" {
 		if cookie, err := r.Cookie("view"); err == nil {
 			view = cookie.Value
 		}
 	}
 	return viewParams{
-		Path:  value("path"),
-		Query: value("query"),
+		Path:  paramValue("path"),
+		Query: paramValue("query"),
 		View:  view,
-		Sort:  value("sort"),
-		Order: value("order"),
-		Lang:  value("lang"),
+		Sort:  paramValue("sort"),
+		Order: paramValue("order"),
+		Lang:  paramValue("lang"),
 	}
 }
 
-func (h *Handler) resolveLang(w http.ResponseWriter, r *http.Request, params viewParams) string {
+func (h *WebApp) resolveLang(w http.ResponseWriter, r *http.Request, params viewParams) string {
 	lang := i18n.ResolveLang(r)
 	if params.Lang != "" {
 		lang = i18n.NormalizeLang(params.Lang)
@@ -170,12 +172,12 @@ func (h *Handler) resolveLang(w http.ResponseWriter, r *http.Request, params vie
 	return lang
 }
 
-func (h *Handler) decorate(r *http.Request, page *models.PageData) {
+func (h *WebApp) decorate(r *http.Request, page *models.PageData) {
 	page.ReadOnly = auth.RoleFrom(r.Context()) == auth.RoleRead
 	page.AuthEnabled = h.config.Auth.Enabled()
 }
 
-func (h *Handler) render(w http.ResponseWriter, status int, name string, data any) {
+func (h *WebApp) render(w http.ResponseWriter, status int, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if status != http.StatusOK {
@@ -186,12 +188,16 @@ func (h *Handler) render(w http.ResponseWriter, status int, name string, data an
 	}
 }
 
+const (
+	toastSuccess = "success"
+	toastError   = "error"
+)
+
 type toast struct {
 	Level   string `json:"level"`
 	Message string `json:"message"`
 }
 
-// setToast asks the client to show a notification via the HX-Trigger header.
 // Non-ASCII characters are escaped so the header survives Latin-1 decoding in browsers.
 func setToast(w http.ResponseWriter, level, message string) {
 	payload, err := json.Marshal(map[string]toast{"simplefs:toast": {Level: level, Message: message}})
@@ -203,26 +209,21 @@ func setToast(w http.ResponseWriter, level, message string) {
 
 func asciiJSON(payload []byte) string {
 	var builder strings.Builder
-	for _, r := range string(payload) {
-		if r < 128 {
-			builder.WriteRune(r)
+	for _, character := range string(payload) {
+		if character <= unicode.MaxASCII {
+			builder.WriteRune(character)
 			continue
 		}
-		if r > 0xFFFF {
-			r -= 0x10000
-			fmt.Fprintf(&builder, `\u%04x\u%04x`, 0xD800+(r>>10), 0xDC00+(r&0x3FF))
-			continue
+		for _, codeUnit := range utf16.Encode([]rune{character}) {
+			fmt.Fprintf(&builder, `\u%04x`, codeUnit)
 		}
-		fmt.Fprintf(&builder, `\u%04x`, r)
 	}
 	return builder.String()
 }
 
-// errorStatus maps storage errors to an HTTP status and a translation key.
 func errorStatus(err error) (int, string) {
-	var maxBytesError *http.MaxBytesError
 	switch {
-	case errors.As(err, &maxBytesError):
+	case isRequestTooLarge(err):
 		return http.StatusRequestEntityTooLarge, "error.too_large"
 	case errors.Is(err, storage.ErrNotFound):
 		return http.StatusNotFound, "error.not_found"
@@ -254,8 +255,7 @@ func isZipError(err error) bool {
 	return false
 }
 
-// errorMessage returns a user-facing message that never includes internal paths.
-func errorMessage(lang string, err error) string {
+func userFacingErrorMessage(lang string, err error) string {
 	status, key := errorStatus(err)
 	if key == "error.zip" {
 		return i18n.T(lang, key) + ": " + err.Error()
@@ -266,9 +266,9 @@ func errorMessage(lang string, err error) string {
 	return i18n.T(lang, key)
 }
 
-func (h *Handler) httpError(w http.ResponseWriter, lang string, err error) {
+func (h *WebApp) httpError(w http.ResponseWriter, lang string, err error) {
 	status, _ := errorStatus(err)
-	http.Error(w, errorMessage(lang, err), status)
+	http.Error(w, userFacingErrorMessage(lang, err), status)
 }
 
 func extractParentPath(relativePath string) string {

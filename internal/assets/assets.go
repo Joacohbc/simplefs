@@ -17,19 +17,24 @@ import (
 	"time"
 )
 
-type asset struct {
-	data        []byte
+type staticFile struct {
+	content     []byte
 	gzipped     []byte
 	etag        string
 	version     string
 	contentType string
 }
 
-// Assets serves embedded static files with strong ETags, long-lived caching for
+// Bundle serves embedded static files with strong ETags, long-lived caching for
 // versioned URLs and precompressed gzip bodies.
-type Assets struct {
-	files map[string]*asset
+type Bundle struct {
+	files map[string]*staticFile
 }
+
+const (
+	etagHexLength    = 20
+	versionHexLength = 10
+)
 
 var hashedNamePattern = regexp.MustCompile(`-[A-Z0-9]{8}\.[a-z0-9]+$`)
 
@@ -43,8 +48,8 @@ func init() {
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 }
 
-func New(fsys fs.FS, root string) (*Assets, error) {
-	collection := &Assets{files: make(map[string]*asset)}
+func New(fsys fs.FS, root string) (*Bundle, error) {
+	collection := &Bundle{files: make(map[string]*staticFile)}
 	err := fs.WalkDir(fsys, root, func(filePath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -52,27 +57,27 @@ func New(fsys fs.FS, root string) (*Assets, error) {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			return nil
 		}
-		data, err := fs.ReadFile(fsys, filePath)
+		content, err := fs.ReadFile(fsys, filePath)
 		if err != nil {
 			return err
 		}
 		name := strings.TrimPrefix(filePath, root+"/")
-		sum := sha256.Sum256(data)
+		sum := sha256.Sum256(content)
 		digest := hex.EncodeToString(sum[:])
 		contentType := mime.TypeByExtension(path.Ext(name))
 		if contentType == "" {
-			contentType = http.DetectContentType(data)
+			contentType = http.DetectContentType(content)
 		}
-		item := &asset{
-			data:        data,
-			etag:        `"` + digest[:20] + `"`,
-			version:     digest[:10],
+		file := &staticFile{
+			content:     content,
+			etag:        `"` + digest[:etagHexLength] + `"`,
+			version:     digest[:versionHexLength],
 			contentType: contentType,
 		}
 		if isCompressible(contentType) {
-			item.gzipped = compress(data)
+			file.gzipped = compress(content)
 		}
-		collection.files[name] = item
+		collection.files[name] = file
 		return nil
 	})
 	return collection, err
@@ -99,33 +104,33 @@ func compress(data []byte) []byte {
 }
 
 // URL returns the versioned public URL of a static file.
-func (a *Assets) URL(name string) string {
-	if item, ok := a.files[name]; ok {
-		return "/static/" + name + "?v=" + item.version
+func (a *Bundle) URL(name string) string {
+	if file, ok := a.files[name]; ok {
+		return "/static/" + name + "?v=" + file.version
 	}
 	return "/static/" + name
 }
 
-func (a *Assets) Has(name string) bool {
+func (a *Bundle) Has(name string) bool {
 	_, ok := a.files[name]
 	return ok
 }
 
-func (a *Assets) Icon(name string, classes ...string) template.HTML {
+func (a *Bundle) Icon(name string, classes ...string) template.HTML {
 	return a.svgIcon(name, strings.Join(classes, " "))
 }
 
-func (a *Assets) IconFill(name string, classes ...string) template.HTML {
+func (a *Bundle) IconFill(name string, classes ...string) template.HTML {
 	return a.svgIcon(name+"-fill", strings.Join(classes, " "))
 }
 
-func (a *Assets) svgIcon(symbol, classes string) template.HTML {
+func (a *Bundle) svgIcon(symbol, classes string) template.HTML {
 	className := strings.TrimSpace("icon " + classes)
 	href := a.URL("icons.svg") + "#" + symbol
 	return template.HTML(`<svg class="` + html.EscapeString(className) + `" aria-hidden="true" focusable="false"><use href="` + html.EscapeString(href) + `"></use></svg>`)
 }
 
-func (a *Assets) FuncMap() template.FuncMap {
+func (a *Bundle) FuncMap() template.FuncMap {
 	return template.FuncMap{
 		"asset":    a.URL,
 		"icon":     a.Icon,
@@ -134,16 +139,16 @@ func (a *Assets) FuncMap() template.FuncMap {
 }
 
 // ServeFile writes one asset, honouring conditional requests and gzip negotiation.
-func (a *Assets) ServeFile(w http.ResponseWriter, r *http.Request, name string) {
-	item, ok := a.files[name]
+func (a *Bundle) ServeFile(w http.ResponseWriter, r *http.Request, name string) {
+	file, ok := a.files[name]
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 
 	header := w.Header()
-	header.Set("Content-Type", item.contentType)
-	header.Set("ETag", item.etag)
+	header.Set("Content-Type", file.contentType)
+	header.Set("ETag", file.etag)
 	header.Set("Vary", "Accept-Encoding")
 	if r.URL.Query().Get("v") != "" || hashedNamePattern.MatchString(name) {
 		header.Set("Cache-Control", "public, max-age=31536000, immutable")
@@ -151,10 +156,10 @@ func (a *Assets) ServeFile(w http.ResponseWriter, r *http.Request, name string) 
 		header.Set("Cache-Control", "no-cache")
 	}
 
-	body := item.data
-	if item.gzipped != nil && acceptsGzip(r) {
+	body := file.content
+	if file.gzipped != nil && acceptsGzip(r) {
 		header.Set("Content-Encoding", "gzip")
-		body = item.gzipped
+		body = file.gzipped
 	}
 	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
 }
@@ -174,7 +179,7 @@ func acceptsGzip(r *http.Request) bool {
 	return false
 }
 
-func (a *Assets) Handler() http.Handler {
+func (a *Bundle) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		a.ServeFile(w, r, strings.TrimPrefix(r.URL.Path, "/static/"))
 	})

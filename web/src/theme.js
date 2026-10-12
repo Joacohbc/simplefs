@@ -1,11 +1,11 @@
-// Runs synchronously in <head> to apply the saved theme before first paint.
-(function () {
-  var saved = null;
+(function applySavedThemeBeforeFirstPaint() {
+  var savedTheme = null;
   try {
-    saved = localStorage.getItem('theme');
-  } catch (e) {}
-  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  if (saved === 'dark' || (!saved && prefersDark)) {
-    document.documentElement.classList.add('dark');
+    savedTheme = localStorage.getItem('theme');
+  } catch (storageUnavailable) {
+    savedTheme = null;
   }
+  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var shouldUseDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+  if (shouldUseDark) document.documentElement.classList.add('dark');
 })();

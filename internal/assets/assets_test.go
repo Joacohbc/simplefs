@@ -13,7 +13,7 @@ import (
 	"simplefs/internal/assets"
 )
 
-func newAssets(t *testing.T) *assets.Assets {
+func newAssets(t *testing.T) *assets.Bundle {
 	t.Helper()
 	fsys := fstest.MapFS{
 		"static/style.css":           {Data: []byte(strings.Repeat("body{color:red}", 200))},

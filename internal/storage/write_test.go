@@ -17,7 +17,7 @@ import (
 
 func TestWriteFile_ConflictPolicies(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	first, err := svc.WriteFile("inbox", "report.txt", strings.NewReader("v1"), storage.WriteOptions{Conflict: storage.ConflictFail, CreateParents: true})
 	if err != nil {
@@ -74,7 +74,7 @@ func (f *failingReader) Read(p []byte) (int, error) {
 
 func TestWriteFile_IsAtomic(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	if _, err := svc.WriteFile("", "broken.bin", &failingReader{}, storage.WriteOptions{}); err == nil {
 		t.Fatal("expected interrupted upload to fail")
@@ -97,7 +97,7 @@ func TestWriteFile_UsesConfiguredModes(t *testing.T) {
 		t.Skip("POSIX permissions only")
 	}
 	tempDir := t.TempDir()
-	svc := storage.NewServiceWithOptions(tempDir, storage.Options{FileMode: 0640, DirMode: 0750})
+	svc := storage.NewFileStoreWithOptions(tempDir, storage.Options{FileMode: 0640, DirMode: 0750})
 	if _, err := svc.WriteFile("a/b", "file.txt", strings.NewReader("x"), storage.WriteOptions{CreateParents: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestWriteFile_UsesConfiguredModes(t *testing.T) {
 
 func TestCreateFolderPath(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 	if err := svc.CreateFolderPath("one/two/three"); err != nil {
 		t.Fatalf("CreateFolderPath failed: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestCreateFolderPath(t *testing.T) {
 
 func TestListStatSearchRecent(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	write := func(path, content string, age time.Duration) {
 		full := filepath.Join(tempDir, filepath.FromSlash(path))
@@ -167,42 +167,42 @@ func TestListStatSearchRecent(t *testing.T) {
 
 func TestStampChangesWithContent(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
-	before, err := svc.Stamp("dir", "")
+	before, err := svc.Stamp(storage.StampScopeDirectory, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	same, _ := svc.Stamp("dir", "")
+	same, _ := svc.Stamp(storage.StampScopeDirectory, "")
 	if before != same {
 		t.Error("stamp should be stable without changes")
 	}
 	if _, err := svc.WriteFile("", "new.txt", strings.NewReader("x"), storage.WriteOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	after, _ := svc.Stamp("dir", "")
+	after, _ := svc.Stamp(storage.StampScopeDirectory, "")
 	if before == after {
 		t.Error("stamp should change after a new file")
 	}
 
-	recentBefore, _ := svc.Stamp("recent", "")
+	recentBefore, _ := svc.Stamp(storage.StampScopeRecent, "")
 	if _, err := svc.WriteFile("deep/er", "x.txt", strings.NewReader("x"), storage.WriteOptions{CreateParents: true}); err != nil {
 		t.Fatal(err)
 	}
-	recentAfter, _ := svc.Stamp("recent", "")
+	recentAfter, _ := svc.Stamp(storage.StampScopeRecent, "")
 	if recentBefore == recentAfter {
 		t.Error("recent stamp should change after a nested write")
 	}
 
-	if _, err := svc.Stamp("dir", "missing"); !errors.Is(err, storage.ErrNotFound) {
+	if _, err := svc.Stamp(storage.StampScopeDirectory, "missing"); !errors.Is(err, storage.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
 
 func TestTrash_RestoresDotfiles(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
-	if err := svc.CreateFile("", ".env", []byte("KEY=1")); err != nil {
+	svc := storage.NewFileStore(tempDir)
+	if err := writeTestFile(svc, "", ".env", []byte("KEY=1")); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.DeleteItem(".env"); err != nil {

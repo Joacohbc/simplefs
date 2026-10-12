@@ -27,11 +27,11 @@ var trashMutex sync.Mutex
 
 const trashMetaFileName = ".meta.json"
 
-func (s *Service) getTrashDir() string {
+func (s *FileStore) getTrashDir() string {
 	return filepath.Join(s.baseDirectory, trashDirName)
 }
 
-func (s *Service) getTrashMetaFile() string {
+func (s *FileStore) getTrashMetaFile() string {
 	return filepath.Join(s.getTrashDir(), trashMetaFileName)
 }
 
@@ -43,12 +43,12 @@ func validTrashName(trashName string) (string, error) {
 	return cleanName, nil
 }
 
-func (s *Service) ensureTrashDir() error {
+func (s *FileStore) ensureTrashDir() error {
 	trashDir := s.getTrashDir()
 	return os.MkdirAll(trashDir, 0700)
 }
 
-func (s *Service) loadTrashMeta() TrashMetaStore {
+func (s *FileStore) loadTrashMeta() TrashMetaStore {
 	store := TrashMetaStore{Items: make(map[string]TrashMetaEntry)}
 	metaFile := s.getTrashMetaFile()
 	data, err := os.ReadFile(metaFile)
@@ -62,7 +62,7 @@ func (s *Service) loadTrashMeta() TrashMetaStore {
 	return store
 }
 
-func (s *Service) saveTrashMeta(store TrashMetaStore) error {
+func (s *FileStore) saveTrashMeta(store TrashMetaStore) error {
 	if err := s.ensureTrashDir(); err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (s *Service) saveTrashMeta(store TrashMetaStore) error {
 }
 
 // MoveToTrash moves a file or directory into .trash and records its original path.
-func (s *Service) MoveToTrash(relativePath string) error {
+func (s *FileStore) MoveToTrash(relativePath string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
@@ -84,51 +84,31 @@ func (s *Service) MoveToTrash(relativePath string) error {
 	if err != nil {
 		return err
 	}
-
-	fileInfo, err := os.Lstat(absolutePath)
+	entryInfo, err := os.Lstat(absolutePath)
 	if err != nil {
 		return ErrNotFound
 	}
-
 	if err := s.ensureTrashDir(); err != nil {
 		return fmt.Errorf("failed to prepare trash directory: %w", err)
 	}
 
-	store := s.loadTrashMeta()
-
-	baseName := filepath.Base(absolutePath)
-	targetTrashName := baseName
 	trashDir := s.getTrashDir()
-	destinationPath := filepath.Join(trashDir, targetTrashName)
-
-	// If name collision in trash, append timestamp
-	if _, err := os.Lstat(destinationPath); err == nil {
-		ext := filepath.Ext(baseName)
-		nameWithoutExt := strings.TrimSuffix(baseName, ext)
-		targetTrashName = fmt.Sprintf("%s_%s%s", nameWithoutExt, time.Now().Format("20060102_150405"), ext)
-		targetTrashName = uniqueName(trashDir, targetTrashName)
-		destinationPath = filepath.Join(trashDir, targetTrashName)
+	trashName := uniqueEntryName(trashDir, filepath.Base(absolutePath), entryInfo.IsDir())
+	if err := moveEntry(absolutePath, filepath.Join(trashDir, trashName), entryInfo.IsDir(), s.options); err != nil {
+		return fmt.Errorf("cannot move to trash: %w", err)
 	}
 
-	// Move item into trash
-	if err := os.Rename(absolutePath, destinationPath); err != nil {
-		// Fallback for cross-device moves
-		if copyErr := moveCrossDevice(absolutePath, destinationPath, fileInfo.IsDir(), s.options); copyErr != nil {
-			return fmt.Errorf("cannot move to trash: %w", copyErr)
-		}
-	}
-
-	store.Items[targetTrashName] = TrashMetaEntry{
+	trashIndex := s.loadTrashMeta()
+	trashIndex.Items[trashName] = TrashMetaEntry{
 		OriginalPath: filepath.ToSlash(cleanRelative),
 		DeletedAt:    time.Now(),
-		IsDir:        fileInfo.IsDir(),
+		IsDir:        entryInfo.IsDir(),
 	}
-
-	return s.saveTrashMeta(store)
+	return s.saveTrashMeta(trashIndex)
 }
 
 // GetTrashPage retrieves all items in the trash directory and returns PageData with IsTrash = true.
-func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models.PageData, error) {
+func (s *FileStore) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models.PageData, error) {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
@@ -196,7 +176,7 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 }
 
 // RestoreFromTrash restores a trashed item back to its original location or root.
-func (s *Service) RestoreFromTrash(trashName string) error {
+func (s *FileStore) RestoreFromTrash(trashName string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
@@ -204,50 +184,43 @@ func (s *Service) RestoreFromTrash(trashName string) error {
 	if err != nil {
 		return err
 	}
-
-	trashDir := s.getTrashDir()
-	sourcePath := filepath.Join(trashDir, cleanName)
-
-	fileInfo, err := os.Lstat(sourcePath)
+	sourcePath := filepath.Join(s.getTrashDir(), cleanName)
+	entryInfo, err := os.Lstat(sourcePath)
 	if err != nil {
 		return ErrNotFound
 	}
 
-	store := s.loadTrashMeta()
-	meta, hasMeta := store.Items[cleanName]
-
-	targetRelPath := cleanName
-	if hasMeta && meta.OriginalPath != "" {
-		targetRelPath = meta.OriginalPath
-	}
-
-	// Resolve through ResolvePath so a parent swapped for a symlink cannot redirect the restore outside the root.
-	destPath, err := s.ResolvePath(targetRelPath)
+	trashIndex := s.loadTrashMeta()
+	destinationPath, err := s.restoreDestination(cleanName, trashIndex.Items[cleanName])
 	if err != nil {
-		destPath, err = s.ResolvePath(cleanName)
-		if err != nil {
-			return err
-		}
-	}
-
-	destParent := filepath.Dir(destPath)
-	if err := os.MkdirAll(destParent, s.options.DirMode); err != nil {
 		return err
 	}
-	destPath = filepath.Join(destParent, uniqueName(destParent, filepath.Base(destPath)))
-
-	if err := os.Rename(sourcePath, destPath); err != nil {
-		if copyErr := moveCrossDevice(sourcePath, destPath, fileInfo.IsDir(), s.options); copyErr != nil {
-			return copyErr
-		}
+	destinationParent := filepath.Dir(destinationPath)
+	if err := os.MkdirAll(destinationParent, s.options.DirMode); err != nil {
+		return err
+	}
+	restoredName := uniqueEntryName(destinationParent, filepath.Base(destinationPath), entryInfo.IsDir())
+	if err := moveEntry(sourcePath, filepath.Join(destinationParent, restoredName), entryInfo.IsDir(), s.options); err != nil {
+		return err
 	}
 
-	delete(store.Items, cleanName)
-	return s.saveTrashMeta(store)
+	delete(trashIndex.Items, cleanName)
+	return s.saveTrashMeta(trashIndex)
+}
+
+// restoreDestination resolves the original location through ResolvePath so a parent
+// swapped for a symlink cannot redirect the restore outside the root.
+func (s *FileStore) restoreDestination(trashName string, meta TrashMetaEntry) (string, error) {
+	if meta.OriginalPath != "" {
+		if destination, err := s.ResolvePath(meta.OriginalPath); err == nil {
+			return destination, nil
+		}
+	}
+	return s.ResolvePath(trashName)
 }
 
 // DeletePermanentFromTrash permanently deletes an item from trash.
-func (s *Service) DeletePermanentFromTrash(trashName string) error {
+func (s *FileStore) DeletePermanentFromTrash(trashName string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
@@ -273,7 +246,7 @@ func (s *Service) DeletePermanentFromTrash(trashName string) error {
 }
 
 // EmptyTrash removes all items currently in the trash.
-func (s *Service) EmptyTrash() error {
+func (s *FileStore) EmptyTrash() error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
@@ -290,29 +263,36 @@ func (s *Service) EmptyTrash() error {
 		_ = os.RemoveAll(filepath.Join(trashDir, entry.Name()))
 	}
 
-	store := TrashMetaStore{Items: make(map[string]TrashMetaEntry)}
-	return s.saveTrashMeta(store)
+	return s.saveTrashMeta(TrashMetaStore{Items: make(map[string]TrashMetaEntry)})
 }
 
-func moveCrossDevice(src, dst string, isDir bool, options Options) error {
-	if isDir {
-		if err := os.MkdirAll(dst, options.DirMode); err != nil {
-			return err
-		}
-		entries, err := os.ReadDir(src)
-		if err != nil {
-			return err
-		}
-		for _, e := range entries {
-			if err := moveCrossDevice(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()), e.IsDir(), options); err != nil {
-				return err
-			}
-		}
-		return os.RemoveAll(src)
+func moveEntry(source, destination string, isDir bool, options Options) error {
+	if err := os.Rename(source, destination); err == nil {
+		return nil
 	}
-
-	if err := copyFile(src, dst, options.FileMode); err != nil {
+	if isDir {
+		return moveDirectoryAcrossDevices(source, destination, options)
+	}
+	if err := copyFile(source, destination, options.FileMode); err != nil {
 		return err
 	}
-	return os.Remove(src)
+	return os.Remove(source)
+}
+
+func moveDirectoryAcrossDevices(source, destination string, options Options) error {
+	if err := os.MkdirAll(destination, options.DirMode); err != nil {
+		return err
+	}
+	children, err := os.ReadDir(source)
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		childSource := filepath.Join(source, child.Name())
+		childDestination := filepath.Join(destination, child.Name())
+		if err := moveEntry(childSource, childDestination, child.IsDir(), options); err != nil {
+			return err
+		}
+	}
+	return os.RemoveAll(source)
 }

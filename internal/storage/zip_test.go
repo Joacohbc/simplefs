@@ -36,7 +36,7 @@ func createTestZipBuffer(t *testing.T, files map[string]string) *bytes.Buffer {
 
 func TestZip_ValidExtraction(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	files := map[string]string{
 		"hello.txt":               "Hello World",
@@ -73,7 +73,7 @@ func TestZip_ValidExtraction(t *testing.T) {
 
 func TestZip_CollisionHandling(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	files := map[string]string{"file.txt": "data"}
 
@@ -85,8 +85,8 @@ func TestZip_CollisionHandling(t *testing.T) {
 
 	zipBuf2 := createTestZipBuffer(t, files)
 	name2, err := svc.ExtractZipFile("", "docs.zip", zipBuf2)
-	if err != nil || name2 != "docs_1" {
-		t.Fatalf("second extract expected 'docs_1', got %q, err: %v", name2, err)
+	if err != nil || name2 != "docs (1)" {
+		t.Fatalf("second extract expected 'docs (1)', got %q, err: %v", name2, err)
 	}
 }
 
@@ -106,7 +106,7 @@ func TestZip_PathTraversalZipSlip(t *testing.T) {
 	for _, tc := range traversalCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			svc := storage.NewService(tempDir)
+			svc := storage.NewFileStore(tempDir)
 
 			buf := new(bytes.Buffer)
 			zw := zip.NewWriter(buf)
@@ -132,7 +132,7 @@ func TestZip_PathTraversalZipSlip(t *testing.T) {
 
 func TestZip_SymlinkForbidden(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
@@ -156,7 +156,7 @@ func TestZip_SymlinkForbidden(t *testing.T) {
 
 func TestZip_SpecialDeviceForbidden(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
@@ -176,7 +176,7 @@ func TestZip_SpecialDeviceForbidden(t *testing.T) {
 
 func TestZip_DotfilesAreExtracted(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	buf := createTestZipBuffer(t, map[string]string{
 		".gitignore":          "node_modules\n",
@@ -204,7 +204,7 @@ func TestZip_RestrictedSegment(t *testing.T) {
 	for _, entryName := range restrictedCases {
 		t.Run(entryName, func(t *testing.T) {
 			tempDir := t.TempDir()
-			svc := storage.NewService(tempDir)
+			svc := storage.NewFileStore(tempDir)
 
 			buf := createTestZipBuffer(t, map[string]string{entryName: "secret"})
 			_, err := svc.ExtractZipFile("", "restricted.zip", buf)
@@ -217,7 +217,7 @@ func TestZip_RestrictedSegment(t *testing.T) {
 
 func TestZip_NullByteInFilename(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	buf := createTestZipBuffer(t, map[string]string{"evil\x00file.txt": "bad"})
 	_, err := svc.ExtractZipFile("", "nullbyte.zip", buf)
@@ -282,7 +282,7 @@ func TestZip_TotalSizeLimit(t *testing.T) {
 
 func TestZip_EmptyArchive(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
@@ -296,7 +296,7 @@ func TestZip_EmptyArchive(t *testing.T) {
 
 func TestZip_ExtractExistingZip(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	zipBuf := createTestZipBuffer(t, map[string]string{
 		"config.json": `{"test": true}`,
@@ -324,7 +324,7 @@ func TestZip_ExtractExistingZip(t *testing.T) {
 
 func TestZip_DownloadFolderAsZip(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	// Create test folder structure
 	folderPath := filepath.Join(tempDir, "sample_folder")
