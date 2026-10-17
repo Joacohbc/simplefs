@@ -19,241 +19,277 @@ const (
 	CategoryBinary    Category = "binary"
 )
 
+type Accent string
+
+const (
+	AccentPrimary Accent = "primary"
+	AccentNeutral Accent = "neutral"
+	AccentCode    Accent = "code"
+	AccentMedia   Accent = "media"
+	AccentAudio   Accent = "audio"
+	AccentArchive Accent = "archive"
+	AccentSheet   Accent = "sheet"
+	AccentPDF     Accent = "pdf"
+)
+
+type AccentClasses struct {
+	Text string
+	Tile string
+	Dot  string
+}
+
+// accentClasses holds literal class strings so the Tailwind scanner (which reads Go files) keeps them.
+var accentClasses = map[Accent]AccentClasses{
+	AccentPrimary: {Text: "text-primary", Tile: "bg-primary/10 text-primary", Dot: "bg-primary"},
+	AccentNeutral: {Text: "text-on-surface-variant", Tile: "bg-surface-container-high text-on-surface-variant", Dot: "bg-on-surface-variant"},
+	AccentCode:    {Text: "text-accent-code", Tile: "bg-accent-code/15 text-accent-code", Dot: "bg-accent-code"},
+	AccentMedia:   {Text: "text-accent-media", Tile: "bg-accent-media/15 text-accent-media", Dot: "bg-accent-media"},
+	AccentAudio:   {Text: "text-accent-audio", Tile: "bg-accent-audio/15 text-accent-audio", Dot: "bg-accent-audio"},
+	AccentArchive: {Text: "text-accent-archive", Tile: "bg-accent-archive/15 text-accent-archive", Dot: "bg-accent-archive"},
+	AccentSheet:   {Text: "text-accent-sheet", Tile: "bg-accent-sheet/15 text-accent-sheet", Dot: "bg-accent-sheet"},
+	AccentPDF:     {Text: "text-error", Tile: "bg-error/10 text-error", Dot: "bg-error"},
+}
+
+func ClassesFor(accent Accent) AccentClasses {
+	if classes, ok := accentClasses[accent]; ok {
+		return classes
+	}
+	return accentClasses[AccentNeutral]
+}
+
+// AccentFor derives the visual accent of a definition from its category and icon.
+func AccentFor(definition Definition) Accent {
+	if definition.Icon == "table_chart" {
+		return AccentSheet
+	}
+	switch definition.Category {
+	case CategoryDirectory:
+		return AccentPrimary
+	case CategoryImage, CategoryVideo:
+		return AccentMedia
+	case CategoryAudio:
+		return AccentAudio
+	case CategoryPDF:
+		return AccentPDF
+	case CategoryCode:
+		if definition.LanguageClass == "language-plaintext" || definition.Label == "Environment Config" {
+			return AccentNeutral
+		}
+		return AccentCode
+	case CategoryMarkdown:
+		return AccentNeutral
+	}
+	switch definition.Icon {
+	case "folder_zip":
+		return AccentArchive
+	case "article":
+		return AccentPrimary
+	}
+	return AccentNeutral
+}
+
 type Definition struct {
 	Category      Category
 	Label         string
 	Icon          string
-	ColorClass    string
 	LanguageClass string
 	MimeType      string
 }
 
 var directoryDefinition = Definition{
-	Category:   CategoryDirectory,
-	Label:      "Folder",
-	Icon:       "folder",
-	ColorClass: "text-primary dark:text-primary-fixed-dim",
+	Category: CategoryDirectory,
+	Label:    "Folder",
+	Icon:     "folder",
 }
 
 var defaultFileDefinition = Definition{
 	Category:      CategoryBinary,
 	Label:         "File",
 	Icon:          "description",
-	ColorClass:    "text-secondary dark:text-secondary-fixed-dim",
 	LanguageClass: "language-plaintext",
 	MimeType:      "application/octet-stream",
 }
 
 var registry = map[string]Definition{
 	".png": {
-		Category:   CategoryImage,
-		Label:      "PNG Image",
-		Icon:       "image",
-		ColorClass: "text-secondary dark:text-secondary-fixed-dim",
-		MimeType:   "image/png",
+		Category: CategoryImage,
+		Label:    "PNG Image",
+		Icon:     "image",
+		MimeType: "image/png",
 	},
 	".jpg": {
-		Category:   CategoryImage,
-		Label:      "JPEG Image",
-		Icon:       "image",
-		ColorClass: "text-secondary dark:text-secondary-fixed-dim",
-		MimeType:   "image/jpeg",
+		Category: CategoryImage,
+		Label:    "JPEG Image",
+		Icon:     "image",
+		MimeType: "image/jpeg",
 	},
 	".jpeg": {
-		Category:   CategoryImage,
-		Label:      "JPEG Image",
-		Icon:       "image",
-		ColorClass: "text-secondary dark:text-secondary-fixed-dim",
-		MimeType:   "image/jpeg",
+		Category: CategoryImage,
+		Label:    "JPEG Image",
+		Icon:     "image",
+		MimeType: "image/jpeg",
 	},
 	".webp": {
-		Category:   CategoryImage,
-		Label:      "WEBP Image",
-		Icon:       "image",
-		ColorClass: "text-secondary dark:text-secondary-fixed-dim",
-		MimeType:   "image/webp",
+		Category: CategoryImage,
+		Label:    "WEBP Image",
+		Icon:     "image",
+		MimeType: "image/webp",
 	},
 	".gif": {
-		Category:   CategoryImage,
-		Label:      "GIF Image",
-		Icon:       "image",
-		ColorClass: "text-secondary dark:text-secondary-fixed-dim",
-		MimeType:   "image/gif",
+		Category: CategoryImage,
+		Label:    "GIF Image",
+		Icon:     "image",
+		MimeType: "image/gif",
 	},
 	".svg": {
-		Category:   CategoryImage,
-		Label:      "SVG Vector",
-		Icon:       "image",
-		ColorClass: "text-secondary dark:text-secondary-fixed-dim",
-		MimeType:   "image/svg+xml",
+		Category: CategoryImage,
+		Label:    "SVG Vector",
+		Icon:     "image",
+		MimeType: "image/svg+xml",
 	},
 	".bmp": {
-		Category:   CategoryImage,
-		Label:      "BMP Image",
-		Icon:       "image",
-		ColorClass: "text-secondary dark:text-secondary-fixed-dim",
-		MimeType:   "image/bmp",
+		Category: CategoryImage,
+		Label:    "BMP Image",
+		Icon:     "image",
+		MimeType: "image/bmp",
 	},
 	".ico": {
-		Category:   CategoryImage,
-		Label:      "ICO Icon",
-		Icon:       "image",
-		ColorClass: "text-secondary dark:text-secondary-fixed-dim",
-		MimeType:   "image/x-icon",
+		Category: CategoryImage,
+		Label:    "ICO Icon",
+		Icon:     "image",
+		MimeType: "image/x-icon",
 	},
 	".pdf": {
-		Category:   CategoryPDF,
-		Label:      "PDF Document",
-		Icon:       "picture_as_pdf",
-		ColorClass: "text-error dark:text-error-container",
-		MimeType:   "application/pdf",
+		Category: CategoryPDF,
+		Label:    "PDF Document",
+		Icon:     "picture_as_pdf",
+		MimeType: "application/pdf",
 	},
 	".xlsx": {
-		Category:   CategoryBinary,
-		Label:      "Spreadsheet",
-		Icon:       "table_chart",
-		ColorClass: "text-emerald-600 dark:text-emerald-400",
-		MimeType:   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		Category: CategoryBinary,
+		Label:    "Spreadsheet",
+		Icon:     "table_chart",
+		MimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 	},
 	".xls": {
-		Category:   CategoryBinary,
-		Label:      "Spreadsheet",
-		Icon:       "table_chart",
-		ColorClass: "text-emerald-600 dark:text-emerald-400",
-		MimeType:   "application/vnd.ms-excel",
+		Category: CategoryBinary,
+		Label:    "Spreadsheet",
+		Icon:     "table_chart",
+		MimeType: "application/vnd.ms-excel",
 	},
 	".csv": {
 		Category:      CategoryCode,
 		Label:         "CSV Document",
 		Icon:          "table_chart",
-		ColorClass:    "text-emerald-600 dark:text-emerald-400",
 		LanguageClass: "language-plaintext",
 		MimeType:      "text/csv",
 	},
 	".doc": {
-		Category:   CategoryBinary,
-		Label:      "Word Document",
-		Icon:       "article",
-		ColorClass: "text-blue-600 dark:text-blue-400",
-		MimeType:   "application/msword",
+		Category: CategoryBinary,
+		Label:    "Word Document",
+		Icon:     "article",
+		MimeType: "application/msword",
 	},
 	".docx": {
-		Category:   CategoryBinary,
-		Label:      "Word Document",
-		Icon:       "article",
-		ColorClass: "text-blue-600 dark:text-blue-400",
-		MimeType:   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		Category: CategoryBinary,
+		Label:    "Word Document",
+		Icon:     "article",
+		MimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	},
 	".odt": {
-		Category:   CategoryBinary,
-		Label:      "OpenDocument Text",
-		Icon:       "article",
-		ColorClass: "text-blue-600 dark:text-blue-400",
-		MimeType:   "application/vnd.oasis.opendocument.text",
+		Category: CategoryBinary,
+		Label:    "OpenDocument Text",
+		Icon:     "article",
+		MimeType: "application/vnd.oasis.opendocument.text",
 	},
 	".mp4": {
-		Category:   CategoryVideo,
-		Label:      "MP4 Video",
-		Icon:       "movie",
-		ColorClass: "text-purple-600 dark:text-purple-400",
-		MimeType:   "video/mp4",
+		Category: CategoryVideo,
+		Label:    "MP4 Video",
+		Icon:     "movie",
+		MimeType: "video/mp4",
 	},
 	".mov": {
-		Category:   CategoryVideo,
-		Label:      "QuickTime Video",
-		Icon:       "movie",
-		ColorClass: "text-purple-600 dark:text-purple-400",
-		MimeType:   "video/quicktime",
+		Category: CategoryVideo,
+		Label:    "QuickTime Video",
+		Icon:     "movie",
+		MimeType: "video/quicktime",
 	},
 	".webm": {
-		Category:   CategoryVideo,
-		Label:      "WebM Video",
-		Icon:       "movie",
-		ColorClass: "text-purple-600 dark:text-purple-400",
-		MimeType:   "video/webm",
+		Category: CategoryVideo,
+		Label:    "WebM Video",
+		Icon:     "movie",
+		MimeType: "video/webm",
 	},
 	".mkv": {
-		Category:   CategoryVideo,
-		Label:      "Matroska Video",
-		Icon:       "movie",
-		ColorClass: "text-purple-600 dark:text-purple-400",
-		MimeType:   "video/x-matroska",
+		Category: CategoryVideo,
+		Label:    "Matroska Video",
+		Icon:     "movie",
+		MimeType: "video/x-matroska",
 	},
 	".mp3": {
-		Category:   CategoryAudio,
-		Label:      "MP3 Audio",
-		Icon:       "audiotrack",
-		ColorClass: "text-amber-600 dark:text-amber-400",
-		MimeType:   "audio/mpeg",
+		Category: CategoryAudio,
+		Label:    "MP3 Audio",
+		Icon:     "music_note",
+		MimeType: "audio/mpeg",
 	},
 	".wav": {
-		Category:   CategoryAudio,
-		Label:      "WAV Audio",
-		Icon:       "audiotrack",
-		ColorClass: "text-amber-600 dark:text-amber-400",
-		MimeType:   "audio/wav",
+		Category: CategoryAudio,
+		Label:    "WAV Audio",
+		Icon:     "music_note",
+		MimeType: "audio/wav",
 	},
 	".ogg": {
-		Category:   CategoryAudio,
-		Label:      "OGG Audio",
-		Icon:       "audiotrack",
-		ColorClass: "text-amber-600 dark:text-amber-400",
-		MimeType:   "audio/ogg",
+		Category: CategoryAudio,
+		Label:    "OGG Audio",
+		Icon:     "music_note",
+		MimeType: "audio/ogg",
 	},
 	".flac": {
-		Category:   CategoryAudio,
-		Label:      "FLAC Audio",
-		Icon:       "audiotrack",
-		ColorClass: "text-amber-600 dark:text-amber-400",
-		MimeType:   "audio/flac",
+		Category: CategoryAudio,
+		Label:    "FLAC Audio",
+		Icon:     "music_note",
+		MimeType: "audio/flac",
 	},
 	".m4a": {
-		Category:   CategoryAudio,
-		Label:      "M4A Audio",
-		Icon:       "audiotrack",
-		ColorClass: "text-amber-600 dark:text-amber-400",
-		MimeType:   "audio/mp4",
+		Category: CategoryAudio,
+		Label:    "M4A Audio",
+		Icon:     "music_note",
+		MimeType: "audio/mp4",
 	},
 	".zip": {
-		Category:   CategoryBinary,
-		Label:      "ZIP Archive",
-		Icon:       "folder_zip",
-		ColorClass: "text-orange-600 dark:text-orange-400",
-		MimeType:   "application/zip",
+		Category: CategoryBinary,
+		Label:    "ZIP Archive",
+		Icon:     "folder_zip",
+		MimeType: "application/zip",
 	},
 	".tar": {
-		Category:   CategoryBinary,
-		Label:      "TAR Archive",
-		Icon:       "folder_zip",
-		ColorClass: "text-orange-600 dark:text-orange-400",
-		MimeType:   "application/x-tar",
+		Category: CategoryBinary,
+		Label:    "TAR Archive",
+		Icon:     "folder_zip",
+		MimeType: "application/x-tar",
 	},
 	".gz": {
-		Category:   CategoryBinary,
-		Label:      "GZ Archive",
-		Icon:       "folder_zip",
-		ColorClass: "text-orange-600 dark:text-orange-400",
-		MimeType:   "application/gzip",
+		Category: CategoryBinary,
+		Label:    "GZ Archive",
+		Icon:     "folder_zip",
+		MimeType: "application/gzip",
 	},
 	".rar": {
-		Category:   CategoryBinary,
-		Label:      "RAR Archive",
-		Icon:       "folder_zip",
-		ColorClass: "text-orange-600 dark:text-orange-400",
-		MimeType:   "application/vnd.rar",
+		Category: CategoryBinary,
+		Label:    "RAR Archive",
+		Icon:     "folder_zip",
+		MimeType: "application/vnd.rar",
 	},
 	".7z": {
-		Category:   CategoryBinary,
-		Label:      "7-Zip Archive",
-		Icon:       "folder_zip",
-		ColorClass: "text-orange-600 dark:text-orange-400",
-		MimeType:   "application/x-7z-compressed",
+		Category: CategoryBinary,
+		Label:    "7-Zip Archive",
+		Icon:     "folder_zip",
+		MimeType: "application/x-7z-compressed",
 	},
 	".go": {
 		Category:      CategoryCode,
 		Label:         "Go Source Code",
 		Icon:          "code",
-		ColorClass:    "text-cyan-600 dark:text-cyan-400",
 		LanguageClass: "language-go",
 		MimeType:      "text/x-go",
 	},
@@ -261,7 +297,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "JavaScript Source",
 		Icon:          "code",
-		ColorClass:    "text-yellow-600 dark:text-yellow-400",
 		LanguageClass: "language-javascript",
 		MimeType:      "application/javascript",
 	},
@@ -269,7 +304,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "React JSX",
 		Icon:          "code",
-		ColorClass:    "text-yellow-600 dark:text-yellow-400",
 		LanguageClass: "language-javascript",
 		MimeType:      "text/jsx",
 	},
@@ -277,7 +311,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "TypeScript Source",
 		Icon:          "code",
-		ColorClass:    "text-yellow-600 dark:text-yellow-400",
 		LanguageClass: "language-typescript",
 		MimeType:      "application/typescript",
 	},
@@ -285,7 +318,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "React TSX",
 		Icon:          "code",
-		ColorClass:    "text-yellow-600 dark:text-yellow-400",
 		LanguageClass: "language-typescript",
 		MimeType:      "text/tsx",
 	},
@@ -293,7 +325,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "Python Script",
 		Icon:          "code",
-		ColorClass:    "text-blue-600 dark:text-blue-400",
 		LanguageClass: "language-python",
 		MimeType:      "text/x-python",
 	},
@@ -301,7 +332,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "Rust Source",
 		Icon:          "code",
-		ColorClass:    "text-orange-700 dark:text-orange-400",
 		LanguageClass: "language-rust",
 		MimeType:      "text/rust",
 	},
@@ -309,7 +339,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "HTML Document",
 		Icon:          "html",
-		ColorClass:    "text-orange-600 dark:text-orange-400",
 		LanguageClass: "language-html",
 		MimeType:      "text/html",
 	},
@@ -317,7 +346,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "HTML Document",
 		Icon:          "html",
-		ColorClass:    "text-orange-600 dark:text-orange-400",
 		LanguageClass: "language-html",
 		MimeType:      "text/html",
 	},
@@ -325,7 +353,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "CSS Stylesheet",
 		Icon:          "css",
-		ColorClass:    "text-blue-500 dark:text-blue-300",
 		LanguageClass: "language-css",
 		MimeType:      "text/css",
 	},
@@ -333,7 +360,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "JSON Document",
 		Icon:          "data_object",
-		ColorClass:    "text-teal-600 dark:text-teal-400",
 		LanguageClass: "language-json",
 		MimeType:      "application/json",
 	},
@@ -341,7 +367,6 @@ var registry = map[string]Definition{
 		Category:      CategoryMarkdown,
 		Label:         "Markdown Document",
 		Icon:          "description",
-		ColorClass:    "text-secondary dark:text-secondary-fixed-dim",
 		LanguageClass: "language-markdown",
 		MimeType:      "text/markdown",
 	},
@@ -349,7 +374,6 @@ var registry = map[string]Definition{
 		Category:      CategoryMarkdown,
 		Label:         "Markdown Document",
 		Icon:          "description",
-		ColorClass:    "text-secondary dark:text-secondary-fixed-dim",
 		LanguageClass: "language-markdown",
 		MimeType:      "text/markdown",
 	},
@@ -357,7 +381,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "Shell Script",
 		Icon:          "terminal",
-		ColorClass:    "text-green-600 dark:text-green-400",
 		LanguageClass: "language-bash",
 		MimeType:      "application/x-sh",
 	},
@@ -365,7 +388,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "SQL Query",
 		Icon:          "database",
-		ColorClass:    "text-indigo-600 dark:text-indigo-400",
 		LanguageClass: "language-sql",
 		MimeType:      "application/sql",
 	},
@@ -373,7 +395,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "YAML Document",
 		Icon:          "settings",
-		ColorClass:    "text-purple-600 dark:text-purple-400",
 		LanguageClass: "language-yaml",
 		MimeType:      "application/yaml",
 	},
@@ -381,7 +402,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "YAML Document",
 		Icon:          "settings",
-		ColorClass:    "text-purple-600 dark:text-purple-400",
 		LanguageClass: "language-yaml",
 		MimeType:      "application/yaml",
 	},
@@ -389,7 +409,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "C Source Code",
 		Icon:          "code",
-		ColorClass:    "text-blue-700 dark:text-blue-400",
 		LanguageClass: "language-cpp",
 		MimeType:      "text/x-c",
 	},
@@ -397,7 +416,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "C++ Source Code",
 		Icon:          "code",
-		ColorClass:    "text-blue-700 dark:text-blue-400",
 		LanguageClass: "language-cpp",
 		MimeType:      "text/x-c++",
 	},
@@ -405,15 +423,62 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "C/C++ Header",
 		Icon:          "code",
-		ColorClass:    "text-blue-700 dark:text-blue-400",
 		LanguageClass: "language-cpp",
 		MimeType:      "text/x-c",
+	},
+	".log": {
+		Category:      CategoryCode,
+		Label:         "Log File",
+		Icon:          "receipt_long",
+		LanguageClass: "language-plaintext",
+		MimeType:      "text/plain",
+	},
+	".toml": {
+		Category:      CategoryCode,
+		Label:         "TOML Document",
+		Icon:          "settings",
+		LanguageClass: "language-ini",
+		MimeType:      "application/toml",
+	},
+	".ini": {
+		Category:      CategoryCode,
+		Label:         "INI Config",
+		Icon:          "settings",
+		LanguageClass: "language-ini",
+		MimeType:      "text/plain",
+	},
+	".xml": {
+		Category:      CategoryCode,
+		Label:         "XML Document",
+		Icon:          "code",
+		LanguageClass: "language-xml",
+		MimeType:      "application/xml",
+	},
+	".java": {
+		Category:      CategoryCode,
+		Label:         "Java Source",
+		Icon:          "code",
+		LanguageClass: "language-java",
+		MimeType:      "text/x-java",
+	},
+	".rb": {
+		Category:      CategoryCode,
+		Label:         "Ruby Script",
+		Icon:          "code",
+		LanguageClass: "language-ruby",
+		MimeType:      "text/x-ruby",
+	},
+	".php": {
+		Category:      CategoryCode,
+		Label:         "PHP Script",
+		Icon:          "code",
+		LanguageClass: "language-php",
+		MimeType:      "text/x-php",
 	},
 	".txt": {
 		Category:      CategoryCode,
 		Label:         "Plain Text",
 		Icon:          "description",
-		ColorClass:    "text-secondary dark:text-secondary-fixed-dim",
 		LanguageClass: "language-plaintext",
 		MimeType:      "text/plain",
 	},
@@ -421,7 +486,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "Environment Config",
 		Icon:          "settings",
-		ColorClass:    "text-amber-700 dark:text-amber-400",
 		LanguageClass: "language-bash",
 		MimeType:      "text/plain",
 	},
@@ -429,7 +493,6 @@ var registry = map[string]Definition{
 		Category:      CategoryCode,
 		Label:         "Git Ignore",
 		Icon:          "settings",
-		ColorClass:    "text-red-600 dark:text-red-400",
 		LanguageClass: "language-plaintext",
 		MimeType:      "text/plain",
 	},

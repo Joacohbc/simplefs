@@ -16,7 +16,7 @@ import (
 
 func TestStorageService_PathTraversalAndRestrictedSegments(t *testing.T) {
 	tempDir := t.TempDir()
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	publicDir := filepath.Join(tempDir, "public")
 	if err := os.Mkdir(publicDir, 0700); err != nil {
@@ -36,12 +36,13 @@ func TestStorageService_PathTraversalAndRestrictedSegments(t *testing.T) {
 		{"backslash path", "public\\nested", false, nil},
 		{"path traversal with dot-dot", "../etc/passwd", true, storage.ErrInvalidPath},
 		{"nested path traversal", "public/../../etc", true, storage.ErrInvalidPath},
-		{"access to hidden dot-file", ".env", true, storage.ErrProtectedItem},
-		{"access to nested hidden folder", "public/.git/config", true, storage.ErrProtectedItem},
-		{"access to simplefs binary", "simplefs", true, storage.ErrProtectedItem},
-		{"access to node_modules", "node_modules", true, storage.ErrProtectedItem},
-		{"access to stitch directory", ".stitch", true, storage.ErrProtectedItem},
-		{"access to dc_simplefs directory", ".dc_simplefs", true, storage.ErrProtectedItem},
+		{"absolute path stays inside root", "/etc/passwd", false, nil},
+		{"dotfiles are regular files", ".env", false, nil},
+		{"nested dot folder", "public/.git/config", false, nil},
+		{"trash is reserved", ".trash", true, storage.ErrProtectedItem},
+		{"nested trash is reserved", "public/.trash/item", true, storage.ErrProtectedItem},
+		{"internal state is reserved", ".simplefs/token", true, storage.ErrProtectedItem},
+		{"in-flight uploads are reserved", ".simplefs-abc.part", true, storage.ErrProtectedItem},
 	}
 
 	for _, tt := range tests {
@@ -70,7 +71,7 @@ func TestStorageService_SymlinkSecurity(t *testing.T) {
 	tempDir := t.TempDir()
 	outsideDir := t.TempDir()
 
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	outsideSecret := filepath.Join(outsideDir, "secret.txt")
 	if err := os.WriteFile(outsideSecret, []byte("super-secret-data"), 0600); err != nil {
@@ -97,7 +98,7 @@ func TestStorageService_SymlinkSecurity(t *testing.T) {
 		t.Errorf("expected ErrSymlinkForbidden for deep path inside external symlink, got %v", err)
 	}
 
-	err = service.CreateFile("link_to_outside", "evil.txt", []byte("evil payload"))
+	err = writeTestFile(service, "link_to_outside", "evil.txt", []byte("evil payload"))
 	if err == nil {
 		t.Error("expected CreateFile inside external symlink to fail, but it succeeded")
 	}
@@ -112,14 +113,18 @@ func TestStorageService_SymlinkSecurity(t *testing.T) {
 		t.Fatalf("failed to create symlink: %v", err)
 	}
 
-	err = service.SaveUploadedFile("", "target_symlink.txt", bytes.NewReader([]byte("overwrite content")))
-	if !errors.Is(err, storage.ErrSymlinkOverwrite) {
-		t.Errorf("expected ErrSymlinkOverwrite on existing symlink, got %v", err)
+	// Writing over an existing symlink never follows it: the default policy renames the new file
+	// and overwrite is refused.
+	result, err := service.WriteFile("", "target_symlink.txt", bytes.NewReader([]byte("overwrite content")), storage.WriteOptions{Conflict: storage.ConflictRename})
+	if err != nil || result.Name == "target_symlink.txt" {
+		t.Errorf("expected renamed upload next to symlink, got %+v, %v", result, err)
 	}
-
-	err = service.CreateFile("", "target_symlink.txt", []byte("overwrite content"))
+	_, err = service.WriteFile("", "target_symlink.txt", bytes.NewReader([]byte("overwrite content")), storage.WriteOptions{Conflict: storage.ConflictOverwrite})
 	if !errors.Is(err, storage.ErrSymlinkOverwrite) {
-		t.Errorf("expected ErrSymlinkOverwrite in CreateFile on existing symlink, got %v", err)
+		t.Errorf("expected ErrSymlinkOverwrite when overwriting a symlink, got %v", err)
+	}
+	if secret, _ := os.ReadFile(outsideSecret); string(secret) != "super-secret-data" {
+		t.Errorf("symlink target was modified: %q", secret)
 	}
 
 	err = service.CreateFolder("", "target_symlink.txt")
@@ -161,7 +166,7 @@ func TestStorageService_SymlinkSecurity(t *testing.T) {
 
 func TestStorageService_GetDirectoryPage(t *testing.T) {
 	tempDir := t.TempDir()
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	if err := os.Mkdir(filepath.Join(tempDir, "docs"), 0700); err != nil {
 		t.Fatal(err)
@@ -169,10 +174,10 @@ func TestStorageService_GetDirectoryPage(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(tempDir, "images"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(tempDir, "node_modules"), 0700); err != nil {
+	if err := os.Mkdir(filepath.Join(tempDir, ".trash"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(tempDir, ".git"), 0700); err != nil {
+	if err := os.Mkdir(filepath.Join(tempDir, ".simplefs"), 0700); err != nil {
 		t.Fatal(err)
 	}
 
@@ -188,14 +193,11 @@ func TestStorageService_GetDirectoryPage(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tempDir, "beta.go"), []byte("package main"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(tempDir, ".env"), []byte("SECRET=123"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(tempDir, "simplefs"), []byte("binary"), 0700); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, ".simplefs-upload.part"), []byte("partial"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
-	t.Run("basic listing and restricted item exclusion", func(t *testing.T) {
+	t.Run("basic listing and reserved item exclusion", func(t *testing.T) {
 		page, err := service.GetDirectoryPage("", "", "", "name", "asc", "en")
 		if err != nil {
 			t.Fatalf("GetDirectoryPage failed: %v", err)
@@ -209,8 +211,8 @@ func TestStorageService_GetDirectoryPage(t *testing.T) {
 		}
 
 		for _, folder := range page.Folders {
-			if folder.Name == ".git" || folder.Name == "node_modules" {
-				t.Errorf("found restricted folder in listing: %s", folder.Name)
+			if folder.Name == ".trash" || folder.Name == ".simplefs" {
+				t.Errorf("found reserved folder in listing: %s", folder.Name)
 			}
 			if folder.Name == "docs" && folder.ItemCount != 2 {
 				t.Errorf("expected docs item count 2, got %d", folder.ItemCount)
@@ -218,8 +220,8 @@ func TestStorageService_GetDirectoryPage(t *testing.T) {
 		}
 
 		for _, file := range page.Files {
-			if file.Name == ".env" || file.Name == "simplefs" {
-				t.Errorf("found restricted file in listing: %s", file.Name)
+			if file.Name == ".simplefs-upload.part" {
+				t.Errorf("found in-flight upload in listing: %s", file.Name)
 			}
 		}
 
@@ -249,6 +251,49 @@ func TestStorageService_GetDirectoryPage(t *testing.T) {
 		}
 		if len(noMatchPage.Files) != 0 || len(noMatchPage.Folders) != 0 {
 			t.Errorf("expected empty page for unmatched query, got %d files, %d folders", len(noMatchPage.Files), len(noMatchPage.Folders))
+		}
+	})
+
+	t.Run("search is recursive and reports parent paths", func(t *testing.T) {
+		page, err := service.GetDirectoryPage("", "notes", "", "name", "asc", "en")
+		if err != nil {
+			t.Fatalf("GetDirectoryPage failed: %v", err)
+		}
+		if len(page.Files) != 1 || page.Files[0].RelPath != "docs/notes.txt" || page.Files[0].ParentPath != "docs" {
+			t.Fatalf("expected docs/notes.txt, got %+v", page.Files)
+		}
+	})
+
+	t.Run("dotfiles are listed unless hidden by option", func(t *testing.T) {
+		if err := os.WriteFile(filepath.Join(tempDir, ".env"), []byte("SECRET=123"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(filepath.Join(tempDir, ".env"))
+
+		page, err := service.GetDirectoryPage("", "", "", "name", "asc", "en")
+		if err != nil {
+			t.Fatalf("GetDirectoryPage failed: %v", err)
+		}
+		found := false
+		for _, file := range page.Files {
+			found = found || file.Name == ".env"
+		}
+		if !found {
+			t.Error("expected .env to be listed by default")
+		}
+
+		hidden := storage.NewFileStoreWithOptions(tempDir, storage.Options{HideDotfiles: true})
+		page, err = hidden.GetDirectoryPage("", "", "", "name", "asc", "en")
+		if err != nil {
+			t.Fatalf("GetDirectoryPage failed: %v", err)
+		}
+		for _, file := range page.Files {
+			if file.Name == ".env" {
+				t.Error("expected .env to be hidden with HideDotfiles")
+			}
+		}
+		if _, err := hidden.ResolvePath(".env"); !errors.Is(err, storage.ErrProtectedItem) {
+			t.Errorf("expected ErrProtectedItem for .env with HideDotfiles, got %v", err)
 		}
 	})
 
@@ -292,7 +337,7 @@ func TestStorageService_GetDirectoryPage(t *testing.T) {
 
 func TestStorageService_GetFileDetails(t *testing.T) {
 	tempDir := t.TempDir()
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	subDir := filepath.Join(tempDir, "subdir")
 	if err := os.Mkdir(subDir, 0700); err != nil {
@@ -367,7 +412,7 @@ func TestStorageService_GetFileDetails(t *testing.T) {
 
 func TestStorageService_GetFilePreview(t *testing.T) {
 	tempDir := t.TempDir()
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	codeContent := "package main\n\nfunc main() {\n\tprintln(\"test\")\n}\n"
 	codePath := filepath.Join(tempDir, "main.go")
@@ -453,7 +498,7 @@ func TestStorageService_GetFilePreview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetFilePreview failed: %v", err)
 		}
-		if preview.Content != "[File too large for inline text preview]" {
+		if preview.Content != "[File too large for inline text preview; download it instead]" {
 			t.Errorf("unexpected oversized notice: %q", preview.Content)
 		}
 	})
@@ -463,7 +508,7 @@ func TestStorageService_GetFilePreview(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetFilePreview failed: %v", err)
 		}
-		if preview.Content != "[Archivo demasiado grande para vista previa en texto]" {
+		if preview.Content != "[Archivo demasiado grande para vista previa en texto; descárgalo para verlo]" {
 			t.Errorf("unexpected spanish oversized notice: %q", preview.Content)
 		}
 	})
@@ -503,7 +548,7 @@ func TestStorageService_GetFilePreview(t *testing.T) {
 
 func TestStorageService_CRUDOperations(t *testing.T) {
 	tempDir := t.TempDir()
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	t.Run("CreateFolder happy path and invalid names", func(t *testing.T) {
 		if err := service.CreateFolder("", "documents"); err != nil {
@@ -513,11 +558,15 @@ func TestStorageService_CRUDOperations(t *testing.T) {
 			t.Fatalf("nested CreateFolder failed: %v", err)
 		}
 
-		invalidFolderNames := []string{"", "   ", "a/b", "a\\b", "..", ".git", "node_modules", "simplefs"}
+		invalidFolderNames := []string{"", "   ", "a/b", "a\\b", "..", ".trash", ".simplefs", ".simplefs-x.part", "bad\x00name", strings.Repeat("a", 256)}
 		for _, name := range invalidFolderNames {
 			if err := service.CreateFolder("", name); !errors.Is(err, storage.ErrInvalidName) {
 				t.Errorf("expected ErrInvalidName for folder %q, got %v", name, err)
 			}
+		}
+
+		if err := service.CreateFolder("", ".config"); err != nil {
+			t.Errorf("expected dot folders to be allowed, got %v", err)
 		}
 
 		if err := service.CreateFolder("missing_parent/sub", "valid"); !errors.Is(err, storage.ErrNotFound) {
@@ -531,7 +580,7 @@ func TestStorageService_CRUDOperations(t *testing.T) {
 
 	t.Run("CreateFile happy path and invalid names", func(t *testing.T) {
 		content := []byte("report data")
-		if err := service.CreateFile("documents/reports", "annual.csv", content); err != nil {
+		if err := writeTestFile(service, "documents/reports", "annual.csv", content); err != nil {
 			t.Fatalf("CreateFile failed: %v", err)
 		}
 
@@ -541,25 +590,29 @@ func TestStorageService_CRUDOperations(t *testing.T) {
 			t.Errorf("unexpected file content: %s, err: %v", string(readBytes), err)
 		}
 
-		invalidFilenames := []string{"", "   ", "a/b", "a\\b", "..", ".env", "node_modules", "simplefs"}
+		invalidFilenames := []string{"", "   ", "a/b", "a\\b", "..", ".trash", ".simplefs"}
 		for _, name := range invalidFilenames {
-			if err := service.CreateFile("", name, []byte("data")); !errors.Is(err, storage.ErrInvalidName) {
+			if err := writeTestFile(service, "", name, []byte("data")); !errors.Is(err, storage.ErrInvalidName) {
 				t.Errorf("expected ErrInvalidName for filename %q, got %v", name, err)
 			}
 		}
 
-		if err := service.CreateFile("missing_parent", "file.txt", []byte("data")); !errors.Is(err, storage.ErrNotFound) {
+		if err := writeTestFile(service, "", ".env", []byte("KEY=1")); err != nil {
+			t.Errorf("expected dotfiles to be allowed, got %v", err)
+		}
+
+		if err := writeTestFile(service, "missing_parent", "file.txt", []byte("data")); !errors.Is(err, storage.ErrNotFound) {
 			t.Errorf("expected ErrNotFound for non-existent parent, got %v", err)
 		}
 
-		if err := service.CreateFile("../escape", "file.txt", []byte("data")); !errors.Is(err, storage.ErrInvalidPath) {
+		if err := writeTestFile(service, "../escape", "file.txt", []byte("data")); !errors.Is(err, storage.ErrInvalidPath) {
 			t.Errorf("expected ErrInvalidPath for traversal parent, got %v", err)
 		}
 	})
 
 	t.Run("SaveUploadedFile happy path and invalid names", func(t *testing.T) {
 		payload := "uploaded content payload"
-		if err := service.SaveUploadedFile("documents", "upload.txt", strings.NewReader(payload)); err != nil {
+		if err := writeTestStream(service, "documents", "upload.txt", strings.NewReader(payload)); err != nil {
 			t.Fatalf("SaveUploadedFile failed: %v", err)
 		}
 
@@ -569,18 +622,18 @@ func TestStorageService_CRUDOperations(t *testing.T) {
 			t.Errorf("unexpected uploaded content: %s, err: %v", string(readBytes), err)
 		}
 
-		invalidUploadNames := []string{"", "   ", "../../evil.sh", ".bashrc", "simplefs", "node_modules"}
+		invalidUploadNames := []string{"", "   ", "../../evil.sh", ".trash", ".simplefs"}
 		for _, name := range invalidUploadNames {
-			if err := service.SaveUploadedFile("", name, strings.NewReader("payload")); !errors.Is(err, storage.ErrInvalidName) {
+			if err := writeTestStream(service, "", name, strings.NewReader("payload")); !errors.Is(err, storage.ErrInvalidName) {
 				t.Errorf("expected ErrInvalidName for upload %q, got %v", name, err)
 			}
 		}
 
-		if err := service.SaveUploadedFile("missing_dir", "valid.txt", strings.NewReader("payload")); !errors.Is(err, storage.ErrNotFound) {
+		if err := writeTestStream(service, "missing_dir", "valid.txt", strings.NewReader("payload")); !errors.Is(err, storage.ErrNotFound) {
 			t.Errorf("expected ErrNotFound for non-existent upload target dir, got %v", err)
 		}
 
-		if err := service.SaveUploadedFile("../escape", "valid.txt", strings.NewReader("payload")); !errors.Is(err, storage.ErrInvalidPath) {
+		if err := writeTestStream(service, "../escape", "valid.txt", strings.NewReader("payload")); !errors.Is(err, storage.ErrInvalidPath) {
 			t.Errorf("expected ErrInvalidPath for traversal upload dir, got %v", err)
 		}
 	})
@@ -623,7 +676,7 @@ func TestStorageService_CRUDOperations(t *testing.T) {
 			t.Errorf("expected ErrCannotDeleteRoot for '/', got %v", err)
 		}
 
-		protectedDeletions := []string{".git", "node_modules", "simplefs", ".stitch", ".dc_simplefs"}
+		protectedDeletions := []string{".trash", ".simplefs", "docs/.trash"}
 		for _, name := range protectedDeletions {
 			if err := service.DeleteItem(name); !errors.Is(err, storage.ErrProtectedItem) {
 				t.Errorf("expected ErrProtectedItem for %q, got %v", name, err)
@@ -638,7 +691,7 @@ func TestStorageService_CRUDOperations(t *testing.T) {
 
 func TestStorageService_GetDownloadFile(t *testing.T) {
 	tempDir := t.TempDir()
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	htmlPath := filepath.Join(tempDir, "page.html")
 	if err := os.WriteFile(htmlPath, []byte("<html></html>"), 0600); err != nil {
@@ -779,7 +832,7 @@ func TestStorageService_FormatBytes(t *testing.T) {
 
 func TestStorageService_SortingAndComparators(t *testing.T) {
 	tempDir := t.TempDir()
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	now := time.Now()
 	folders := []string{"folder_b", "folder_a", "folder_c"}
@@ -881,7 +934,7 @@ func TestStorageService_SortingAndComparators(t *testing.T) {
 
 func TestStorageService_Concurrency(t *testing.T) {
 	tempDir := t.TempDir()
-	service := storage.NewService(tempDir)
+	service := storage.NewFileStore(tempDir)
 
 	var wg sync.WaitGroup
 	workers := 10
@@ -897,7 +950,7 @@ func TestStorageService_Concurrency(t *testing.T) {
 				_ = service.CreateFolder("", folderName)
 
 				filename := "concurrent_test.txt"
-				_ = service.CreateFile(folderName, filename, []byte("data"))
+				_ = writeTestFile(service, folderName, filename, []byte("data"))
 
 				_, _ = service.GetDirectoryPage(folderName, "", "list", "name", "asc", "en")
 				_, _ = service.GetFileDetails(filepath.Join(folderName, filename), "en")
@@ -905,7 +958,7 @@ func TestStorageService_Concurrency(t *testing.T) {
 				_, _, _, _, _ = service.GetDownloadFile(filepath.Join(folderName, filename))
 
 				if workerID%2 == 0 {
-					_ = service.SaveUploadedFile(folderName, "stream.txt", strings.NewReader("streamed"))
+					_ = writeTestStream(service, folderName, "stream.txt", strings.NewReader("streamed"))
 				}
 			}
 		}()

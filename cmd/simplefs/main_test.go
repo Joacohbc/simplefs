@@ -4,6 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"flag"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -76,6 +81,7 @@ func TestParseConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			clearEnv(t)
 			if tt.envPort != "" {
 				t.Setenv("PORT", tt.envPort)
 			} else {
@@ -119,5 +125,129 @@ func TestParseConfiguration(t *testing.T) {
 				t.Errorf("got storage directory %q, want %q", config.StorageDirectory, tt.expectedStorageDir)
 			}
 		})
+	}
+}
+
+func clearEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{"PORT", "BIND", "STORAGE_DIR", "SIMPLEFS_TOKEN", "SIMPLEFS_TOKEN_FILE", "SIMPLEFS_READ_TOKEN", "SIMPLEFS_READ_TOKEN_FILE",
+		"SIMPLEFS_NO_AUTH", "ALLOWED_HOSTS", "MAX_UPLOAD_SIZE", "FILE_MODE", "DIR_MODE", "HIDE_DOTFILES", "ACCESS_LOG"} {
+		t.Setenv(key, "")
+	}
+}
+
+func TestParseConfiguration_SecurityOptions(t *testing.T) {
+	clearEnv(t)
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenFile, []byte("from-file\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SIMPLEFS_TOKEN_FILE", tokenFile)
+	t.Setenv("ALLOWED_HOSTS", "files.example.com, .ts.net")
+	t.Setenv("MAX_UPLOAD_SIZE", "2G")
+	t.Setenv("BIND", "100.64.0.1")
+
+	config, err := parseConfiguration([]string{"--file-mode", "0640", "--read-token", "reader"}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Token != "from-file" || config.ReadToken != "reader" {
+		t.Errorf("unexpected tokens: %q %q", config.Token, config.ReadToken)
+	}
+	if len(config.AllowedHosts) != 2 || config.AllowedHosts[1] != ".ts.net" {
+		t.Errorf("unexpected allowed hosts %v", config.AllowedHosts)
+	}
+	if config.MaxUploadBytes != 2<<30 || config.FileMode != 0640 || config.DirMode != 0755 {
+		t.Errorf("unexpected limits: %d %v %v", config.MaxUploadBytes, config.FileMode, config.DirMode)
+	}
+	if listenAddress(config) != "100.64.0.1:8080" {
+		t.Errorf("unexpected listen address %q", listenAddress(config))
+	}
+
+	if _, err := parseConfiguration([]string{"--token", "same", "--read-token", "same"}, io.Discard); err == nil {
+		t.Error("identical read and write tokens must be rejected")
+	}
+	if _, err := parseConfiguration([]string{"--file-mode", "999"}, io.Discard); err == nil {
+		t.Error("invalid file mode must be rejected")
+	}
+	if _, err := parseConfiguration([]string{"--max-upload", "lots"}, io.Discard); err == nil {
+		t.Error("invalid size must be rejected")
+	}
+}
+
+func TestParseSize(t *testing.T) {
+	cases := map[string]int64{"": 0, "0": 0, "1024": 1024, "512K": 512 << 10, "10MB": 10 << 20, "1.5G": 3 << 29, "2GiB": 2 << 30, "1t": 1 << 40}
+	for input, expected := range cases {
+		got, err := ParseSize(input)
+		if err != nil || got != expected {
+			t.Errorf("ParseSize(%q) = %d, %v; want %d", input, got, err, expected)
+		}
+	}
+}
+
+func TestServerIntegration(t *testing.T) {
+	clearEnv(t)
+	storageDir := t.TempDir()
+	config, err := parseConfiguration([]string{"-d", storageDir, "--access-log=false"}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authenticator, err := buildAuthenticator(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := os.ReadFile(tokenFilePath(storageDir))
+	if err != nil {
+		t.Fatalf("a token should be generated and stored: %v", err)
+	}
+	token := strings.TrimSpace(string(stored))
+
+	server, err := buildServer(config, authenticator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpServer := httptest.NewServer(server.Handler)
+	defer httpServer.Close()
+
+	request := func(method, path, host string, headers map[string]string, body io.Reader) *http.Response {
+		req, _ := http.NewRequest(method, httpServer.URL+path, body)
+		if host != "" {
+			req.Host = host
+		}
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
+		client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	bearer := map[string]string{"Authorization": "Bearer " + token}
+
+	if resp := request(http.MethodGet, "/healthz", "", nil, nil); resp.StatusCode != http.StatusOK {
+		t.Errorf("healthz: %d", resp.StatusCode)
+	}
+	if resp := request(http.MethodGet, "/api/v1/whoami", "", nil, nil); resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("unauthenticated API should be 401, got %d", resp.StatusCode)
+	}
+	resp := request(http.MethodGet, "/", "", bearer, nil)
+	if resp.StatusCode != http.StatusOK || strings.Contains(resp.Header.Get("Content-Security-Policy"), "unsafe-inline") {
+		t.Errorf("index: %d csp=%q", resp.StatusCode, resp.Header.Get("Content-Security-Policy"))
+	}
+	if resp := request(http.MethodGet, "/api/v1/whoami", "attacker.example", bearer, nil); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("DNS rebinding host should be rejected, got %d", resp.StatusCode)
+	}
+	crossSite := map[string]string{"Authorization": "Bearer " + token, "Origin": "http://evil.example"}
+	if resp := request(http.MethodPut, "/api/v1/files/x.txt", "", crossSite, strings.NewReader("x")); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("cross-origin write should be rejected, got %d", resp.StatusCode)
+	}
+	if resp := request(http.MethodPut, "/api/v1/files/inbox/x.txt", "", bearer, strings.NewReader("x")); resp.StatusCode != http.StatusCreated {
+		t.Errorf("authenticated PUT should succeed, got %d", resp.StatusCode)
+	}
+	if resp := request(http.MethodGet, "/static/style.css", "", map[string]string{"Accept-Encoding": "gzip"}, nil); resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		t.Errorf("static asset: %d", resp.StatusCode)
 	}
 }

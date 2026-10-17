@@ -1,28 +1,31 @@
 {
   "name": "simplefs",
   "version": "1.0.0",
-  "description": "Minimalist, high-performance file server with HTMX, Tailwind CSS and Go",
+  "description": "Lightweight file server for fast file exchange, with HTMX, Tailwind CSS and Go",
   "scripts": {
+    "build:icons": "node scripts/build-icons.mjs",
+    "build:js": "esbuild ./web/src/vendor.js ./web/src/app.js ./web/src/theme.js --bundle --minify --target=es2020 --outdir=./web/static",
+    "build:fonts": "esbuild ./web/src/vendor.css --bundle --minify --loader:.woff2=file --outdir=./web/static",
+    "build:vendor": "pnpm run build:icons && pnpm run build:js && pnpm run build:fonts",
     "build:css": "tailwindcss -i ./web/src/input.css -o ./web/static/style.css --minify",
     "dev:css": "tailwindcss -i ./web/src/input.css -o ./web/static/style.css --watch",
-    "build:vendor": "esbuild ./web/src/vendor.js --bundle --minify --outfile=./web/static/vendor.js && esbuild ./web/src/vendor.css --bundle --minify --loader:.woff2=file --loader:.woff=file --loader:.ttf=file --outdir=./web/static",
-    "build:go": "go build -o simplefs ./cmd/simplefs/main.go",
+    "build:go": "go build -trimpath -ldflags=\"-s -w\" -o simplefs ./cmd/simplefs",
     "build": "pnpm run build:vendor && pnpm run build:css && pnpm run build:go",
     "start": "./simplefs"
   },
   "devDependencies": {
-    "@tailwindcss/container-queries": "^0.1.1",
+    "@material-symbols/svg-400": "^0.48.0",
     "@tailwindcss/forms": "^0.5.10",
     "esbuild": "^0.28.2",
     "tailwindcss": "^3.4.17"
   },
   "dependencies": {
-    "@fontsource/inter": "^5.3.0",
-    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "dompurify": "^3.4.13",
     "highlight.js": "^11.12.0",
     "htmx.org": "^2.0.10",
-    "marked": "^18.0.9",
-    "material-symbols": "^0.46.0"
-  }
+    "marked": "^18.0.9"
+  },
+  "packageManager": "pnpm@10.28.0"
 }

@@ -3,14 +3,12 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"simplefs/internal/filetype"
 	"simplefs/internal/i18n"
 	"simplefs/internal/models"
 )
@@ -27,20 +25,30 @@ type TrashMetaStore struct {
 
 var trashMutex sync.Mutex
 
-func (s *Service) getTrashDir() string {
-	return filepath.Join(s.baseDirectory, ".trash")
+const trashMetaFileName = ".meta.json"
+
+func (s *FileStore) getTrashDir() string {
+	return filepath.Join(s.baseDirectory, trashDirName)
 }
 
-func (s *Service) getTrashMetaFile() string {
-	return filepath.Join(s.getTrashDir(), ".meta.json")
+func (s *FileStore) getTrashMetaFile() string {
+	return filepath.Join(s.getTrashDir(), trashMetaFileName)
 }
 
-func (s *Service) ensureTrashDir() error {
+func validTrashName(trashName string) (string, error) {
+	cleanName := filepath.Base(filepath.Clean(strings.TrimSpace(trashName)))
+	if cleanName == "" || cleanName == "." || cleanName == ".." || cleanName == trashMetaFileName || cleanName == string(filepath.Separator) {
+		return "", ErrInvalidName
+	}
+	return cleanName, nil
+}
+
+func (s *FileStore) ensureTrashDir() error {
 	trashDir := s.getTrashDir()
 	return os.MkdirAll(trashDir, 0700)
 }
 
-func (s *Service) loadTrashMeta() TrashMetaStore {
+func (s *FileStore) loadTrashMeta() TrashMetaStore {
 	store := TrashMetaStore{Items: make(map[string]TrashMetaEntry)}
 	metaFile := s.getTrashMetaFile()
 	data, err := os.ReadFile(metaFile)
@@ -54,7 +62,7 @@ func (s *Service) loadTrashMeta() TrashMetaStore {
 	return store
 }
 
-func (s *Service) saveTrashMeta(store TrashMetaStore) error {
+func (s *FileStore) saveTrashMeta(store TrashMetaStore) error {
 	if err := s.ensureTrashDir(); err != nil {
 		return err
 	}
@@ -67,70 +75,40 @@ func (s *Service) saveTrashMeta(store TrashMetaStore) error {
 }
 
 // MoveToTrash moves a file or directory into .trash and records its original path.
-func (s *Service) MoveToTrash(relativePath string) error {
+func (s *FileStore) MoveToTrash(relativePath string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
-	normalized := strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/")
-	cleanRelative := filepath.Clean(filepath.FromSlash(normalized))
-	if cleanRelative == "" || cleanRelative == "." || cleanRelative == "/" {
-		return ErrCannotDeleteRoot
-	}
-
-	for _, segment := range strings.Split(cleanRelative, string(filepath.Separator)) {
-		if isRestrictedSegment(segment) {
-			return ErrProtectedItem
-		}
-	}
-
-	absolutePath, err := s.ResolvePath(relativePath)
+	cleanRelative := cleanRelativePath(relativePath)
+	absolutePath, err := s.validateDeletable(cleanRelative)
 	if err != nil {
 		return err
 	}
-
-	fileInfo, err := os.Stat(absolutePath)
+	entryInfo, err := os.Lstat(absolutePath)
 	if err != nil {
 		return ErrNotFound
 	}
-
 	if err := s.ensureTrashDir(); err != nil {
 		return fmt.Errorf("failed to prepare trash directory: %w", err)
 	}
 
-	store := s.loadTrashMeta()
-
-	baseName := filepath.Base(absolutePath)
-	targetTrashName := baseName
 	trashDir := s.getTrashDir()
-	destinationPath := filepath.Join(trashDir, targetTrashName)
-
-	// If name collision in trash, append timestamp
-	if _, err := os.Stat(destinationPath); err == nil {
-		ext := filepath.Ext(baseName)
-		nameWithoutExt := strings.TrimSuffix(baseName, ext)
-		targetTrashName = fmt.Sprintf("%s_%s%s", nameWithoutExt, time.Now().Format("20060102_150405"), ext)
-		destinationPath = filepath.Join(trashDir, targetTrashName)
+	trashName := uniqueEntryName(trashDir, filepath.Base(absolutePath), entryInfo.IsDir())
+	if err := moveEntry(absolutePath, filepath.Join(trashDir, trashName), entryInfo.IsDir(), s.options); err != nil {
+		return fmt.Errorf("cannot move to trash: %w", err)
 	}
 
-	// Move item into trash
-	if err := os.Rename(absolutePath, destinationPath); err != nil {
-		// Fallback for cross-device moves
-		if copyErr := moveCrossDevice(absolutePath, destinationPath, fileInfo.IsDir()); copyErr != nil {
-			return fmt.Errorf("cannot move to trash: %w", copyErr)
-		}
-	}
-
-	store.Items[targetTrashName] = TrashMetaEntry{
+	trashIndex := s.loadTrashMeta()
+	trashIndex.Items[trashName] = TrashMetaEntry{
 		OriginalPath: filepath.ToSlash(cleanRelative),
 		DeletedAt:    time.Now(),
-		IsDir:        fileInfo.IsDir(),
+		IsDir:        entryInfo.IsDir(),
 	}
-
-	return s.saveTrashMeta(store)
+	return s.saveTrashMeta(trashIndex)
 }
 
 // GetTrashPage retrieves all items in the trash directory and returns PageData with IsTrash = true.
-func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models.PageData, error) {
+func (s *FileStore) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models.PageData, error) {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
@@ -152,7 +130,7 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.HasPrefix(name, ".") {
+		if name == trashMetaFileName {
 			continue
 		}
 
@@ -167,39 +145,10 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 			originalPath = meta.OriginalPath
 		}
 
-		extension := filepath.Ext(name)
-		typeDef := filetype.Resolve(extension, entry.IsDir())
-
-		childCount := 0
-		folderBgClass := ""
-		folderDotClass := ""
-		if entry.IsDir() {
-			childCount = countDirectoryChildren(filepath.Join(trashDir, name))
-			folderBgClass = "bg-primary/10 dark:bg-primary-container-dark/30 text-primary dark:text-primary-dark"
-			folderDotClass = "bg-primary dark:bg-primary-dark"
-		}
-
-		itemObj := models.FileInfo{
-			Name:              name,
-			RelPath:           name,
-			TrashOriginalPath: originalPath,
-			IsDir:             entry.IsDir(),
-			Size:              info.Size(),
-			FormattedSize:     FormatBytes(info.Size()),
-			ModTime:           info.ModTime(),
-			FormattedMod:      i18n.FormatDate(info.ModTime(), normalizedLang),
-			FormattedCreated:  i18n.FormatDate(info.ModTime(), normalizedLang),
-			ItemCount:         childCount,
-			TypeLabel:         typeDef.Label,
-			MaterialIcon:      typeDef.Icon,
-			IconColorClass:    typeDef.ColorClass,
-			FolderBgClass:     folderBgClass,
-			FolderDotClass:    folderDotClass,
-			IsImage:           typeDef.Category == filetype.CategoryImage,
-			IsZip:             !entry.IsDir() && strings.EqualFold(extension, ".zip"),
-			Category:          string(typeDef.Category),
-			Extension:         strings.TrimPrefix(strings.ToUpper(extension), "."),
-		}
+		itemObj := s.toFileInfo(name, info, "", trashDir, normalizedLang)
+		itemObj.RelPath = name
+		itemObj.ParentPath = ""
+		itemObj.TrashOriginalPath = originalPath
 
 		if entry.IsDir() {
 			folders = append(folders, itemObj)
@@ -209,12 +158,8 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 	}
 
 	normalizedSortBy, normalizedSortOrder := NormalizeSortParams(sortBy, sortOrder)
-	sortFolders(folders, normalizedSortBy, normalizedSortOrder)
-	sortFiles(files, normalizedSortBy, normalizedSortOrder)
-
-	if viewMode == "" {
-		viewMode = models.ViewModeList
-	}
+	sortItems(folders, normalizedSortBy, normalizedSortOrder)
+	sortItems(files, normalizedSortBy, normalizedSortOrder)
 
 	return models.PageData{
 		Path:        "",
@@ -224,80 +169,64 @@ func (s *Service) GetTrashPage(viewMode, sortBy, sortOrder, lang string) (models
 		Breadcrumbs: nil,
 		Folders:     folders,
 		Files:       files,
-		ViewMode:    viewMode,
+		ViewMode:    NormalizeViewMode(viewMode),
 		Lang:        normalizedLang,
 		IsTrash:     true,
 	}, nil
 }
 
 // RestoreFromTrash restores a trashed item back to its original location or root.
-func (s *Service) RestoreFromTrash(trashName string) error {
+func (s *FileStore) RestoreFromTrash(trashName string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
-	cleanName := filepath.Base(filepath.Clean(trashName))
-	if cleanName == "" || cleanName == "." || cleanName == ".." || strings.HasPrefix(cleanName, ".") {
-		return ErrInvalidName
+	cleanName, err := validTrashName(trashName)
+	if err != nil {
+		return err
 	}
-
-	trashDir := s.getTrashDir()
-	sourcePath := filepath.Join(trashDir, cleanName)
-
-	fileInfo, err := os.Stat(sourcePath)
+	sourcePath := filepath.Join(s.getTrashDir(), cleanName)
+	entryInfo, err := os.Lstat(sourcePath)
 	if err != nil {
 		return ErrNotFound
 	}
 
-	store := s.loadTrashMeta()
-	meta, hasMeta := store.Items[cleanName]
-
-	targetRelPath := cleanName
-	if hasMeta && meta.OriginalPath != "" {
-		targetRelPath = meta.OriginalPath
-	}
-
-	cleanTarget := filepath.Clean(filepath.FromSlash(targetRelPath))
-	if strings.HasPrefix(cleanTarget, "..") || filepath.IsAbs(cleanTarget) {
-		cleanTarget = cleanName
-	}
-
-	absBase, err := filepath.Abs(s.baseDirectory)
+	trashIndex := s.loadTrashMeta()
+	destinationPath, err := s.restoreDestination(cleanName, trashIndex.Items[cleanName])
 	if err != nil {
 		return err
 	}
-
-	destPath := filepath.Join(absBase, cleanTarget)
-	destParent := filepath.Dir(destPath)
-
-	if err := os.MkdirAll(destParent, 0700); err != nil {
+	destinationParent := filepath.Dir(destinationPath)
+	if err := os.MkdirAll(destinationParent, s.options.DirMode); err != nil {
+		return err
+	}
+	restoredName := uniqueEntryName(destinationParent, filepath.Base(destinationPath), entryInfo.IsDir())
+	if err := moveEntry(sourcePath, filepath.Join(destinationParent, restoredName), entryInfo.IsDir(), s.options); err != nil {
 		return err
 	}
 
-	// If destination already exists, append "_restored" to prevent overwriting
-	if _, err := os.Stat(destPath); err == nil {
-		ext := filepath.Ext(destPath)
-		noExt := strings.TrimSuffix(destPath, ext)
-		destPath = fmt.Sprintf("%s_restored%s", noExt, ext)
-	}
+	delete(trashIndex.Items, cleanName)
+	return s.saveTrashMeta(trashIndex)
+}
 
-	if err := os.Rename(sourcePath, destPath); err != nil {
-		if copyErr := moveCrossDevice(sourcePath, destPath, fileInfo.IsDir()); copyErr != nil {
-			return copyErr
+// restoreDestination resolves the original location through ResolvePath so a parent
+// swapped for a symlink cannot redirect the restore outside the root.
+func (s *FileStore) restoreDestination(trashName string, meta TrashMetaEntry) (string, error) {
+	if meta.OriginalPath != "" {
+		if destination, err := s.ResolvePath(meta.OriginalPath); err == nil {
+			return destination, nil
 		}
 	}
-
-	delete(store.Items, cleanName)
-	return s.saveTrashMeta(store)
+	return s.ResolvePath(trashName)
 }
 
 // DeletePermanentFromTrash permanently deletes an item from trash.
-func (s *Service) DeletePermanentFromTrash(trashName string) error {
+func (s *FileStore) DeletePermanentFromTrash(trashName string) error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
-	cleanName := filepath.Base(filepath.Clean(trashName))
-	if cleanName == "" || cleanName == "." || cleanName == ".." || strings.HasPrefix(cleanName, ".") {
-		return ErrInvalidName
+	cleanName, err := validTrashName(trashName)
+	if err != nil {
+		return err
 	}
 
 	trashDir := s.getTrashDir()
@@ -317,7 +246,7 @@ func (s *Service) DeletePermanentFromTrash(trashName string) error {
 }
 
 // EmptyTrash removes all items currently in the trash.
-func (s *Service) EmptyTrash() error {
+func (s *FileStore) EmptyTrash() error {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
 
@@ -328,48 +257,42 @@ func (s *Service) EmptyTrash() error {
 	}
 
 	for _, entry := range entries {
-		if entry.Name() == ".meta.json" {
+		if entry.Name() == trashMetaFileName {
 			continue
 		}
 		_ = os.RemoveAll(filepath.Join(trashDir, entry.Name()))
 	}
 
-	store := TrashMetaStore{Items: make(map[string]TrashMetaEntry)}
-	return s.saveTrashMeta(store)
+	return s.saveTrashMeta(TrashMetaStore{Items: make(map[string]TrashMetaEntry)})
 }
 
-func moveCrossDevice(src, dst string, isDir bool) error {
+func moveEntry(source, destination string, isDir bool, options Options) error {
+	if err := os.Rename(source, destination); err == nil {
+		return nil
+	}
 	if isDir {
-		if err := os.MkdirAll(dst, 0700); err != nil {
-			return err
-		}
-		entries, err := os.ReadDir(src)
-		if err != nil {
-			return err
-		}
-		for _, e := range entries {
-			if err := moveCrossDevice(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()), e.IsDir()); err != nil {
-				return err
-			}
-		}
-		return os.RemoveAll(src)
+		return moveDirectoryAcrossDevices(source, destination, options)
 	}
+	if err := copyFile(source, destination, options.FileMode); err != nil {
+		return err
+	}
+	return os.Remove(source)
+}
 
-	srcFile, err := os.Open(src)
+func moveDirectoryAcrossDevices(source, destination string, options Options) error {
+	if err := os.MkdirAll(destination, options.DirMode); err != nil {
+		return err
+	}
+	children, err := os.ReadDir(source)
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
-
-	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
+	for _, child := range children {
+		childSource := filepath.Join(source, child.Name())
+		childDestination := filepath.Join(destination, child.Name())
+		if err := moveEntry(childSource, childDestination, child.IsDir(), options); err != nil {
+			return err
+		}
 	}
-	defer dstFile.Close()
-
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return err
-	}
-
-	return os.Remove(src)
+	return os.RemoveAll(source)
 }

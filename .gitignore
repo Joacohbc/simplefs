@@ -12,6 +12,9 @@
 # Node & Package Managers
 node_modules/
 
+# Local environment
+.env
+
 # Storage / Uploads
 uploads/*
 !uploads/.gitkeep
@@ -25,6 +28,7 @@ web/static/*
 !web/static/.gitkeep
 !web/static/favicon.svg
 !web/static/app-icon.svg
+!web/static/apple-touch-icon.png
 
 # Agent & Design folders
 .agents/

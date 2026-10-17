@@ -10,16 +10,16 @@ import (
 
 func TestStorage_TrashOperations(t *testing.T) {
 	tempDir := t.TempDir()
-	svc := storage.NewService(tempDir)
+	svc := storage.NewFileStore(tempDir)
 
 	// Create test files and folders
 	if err := svc.CreateFolder("", "testfolder"); err != nil {
 		t.Fatalf("failed to create folder: %v", err)
 	}
-	if err := svc.CreateFile("", "testfile.txt", []byte("hello world")); err != nil {
+	if err := writeTestFile(svc, "", "testfile.txt", []byte("hello world")); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	if err := svc.CreateFile("testfolder", "nested.txt", []byte("nested")); err != nil {
+	if err := writeTestFile(svc, "testfolder", "nested.txt", []byte("nested")); err != nil {
 		t.Fatalf("failed to create nested file: %v", err)
 	}
 

@@ -5,7 +5,6 @@ import "time"
 const (
 	SortByName     = "name"
 	SortBySize     = "size"
-	SortByCreated  = "created"
 	SortByModified = "modified"
 
 	SortOrderAsc  = "asc"
@@ -16,24 +15,24 @@ const (
 )
 
 type FileInfo struct {
-	Name             string
-	RelPath          string
-	IsDir            bool
-	Size             int64
-	FormattedSize    string
-	ModTime          time.Time
-	FormattedMod     string
-	FormattedCreated string
-	ItemCount        int
-	TypeLabel        string
-	MaterialIcon     string
-	IconColorClass   string
-	FolderBgClass    string
-	FolderDotClass   string
-	IsImage          bool
-	IsZip            bool
+	Name              string
+	RelPath           string
+	IsDir             bool
+	Size              int64
+	FormattedSize     string
+	ModTime           time.Time
+	FormattedMod      string
+	ItemCount         int
+	TypeLabel         string
+	MaterialIcon      string
+	IconColorClass    string
+	TileClass         string
+	DotClass          string
+	IsImage           bool
+	IsZip             bool
 	Category          string
 	Extension         string
+	ParentPath        string
 	TrashOriginalPath string
 }
 
@@ -55,6 +54,10 @@ type PageData struct {
 	NotFound     bool
 	NotFoundPath string
 	IsTrash      bool
+	IsRecent     bool
+	Truncated    bool
+	ReadOnly     bool
+	AuthEnabled  bool
 }
 
 func (p PageData) TotalItems() int {
@@ -77,6 +80,7 @@ type PreviewData struct {
 	LineCount     int
 	LanguageClass string
 	MaterialIcon  string
+	IconClass     string
 	Lang          string
 }
 
@@ -90,9 +94,10 @@ type FileDetailsData struct {
 	DirLocation   string
 	TypeLabel     string
 	MaterialIcon  string
+	TileClass     string
 	FormattedSize string
-	CreatedDate   string
 	ModifiedDate  string
 	IsImage       bool
+	IsDir         bool
 	Lang          string
 }

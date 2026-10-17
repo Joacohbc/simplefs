@@ -1,137 +1,75 @@
-# Guía de Docker y Publicación de Paquetes para SimpleFS
+# Guía de Docker de SimpleFS
 
-Esta guía documenta la contenedorización de **SimpleFS**, su arquitectura de construcción multi-etapa, las opciones de ejecución con Docker y Docker Compose, y la automatización del flujo de CI/CD para publicar la imagen como paquete en **GitHub Container Registry (GHCR)**.
+## 1. Arquitectura de la imagen
 
----
+El [`Dockerfile`](./Dockerfile) es multi-etapa y está optimizado para que la imagen sea pequeña y el build rápido:
 
-## 1. Arquitectura de la Imagen
+| Etapa | Base | Qué hace |
+|---|---|---|
+| `frontend` | `node:24-alpine` (plataforma del host) | Instala dependencias con `pnpm --frozen-lockfile` (con caché de BuildKit) y genera el sprite de iconos, el JS, las fuentes y el CSS. El resultado no depende de la arquitectura, así que se compila **una sola vez**. |
+| `backend` | `golang:1.27-alpine` (plataforma del host) | **Compila en cruzado** (`GOOS`/`GOARCH` = destino) un binario estático sin CGO, con `-trimpath -s -w` y la base de zonas horarias embebida (`timetzdata`). No se usa QEMU. |
+| `runtime` | `scratch` | Solo el binario (~11 MB) y `/data` (propiedad de UID 10001). Sin shell ni paquetes, así que hay poca superficie de ataque y casi nada que parchear. |
 
-SimpleFS está diseñado como un único binario ejecutable compilado estáticamente en Go que incrusta todos los assets web (HTML, CSS minificado con Tailwind y JavaScript empaquetado con esbuild).
+Resultado: imagen de **~11 MB** (antes ~24 MB con Alpine) y builds `linux/amd64` + `linux/arm64` sin emulación.
 
-El archivo [`Dockerfile`](./Dockerfile) utiliza un proceso de compilación **multi-stage** de 3 fases:
+La imagen incluye un `HEALTHCHECK` (`/simplefs healthcheck`, que no necesita `curl`) y responde a `SIGTERM` con un apagado ordenado: espera hasta 30 s a que terminen las transferencias en curso.
 
-1. **`frontend-builder` (Node 20 Alpine)**:
-   - Descarga las dependencias con `pnpm` (`--frozen-lockfile`).
-   - Compila la suite de fuentes (`Inter`, `Material Symbols Outlined`), las librerías vendor (`htmx`, `marked`, `highlight.js`, `dompurify`) y genera el bundle CSS minificado con Tailwind CSS en `web/static/`.
-2. **`backend-builder` (Golang 1.22 Alpine)**:
-   - Descarga los módulos de Go.
-   - Copia los templates HTML y los assets estáticos generados en la fase previa.
-   - Compila un binario estático sin CGO (`CGO_ENABLED=0`) con optimizaciones de tamaño (`-ldflags="-s -w"` y `-trimpath`).
-3. **`runtime` (Alpine 3.20)**:
-   - Imagen base mínima y endurecida (~15 MB).
-   - Paquetes de certificados raíz (`ca-certificates`) y zonas horarias (`tzdata`).
-   - Usuario y grupo del sistema sin privilegios `simplefs` (UID/GID `10001`).
-   - Directorio de datos `/data` preconfigurado con permisos exclusivos.
-   - Punto de montaje declarado como `VOLUME ["/data"]`.
-
----
-
-## 2. Uso Rápido con Docker
-
-### Descargar y ejecutar desde GitHub Packages (GHCR)
-
-La imagen oficial se publica de forma automática en GitHub Container Registry:
+## 2. Ejecutar
 
 ```bash
-docker pull ghcr.io/joacohbc/simplefs:latest
-```
-
-Para iniciar el contenedor exponiendo el puerto `8080` y persistiendo los archivos en un directorio local:
-
-```bash
-docker run -d \
-  --name simplefs \
-  --restart unless-stopped \
-  -p 8080:8080 \
-  -v $(pwd)/uploads:/data \
+mkdir -p uploads
+docker run -d --name simplefs --restart unless-stopped \
+  -p 127.0.0.1:8080:8080 \
+  --user "$(id -u):$(id -g)" \
+  --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+  -e SIMPLEFS_TOKEN="$(openssl rand -hex 24)" \
+  -v "$(pwd)/uploads:/data" \
   ghcr.io/joacohbc/simplefs:latest
 ```
 
-Accede a la interfaz web en: [http://localhost:8080](http://localhost:8080).
+- **`-p 127.0.0.1:8080:8080`**: publícalo solo donde haga falta. Para compartirlo por la VPN, usa la IP de la VPN (`-p 100.64.0.10:8080:8080`). Con `-p 8080:8080` quedaría expuesto en todas las interfaces, porque Docker se salta firewalls como `ufw`.
+- **`--user "$(id -u):$(id -g)"`**: los archivos se crean con tu usuario del host. Sin esto pertenecen al UID 10001 y necesitarías `sudo` para leer lo que te envía el agente. Crea `uploads` antes de arrancar para que no lo cree Docker como root.
+- **Token**: si no defines `SIMPLEFS_TOKEN`, se genera uno, se imprime en `docker logs simplefs` y se guarda en `uploads/.simplefs/token`. Para verlo: `docker exec simplefs /simplefs token`.
 
----
+## 3. Docker Compose
 
-## 3. Despliegue con Docker Compose
+[`docker-compose.yml`](./docker-compose.yml) ya trae el endurecimiento (`read_only`, `cap_drop: ALL`, `no-new-privileges`) y toma la configuración de `.env`:
 
-El repositorio incluye un archivo [`docker-compose.yml`](./docker-compose.yml) listo para producción o entornos locales:
-
-```yaml
-services:
-  simplefs:
-    image: ghcr.io/joacohbc/simplefs:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: simplefs
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      - PORT=8080
-      - STORAGE_DIR=/data
-    volumes:
-      - ./uploads:/data
-```
-
-### Iniciar el servicio:
 ```bash
+cp .env.example .env    # ajusta BIND_IP, PUID/PGID, SIMPLEFS_TOKEN, ALLOWED_HOSTS...
+mkdir -p uploads
 docker compose up -d
+docker compose logs -f
 ```
 
-### Detener el servicio:
-```bash
-docker compose down
-```
+## 4. Variables de entorno
 
-### Ver logs en tiempo real:
-```bash
-docker compose logs -f simplefs
-```
-
----
-
-## 4. Variables de Entorno y Configuración
-
-| Variable | Valor por Defecto | Descripción |
+| Variable | Por defecto | Descripción |
 |---|---|---|
-| `PORT` | `8080` | Puerto HTTP en el que escucha el servidor. |
-| `STORAGE_DIR` | `/data` | Directorio interno donde se guardan y sirven los archivos. |
+| `PORT` | `8080` | Puerto dentro del contenedor. |
+| `STORAGE_DIR` | `/data` | Carpeta servida. |
+| `SIMPLEFS_TOKEN` / `SIMPLEFS_TOKEN_FILE` | generado | Token de acceso total (`_FILE` sirve para Docker secrets). |
+| `SIMPLEFS_READ_TOKEN` / `SIMPLEFS_READ_TOKEN_FILE` | — | Token de solo lectura. |
+| `ALLOWED_HOSTS` | — | Nombres de host válidos además de IP y `localhost` (p. ej. `pc.tailnet.ts.net`). |
+| `MAX_UPLOAD_SIZE` | `0` | Límite por petición (`2G`); `0` = sin límite. |
+| `FILE_MODE` / `DIR_MODE` | `0644` / `0755` | Permisos de lo que se crea. |
+| `HIDE_DOTFILES` | `false` | Oculta los archivos que empiezan por `.`. |
+| `ACCESS_LOG` | `true` | Log de auditoría de cada petición. |
+| `SIMPLEFS_NO_AUTH` | `false` | Desactiva la autenticación (solo detrás de otra capa de acceso). |
 
-También puedes pasar banderas CLI al contenedor directamente:
+Los mismos ajustes existen como flags: `docker run ... ghcr.io/joacohbc/simplefs --max-upload 10G`.
+
+## 5. Construir localmente
 
 ```bash
-# Ejemplo: ejecutar en un puerto distinto dentro del contenedor
-docker run -d -p 9000:9000 -v $(pwd)/uploads:/data ghcr.io/joacohbc/simplefs:latest -p 9000
-```
-
----
-
-## 5. Construcción Local de la Imagen
-
-Si deseas compilar la imagen localmente desde el código fuente sin depender del registro:
-
-```bash
-# Construir la imagen local
 docker build -t simplefs:local .
-
-# Ejecutar el contenedor recién compilado
-docker run -d -p 8080:8080 -v $(pwd)/uploads:/data simplefs:local
+docker buildx build --platform linux/amd64,linux/arm64 -t simplefs:multi .   # multi-arch, sin QEMU
 ```
 
----
+## 6. Publicación (CI/CD)
 
-## 6. Publicación Automatizada como Paquete (CI/CD)
+[`.github/workflows/docker-publish.yml`](./.github/workflows/docker-publish.yml):
 
-El flujo de trabajo en [`.github/workflows/docker-publish.yml`](./.github/workflows/docker-publish.yml) automatiza la publicación en **GitHub Container Registry (GHCR)**:
-
-- **Plataformas soportadas (Multi-arch)**: `linux/amd64` y `linux/arm64` (Apple Silicon, Raspberry Pi, AWS Graviton).
-- **Disparadores**:
-  - **Push a `master`**: Compila y publica con las etiquetas `latest`, `master` y el SHA del commit (`sha-<hash>`).
-  - **Push de Tags (`v*.*.*`)**: Publica con etiquetas semánticas (`1.0.0`, `1.0`, `1`, `latest`).
-  - **Pull Requests**: Ejecuta la compilación de prueba para validar que no haya errores de sintaxis o empaquetado, sin publicar al registro.
-  - **Ejecución Manual (`workflow_dispatch`)**: Permite forzar una compilación y publicación desde la interfaz web de GitHub Actions.
-- **Autenticación**: Utiliza el token integrado de GitHub (`GITHUB_TOKEN`) con permisos `packages: write`.
-
-### Vinculación de Paquetes en GitHub
-Al publicar la primera imagen, GitHub asociará automáticamente el paquete `simplefs` a la pestaña **Packages** del repositorio en:
-`https://github.com/Joacohbc/simplefs/pkgs/container/simplefs`
+- **Pull requests**: compila `linux/amd64`, lo carga localmente y lo escanea con **Trivy** (falla si hay vulnerabilidades HIGH/CRITICAL con parche disponible). No publica.
+- **Push a `master` / tags `v*.*.*`**: publica en GHCR la imagen multi-arquitectura con SBOM y procedencia (`provenance: mode=max`). Etiquetas: `latest`, rama, `sha-<hash>` y semver (`1.2.3`, `1.2`, `1`).
+- **Releases**: GoReleaser publica binarios para Linux, macOS y Windows (amd64/arm64) con `checksums.txt`.

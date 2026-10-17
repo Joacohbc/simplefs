@@ -1,660 +1,346 @@
-{{ if .IsTrash }}<div data-is-trash="true" class="hidden"></div>{{ end }}
+{{ $scope := "dir" }}{{ if .IsTrash }}{{ $scope = "trash" }}{{ else if .IsRecent }}{{ $scope = "recent" }}{{ end }}
+<div id="active-view" hidden
+     data-scope="{{ $scope }}"
+     data-path="{{ .Path }}"
+     data-view="{{ .ViewMode }}"
+     data-sort="{{ .SortBy }}"
+     data-order="{{ .SortOrder }}"
+     data-query="{{ .Query }}"
+     data-lang="{{ .Lang }}"
+     data-readonly="{{ if .ReadOnly }}true{{ else }}false{{ end }}"></div>
 
 {{ if .NotFound }}
-<!-- Folder Not Found Empty State -->
-<div class="flex flex-col items-center justify-center p-10 md:p-14 bg-surface-container-light dark:bg-surface-container-dark rounded-2xl border border-outline-variant-light dark:border-outline-variant-dark text-center my-6 shadow-sm">
-  <div class="w-16 h-16 rounded-2xl bg-error-container/40 dark:bg-error-container/20 flex items-center justify-center mb-4 text-error">
-    <span class="material-symbols-outlined text-4xl">folder_off</span>
+<div class="card flex flex-col items-center justify-center p-10 md:p-14 text-center my-6">
+  <div class="w-16 h-16 rounded-2xl bg-error/10 flex items-center justify-center mb-4 text-error">
+    {{ icon "folder_off" "text-4xl" }}
   </div>
-  <h3 class="font-bold text-lg md:text-xl text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "empty.not_found_title" }}</h3>
-  <p class="text-sm text-secondary dark:text-on-surface-variant-dark max-w-md mt-2 mb-6">
-    {{ T .Lang "empty.not_found_desc" .NotFoundPath }}
-  </p>
-  <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-     class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary dark:bg-primary-container-dark text-white font-semibold text-sm hover:opacity-95 active:scale-95 transition-all shadow-md"
-     hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-     hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
-     hx-target="#file-list-container" 
-     hx-indicator="#global-spinner">
-    <span class="material-symbols-outlined text-lg">home</span>
+  <h1 class="text-title md:text-headline">{{ T .Lang "empty.not_found_title" }}</h1>
+  <p class="text-body text-on-surface-variant max-w-md mt-2 mb-6">{{ T .Lang "empty.not_found_desc" .NotFoundPath }}</p>
+  <a href="/" data-nav class="btn-primary">
+    {{ icon "home" "text-lg" }}
     <span>{{ T .Lang "empty.not_found_back_home" }}</span>
   </a>
 </div>
 {{ else }}
 
-<!-- 1. Breadcrumb & Control Bar (Stitch Ambient Workspace Reference) -->
-<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
-  <!-- Breadcrumb Navigation -->
-  <nav class="flex items-center gap-2 text-secondary dark:text-on-surface-variant-dark font-body-sm text-body-sm overflow-x-auto py-1" aria-label="{{ T .Lang "breadcrumb.aria" }}">
-    <a href="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-       class="flex items-center gap-1.5 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors px-2 py-1 rounded-lg hover:bg-surface-container-light dark:hover:bg-surface-container-dark" 
-       hx-get="/api/files?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}" 
-       hx-push-url="/?path=&view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
-       hx-target="#file-list-container" 
-       hx-indicator="#global-spinner"
-       id="active-path"
-       data-path="{{ .Path }}"
-       data-sort="{{ .SortBy }}"
-       data-order="{{ .SortOrder }}"
-       data-view="{{ .ViewMode }}"
-       data-lang="{{ .Lang }}"
-       data-is-trash="{{ if .IsTrash }}true{{ else }}false{{ end }}">
-      <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark">home</span>
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+  <nav class="flex items-center gap-1 text-body-sm text-on-surface-variant overflow-x-auto py-1 min-w-0" aria-label="{{ T .Lang "breadcrumb.aria" }}">
+    <a href="/" data-nav class="flex items-center gap-1.5 hover:text-on-surface transition-colors px-2 py-1 rounded-lg hover:bg-surface-container-high shrink-0">
+      {{ icon "home" "text-[18px] text-primary" }}
       <span>{{ T .Lang "breadcrumb.home" }}</span>
     </a>
-
     {{ if .IsTrash }}
-      <span class="text-outline-variant-light dark:text-outline-variant-dark select-none">/</span>
-      <span class="flex items-center gap-1.5 px-2 py-1 font-semibold text-on-surface-light dark:text-on-surface-dark">
-        <span class="material-symbols-outlined text-[17px] text-primary dark:text-primary-dark">delete</span>
-        <span class="tracking-tight">{{ T .Lang "trash.title" }}</span>
-      </span>
+      <span class="text-outline select-none" aria-hidden="true">/</span>
+      <span class="flex items-center gap-1.5 px-2 py-1 font-semibold text-on-surface shrink-0" aria-current="page">{{ T .Lang "trash.title" }}</span>
+    {{ else if .IsRecent }}
+      <span class="text-outline select-none" aria-hidden="true">/</span>
+      <span class="flex items-center gap-1.5 px-2 py-1 font-semibold text-on-surface shrink-0" aria-current="page">{{ T .Lang "recent.title" }}</span>
     {{ else }}
-      {{ range .Breadcrumbs }}
-        <span class="text-outline-variant-light dark:text-outline-variant-dark select-none">/</span>
-        <a href="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-           class="flex items-center gap-1.5 px-2 py-1 font-medium text-on-surface-light dark:text-on-surface-dark hover:text-primary dark:hover:text-primary-dark transition-colors rounded-lg hover:bg-surface-container-light dark:hover:bg-surface-container-dark"
-           hx-get="/api/files?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-           hx-push-url="/?path={{ .Path }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-           hx-target="#file-list-container" 
-           hx-indicator="#global-spinner">
-          <span class="material-symbols-outlined text-[17px] text-primary dark:text-primary-dark">folder_open</span>
-          <span class="tracking-tight font-semibold">{{ .Name }}</span>
+      {{ $last := len .Breadcrumbs }}
+      {{ range $i, $crumb := .Breadcrumbs }}
+        <span class="text-outline select-none" aria-hidden="true">/</span>
+        <a href="/?path={{ $crumb.Path }}" data-nav class="flex items-center gap-1.5 px-2 py-1 font-medium text-on-surface hover:text-primary transition-colors rounded-lg hover:bg-surface-container-high shrink-0" {{ if eq (inc $i) $last }}aria-current="page"{{ end }}>
+          <span class="tracking-tight">{{ $crumb.Name }}</span>
         </a>
       {{ end }}
     {{ end }}
   </nav>
 
-  <!-- Controls: Download ZIP, Sort Dropdown & View Mode Switcher -->
-  <div class="flex items-center gap-2.5 self-end md:self-auto">
-    {{ if and .Path (not .NotFound) (not .IsTrash) }}
-    <a href="/api/download-folder?path={{ .Path }}" 
-       download
-       class="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-white dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark text-on-surface-light dark:text-on-surface-dark font-body-sm text-body-sm transition-all shadow-sm"
-       title="{{ T .Lang "folders.download_zip" }}"
-       aria-label="{{ T .Lang "folders.download_zip" }}">
-      <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark">folder_zip</span>
+  <div class="flex items-center justify-end gap-2 w-full md:w-auto min-w-0">
+    {{ if and .Path (not .IsTrash) (not .IsRecent) }}
+    <a href="/api/download-folder?path={{ .Path }}" download class="control px-3 gap-1.5 hover:bg-surface-container-high transition-colors text-body-sm" title="{{ T .Lang "folders.download_zip" }}">
+      {{ icon "folder_zip" "text-[18px] text-primary" }}
       <span class="hidden sm:inline font-medium">{{ T .Lang "folders.download_zip" }}</span>
     </a>
     {{ end }}
 
-    <!-- Sort Selector Dropdown -->
-    <div class="relative inline-block text-left" id="sort-dropdown-wrap">
-      <div class="flex items-center gap-2 h-9 px-3.5 rounded-xl bg-white dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark text-on-surface-light dark:text-on-surface-dark font-body-sm text-body-sm transition-all shadow-sm">
-        <span class="material-symbols-outlined text-[18px] text-primary dark:text-primary-dark shrink-0">sort_by_alpha</span>
-        <label for="sort-selector" class="sr-only">{{ T .Lang "sort.label" }}</label>
-        <select id="sort-selector" 
-                onchange="applySort(this.value)" 
-                class="bg-transparent border-none font-body-sm text-body-sm font-medium text-on-surface-light dark:text-on-surface-dark focus:ring-0 cursor-pointer pl-0 pr-4 py-0 h-full leading-none">
-          <option value="name:asc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "name") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.name_asc" }}</option>
-          <option value="name:desc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "name") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.name_desc" }}</option>
-          <option value="modified:desc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "modified") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.modified_desc" }}</option>
-          <option value="modified:asc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "modified") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.modified_asc" }}</option>
-          <option value="created:desc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "created") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.created_desc" }}</option>
-          <option value="created:asc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "created") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.created_asc" }}</option>
-          <option value="size:desc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "size") (eq .SortOrder "desc") }}selected{{ end }}>{{ T .Lang "sort.size_desc" }}</option>
-          <option value="size:asc" class="bg-surface-light dark:bg-surface-container-dark text-on-surface-light dark:text-on-surface-dark" {{ if and (eq .SortBy "size") (eq .SortOrder "asc") }}selected{{ end }}>{{ T .Lang "sort.size_asc" }}</option>
-        </select>
-      </div>
+    {{ if not .IsRecent }}
+    <div class="control px-3 gap-2 min-w-0 flex-1 md:flex-none">
+      {{ icon "sort" "text-[18px] text-primary" }}
+      <label for="sort-selector" class="sr-only">{{ T .Lang "sort.label" }}</label>
+      <select id="sort-selector" class="min-w-0 w-full bg-transparent border-none text-body-sm font-medium text-on-surface focus:ring-0 cursor-pointer pl-0 pr-6 py-0 h-full">
+        {{ $current := printf "%s:%s" .SortBy .SortOrder }}
+        {{ range $option := list "name:asc" "name:desc" "modified:desc" "modified:asc" "size:desc" "size:asc" }}
+        <option value="{{ $option }}" class="bg-surface-container text-on-surface" {{ if eq $option $current }}selected{{ end }}>{{ T $.Lang (printf "sort.%s" $option) }}</option>
+        {{ end }}
+      </select>
     </div>
+    {{ end }}
 
-    <!-- Grid / List Switcher -->
-    <div class="flex items-center border border-outline-variant-light dark:border-outline-variant-dark bg-white/80 dark:bg-surface-container-dark p-1 rounded-xl shadow-sm gap-1">
-      <button aria-label="Vista en cuadrícula" 
-              class="w-8 h-7 flex items-center justify-center rounded-lg transition-all {{ if eq .ViewMode "grid" }}bg-primary dark:bg-surface-container-highest-dark text-white dark:text-primary-dark shadow-sm{{ else }}text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark{{ end }}" 
-              id="view-grid-btn" 
-              onclick="switchViewMode('grid')" 
-              type="button">
-        <span class="material-symbols-outlined text-[18px]">grid_view</span>
+    <div class="control p-1 gap-1" role="group" aria-label="{{ T .Lang "view.label" }}">
+      <button type="button" data-action="set-view" data-view="grid" class="segment w-8 h-7" aria-pressed="{{ if eq .ViewMode "grid" }}true{{ else }}false{{ end }}" aria-label="{{ T .Lang "view.grid" }}" title="{{ T .Lang "view.grid" }}">
+        {{ icon "grid_view" "text-[18px]" }}
       </button>
-      <button aria-label="Vista en lista" 
-              class="w-8 h-7 flex items-center justify-center rounded-lg transition-all {{ if eq .ViewMode "list" }}bg-primary dark:bg-surface-container-highest-dark text-white dark:text-primary-dark shadow-sm{{ else }}text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark{{ end }}" 
-              id="view-list-btn" 
-              onclick="switchViewMode('list')" 
-              type="button">
-        <span class="material-symbols-outlined text-[18px]">view_list</span>
+      <button type="button" data-action="set-view" data-view="list" class="segment w-8 h-7" aria-pressed="{{ if eq .ViewMode "list" }}true{{ else }}false{{ end }}" aria-label="{{ T .Lang "view.list" }}" title="{{ T .Lang "view.list" }}">
+        {{ icon "view_list" "text-[18px]" }}
       </button>
     </div>
 
-    {{ if not .IsTrash }}
-    <!-- Info Button -->
-    <button aria-label="Información de directorio" 
-            hx-get="/api/file-details?path={{ .Path }}&lang={{ $.Lang }}"
-            hx-target="#modal-container"
-            hx-indicator="#global-spinner"
-            class="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark hover:bg-surface-container-light dark:hover:bg-surface-container-high-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark transition-all shadow-sm" 
-            type="button">
-      <span class="material-symbols-outlined text-[19px]">info</span>
+    {{ if not (or .IsTrash .IsRecent) }}
+    <button type="button" class="control w-9 justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+            hx-get="/api/file-details?path={{ q .Path }}" hx-target="#modal-container" hx-indicator="#global-spinner"
+            aria-label="{{ T .Lang "folders.info" }}" title="{{ T .Lang "folders.info" }}">
+      {{ icon "info" "text-[19px]" }}
     </button>
     {{ end }}
   </div>
 </div>
 
-<!-- 2. Header Banner (Generous separation: pt-2 pb-6 mb-2) -->
-{{ if .IsTrash }}
-<div class="flex items-center justify-between pt-2 pb-6 mb-2">
-  <div class="flex items-center gap-4">
-    <div class="w-12 h-12 rounded-2xl bg-error-container/20 dark:bg-error-container/30 text-error flex items-center justify-center shrink-0">
-      <span class="material-symbols-outlined text-[28px]">delete</span>
-    </div>
-    <div>
-      <div class="flex items-center gap-3">
-        <h1 class="font-headline-md text-headline-md text-on-surface-light dark:text-on-surface-dark font-bold tracking-tight">
-          {{ T .Lang "trash.title" }}
+<div class="flex flex-wrap items-center justify-between gap-4 pt-2 pb-2">
+  <div class="flex items-center gap-4 min-w-0">
+    {{ if .IsTrash }}
+    <div class="w-12 h-12 rounded-2xl bg-error/10 text-error flex items-center justify-center shrink-0">{{ icon "delete" "text-[28px]" }}</div>
+    {{ else if .IsRecent }}
+    <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">{{ icon "schedule" "text-[28px]" }}</div>
+    {{ else }}
+    <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">{{ icon "folder" "text-[28px]" }}</div>
+    {{ end }}
+    <div class="min-w-0">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+        <h1 class="text-headline break-all sm:break-words min-w-0">
+          {{ if .IsTrash }}{{ T .Lang "trash.title" }}{{ else if .IsRecent }}{{ T .Lang "recent.title" }}{{ else if .Path }}{{ .Path }}{{ else }}{{ T .Lang "banner.title" }}{{ end }}
         </h1>
-        <span class="px-2.5 py-0.5 rounded-full text-label-md font-mono-tabular bg-primary/10 dark:bg-surface-container-highest-dark text-primary dark:text-primary-dark font-medium">
-          {{ T .Lang "banner.items_count" .TotalItems }}
-        </span>
+        <span class="shrink-0 px-2.5 py-0.5 rounded-full text-mono font-mono bg-primary/10 text-primary font-medium">{{ T .Lang "banner.items_count" .TotalItems }}</span>
       </div>
-      <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark mt-1">
-        {{ T .Lang "trash.desc" }}
+      <p class="text-body-sm text-on-surface-variant mt-1">
+        {{ if .IsTrash }}{{ T .Lang "trash.desc" }}{{ else if .IsRecent }}{{ T .Lang "recent.desc" }}{{ else }}{{ T .Lang "banner.desc" }}{{ end }}
       </p>
     </div>
   </div>
-  {{ if or .Folders .Files }}
-  <button hx-delete="/api/trash/empty?view={{ .ViewMode }}&sort={{ .SortBy }}&order={{ .SortOrder }}&lang={{ .Lang }}"
-          hx-confirm="{{ T .Lang "trash.empty_confirm" }}"
-          hx-target="#file-list-container"
-          hx-indicator="#global-spinner"
-          class="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-error/40 hover:bg-error/10 text-error font-body-sm text-body-sm font-medium transition-all shadow-sm cursor-pointer"
-          type="button">
-    <span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+  {{ if and .IsTrash .HasItems (not .ReadOnly) }}
+  <button type="button" class="btn-danger"
+          hx-delete="/api/trash/empty" hx-confirm="{{ T .Lang "trash.empty_confirm" }}" hx-target="#file-list-container" hx-indicator="#global-spinner">
+    {{ icon "delete_sweep" "text-[18px]" }}
     <span>{{ T .Lang "trash.empty_btn" }}</span>
   </button>
   {{ end }}
 </div>
-{{ else }}
-<div class="flex items-center justify-between pt-2 pb-6 mb-2">
-  <div class="flex items-center gap-4">
-    <div class="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-primary-container-dark/30 text-primary dark:text-primary-dark flex items-center justify-center shrink-0">
-      <span class="material-symbols-outlined text-[28px]">folder</span>
-    </div>
-    <div>
-      <div class="flex items-center gap-3">
-        <h1 class="font-headline-md text-headline-md text-on-surface-light dark:text-on-surface-dark font-bold tracking-tight">
-          {{ if .Path }}{{ .Path }}{{ else }}{{ T .Lang "banner.title" }}{{ end }}
-        </h1>
-        <span class="px-2.5 py-0.5 rounded-full text-label-md font-mono-tabular bg-primary/10 dark:bg-surface-container-highest-dark text-primary dark:text-primary-dark font-medium">
-          {{ T .Lang "banner.items_count" .TotalItems }}
-        </span>
-      </div>
-      <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark mt-1">
-        {{ T .Lang "banner.desc" }}
-      </p>
-    </div>
+
+{{ if .Query }}
+<div class="flex flex-wrap items-center gap-2 rounded-2xl bg-primary/5 border border-primary/20 px-4 py-2.5 text-body-sm">
+  {{ icon "manage_search" "text-[20px] text-primary" }}
+  <span>{{ T .Lang "search.results_for" .Query }}{{ if .Path }} — /{{ .Path }}{{ end }}</span>
+  <button type="button" data-action="clear-search" class="ml-auto text-primary hover:underline font-medium">{{ T .Lang "search.clear" }}</button>
+</div>
+{{ end }}
+{{ if .Truncated }}
+<p class="text-label text-on-surface-variant">{{ T .Lang "search.truncated" }}</p>
+{{ end }}
+
+{{ if not .HasItems }}
+<div class="flex flex-col items-center justify-center p-12 text-center my-4 card">
+  <div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-3 text-on-surface-variant">
+    {{ if .Query }}{{ icon "search_off" "text-4xl" }}{{ else if .IsTrash }}{{ icon "delete" "text-4xl" }}{{ else if .IsRecent }}{{ icon "schedule" "text-4xl" }}{{ else }}{{ icon "folder_open" "text-4xl" }}{{ end }}
   </div>
-  <!-- Directorio activo badge removed as per user instruction -->
+  <h2 class="font-semibold text-base">
+    {{ if .Query }}{{ T .Lang "empty.search_title" .Query }}{{ else if .IsTrash }}{{ T .Lang "trash.empty" }}{{ else if .IsRecent }}{{ T .Lang "recent.empty" }}{{ else }}{{ T .Lang "empty.folder_title" }}{{ end }}
+  </h2>
+  <p class="text-body-sm text-on-surface-variant max-w-sm mt-1">
+    {{ if .Query }}{{ T .Lang "empty.search_desc" }}{{ else if .IsTrash }}{{ T .Lang "trash.empty_desc" }}{{ else if .IsRecent }}{{ T .Lang "recent.empty_desc" }}{{ else if .ReadOnly }}{{ T .Lang "empty.folder_desc_readonly" }}{{ else }}{{ T .Lang "empty.folder_desc" }}{{ end }}
+  </p>
 </div>
 {{ end }}
 
-{{ if and .IsTrash (not .Folders) (not .Files) }}
-<!-- Empty Trash State -->
-<div class="flex flex-col items-center justify-center p-14 text-center my-6 bg-surface-container-light/30 dark:bg-surface-container-low-dark/30 rounded-2xl border border-outline-variant-light/40 dark:border-outline-variant-dark/30">
-  <div class="w-16 h-16 rounded-full bg-surface-container-light dark:bg-surface-container-highest-dark flex items-center justify-center mb-3 text-secondary">
-    <span class="material-symbols-outlined text-4xl">delete_outline</span>
-  </div>
-  <h3 class="font-semibold text-base text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "trash.empty" }}</h3>
-  <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark max-w-sm mt-1">{{ T .Lang "trash.empty_desc" }}</p>
-</div>
-{{ end }}
-
-<!-- 3. SECCIÓN: CARPETAS (Folders) -->
 {{ if .Folders }}
-<section class="space-y-3 pt-2" aria-label="{{ T .Lang "folders.title" (len .Folders) }}">
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-2">
-      <span class="material-symbols-outlined text-[20px] text-primary dark:text-primary-dark">folder_shared</span>
-      <h2 class="font-title-md text-title-md text-on-surface-light dark:text-on-surface-dark font-semibold tracking-tight">{{ T .Lang "folders.heading" }}</h2>
-      <span class="font-mono-tabular text-mono-tabular px-2 py-0.5 rounded-full text-secondary dark:text-on-surface-variant-dark text-[12px]">{{ len .Folders }}</span>
-    </div>
-    <span class="font-label-md text-label-md text-secondary uppercase tracking-wider font-medium text-[11px]">{{ T .Lang "folders.modules" }}</span>
+<section class="space-y-3" aria-labelledby="folders-heading">
+  <div class="flex items-center gap-2">
+    {{ icon "folder_copy" "text-[20px] text-primary" }}
+    <h2 id="folders-heading" class="text-title tracking-tight">{{ T .Lang "folders.heading" }}</h2>
+    <span class="font-mono text-mono px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">{{ len .Folders }}</span>
   </div>
 
-  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+  <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" role="list">
     {{ range .Folders }}
-    {{ if $.IsTrash }}
-    <!-- Trashed Folder Card -->
-    <div class="group relative rounded-xl p-3 bg-surface-container-light/50 dark:bg-surface-container-low-dark border border-outline-variant-light/50 dark:border-outline-variant-dark/50 hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 flex items-center justify-between"
-         aria-label="{{ .Name }}">
-      <div class="flex items-center gap-3 min-w-0">
-        <div class="w-10 h-10 rounded-xl bg-error-container/20 dark:bg-error-container/30 text-error flex items-center justify-center shrink-0">
-          <span class="material-symbols-outlined text-[22px]">folder_delete</span>
-        </div>
+    <li class="group card flex items-center hover:bg-surface-raised hover:shadow-card transition-all duration-200">
+      {{ if $.IsTrash }}
+      <div class="flex items-center gap-3 min-w-0 flex-1 p-3">
+        <div class="w-10 h-10 rounded-xl bg-error/10 text-error flex items-center justify-center shrink-0">{{ icon "folder_delete" "text-[22px]" }}</div>
         <div class="min-w-0">
-          <h3 class="font-body-md text-body-md font-semibold text-on-surface-light dark:text-on-surface-dark truncate" title="{{ .Name }}">{{ .Name }}</h3>
-          <p class="font-mono-tabular text-mono-tabular text-secondary text-[12px] truncate" title="{{ if .TrashOriginalPath }}{{ T $.Lang "trash.original_location" .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}">
-            {{ if .TrashOriginalPath }}{{ T $.Lang "trash.original_location" .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}
-          </p>
+          <p class="text-body font-semibold truncate" title="{{ .Name }}">{{ .Name }}</p>
+          <p class="font-mono text-mono text-on-surface-variant truncate" title="{{ .TrashOriginalPath }}">{{ if .TrashOriginalPath }}{{ T $.Lang "trash.original_location" .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}</p>
         </div>
       </div>
-      
-      <!-- Trashed Folder Actions: Restore & Permanent Delete -->
-      <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                hx-post="/api/trash/restore?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                hx-target="#file-list-container"
-                hx-indicator="#global-spinner"
-                title="{{ T $.Lang "trash.restore" }}"
-                aria-label="{{ T $.Lang "trash.restore" }}"
-                type="button">
-          <span class="material-symbols-outlined text-[18px]">restore_from_trash</span>
-        </button>
-        <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
-                hx-delete="/api/trash/delete?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                hx-confirm="{{ T $.Lang "trash.delete_permanent_confirm" .Name }}"
-                hx-target="#file-list-container"
-                hx-indicator="#global-spinner"
-                title="{{ T $.Lang "trash.delete_permanent" }}"
-                aria-label="{{ T $.Lang "trash.delete_permanent" }}"
-                type="button">
-          <span class="material-symbols-outlined text-[18px]">delete_forever</span>
-        </button>
+      {{ else }}
+      <a href="/?path={{ .RelPath }}" data-nav class="flex items-center gap-3 min-w-0 flex-1 p-3 rounded-2xl" aria-label="{{ T $.Lang "folders.open_aria" .Name }}">
+        <span class="w-10 h-10 rounded-xl {{ .TileClass }} flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">{{ icon .MaterialIcon "text-[22px]" }}</span>
+        <span class="min-w-0">
+          <span class="block text-body font-semibold truncate" title="{{ .Name }}">{{ .Name }}</span>
+          <span class="block font-mono text-mono text-on-surface-variant truncate">{{ if .ParentPath }}/{{ .ParentPath }} • {{ end }}{{ T $.Lang "folders.item_count" .ItemCount }} • {{ .FormattedMod }}</span>
+        </span>
+      </a>
+      {{ end }}
+      <div class="flex items-center gap-0.5 shrink-0 pr-2 reveal">
+        {{ if $.IsTrash }}
+          {{ template "trash_actions" (dict "Item" . "Page" $) }}
+        {{ else }}
+          <a href="/api/download-folder?path={{ .RelPath }}" download class="icon-btn" title="{{ T $.Lang "folders.actions.download_zip" .Name }}" aria-label="{{ T $.Lang "folders.actions.download_zip" .Name }}">{{ icon "folder_zip" "text-[18px]" }}</a>
+          {{ if not $.ReadOnly }}
+          <button type="button" class="icon-btn-danger"
+                  hx-delete="/api/delete?path={{ q .RelPath }}" hx-confirm="{{ T $.Lang "folders.delete_confirm" .Name }}" hx-target="#file-list-container" hx-indicator="#global-spinner"
+                  title="{{ T $.Lang "files.actions.delete" }}" aria-label="{{ T $.Lang "files.actions.delete" }}: {{ .Name }}">{{ icon "delete" "text-[18px]" }}</button>
+          {{ end }}
+        {{ end }}
       </div>
-    </div>
-    {{ else }}
-    <!-- Normal Folder Card -->
-    <div class="group relative rounded-xl p-3 hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex items-center justify-between"
-         hx-get="/api/files?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-         hx-push-url="/?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-         hx-target="#file-list-container" 
-         hx-indicator="#global-spinner"
-         role="button"
-         tabindex="0"
-         aria-label="{{ .Name }}">
-      <div class="flex items-center gap-3 min-w-0">
-        <div class="w-10 h-10 rounded-xl {{ if .FolderBgClass }}{{ .FolderBgClass }}{{ else }}bg-accent-go/20 text-accent-go{{ end }} flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-          <span class="material-symbols-outlined text-[22px]">{{ .MaterialIcon }}</span>
-        </div>
-        <div class="min-w-0">
-          <div class="flex items-center gap-1.5">
-            <h3 class="font-body-md text-body-md font-semibold text-on-surface-light dark:text-on-surface-dark truncate" title="{{ .Name }}">{{ .Name }}</h3>
-            {{ if .FolderDotClass }}
-            <span class="w-1.5 h-1.5 rounded-full {{ .FolderDotClass }} shrink-0"></span>
-            {{ end }}
-          </div>
-          <p class="font-mono-tabular text-mono-tabular text-secondary text-[12px] truncate">{{ T $.Lang "folders.item_count" .ItemCount }} • {{ .FormattedMod }}</p>
-        </div>
-      </div>
-      
-      <!-- Folder Action Buttons -->
-      <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <a href="/api/download-folder?path={{ .RelPath }}" 
-           download
-           onclick="event.stopPropagation()"
-           class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors" 
-           title="{{ T $.Lang "folders.actions.download_zip" .Name }}"
-           aria-label="{{ T $.Lang "folders.actions.download_zip" .Name }}">
-          <span class="material-symbols-outlined text-[18px]">folder_zip</span>
-        </a>
-        <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors" 
-                hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}" 
-                hx-confirm="{{ T $.Lang "folders.delete_confirm" .Name }}"
-                hx-target="#file-list-container"
-                hx-indicator="#global-spinner"
-                onclick="event.stopPropagation()"
-                title="{{ T $.Lang "files.actions.delete" .Name }}"
-                aria-label="{{ T $.Lang "files.actions.delete" .Name }}">
-          <span class="material-symbols-outlined text-[18px]">delete</span>
-        </button>
-      </div>
-    </div>
+    </li>
     {{ end }}
-    {{ end }}
-  </div>
+  </ul>
 </section>
 {{ end }}
 
-<!-- 4. SECCIÓN: ARCHIVOS (Files) (Stitch Ambient Workspace Reference) -->
-{{ if or .Files (and (not .Folders) (not .Query) (not .IsTrash)) (and .Query (not .Files)) }}
-<section class="space-y-4 pt-2" aria-label="{{ T .Lang "files.title" (len .Files) }}">
-  <!-- Section Header with Categorical Filter Chips -->
+{{ if .Files }}
+<section class="space-y-4" aria-labelledby="files-heading">
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
     <div class="flex items-center gap-2">
-      <span class="material-symbols-outlined text-[20px] text-primary dark:text-primary-dark">draft</span>
-      <h2 class="font-title-md text-title-md text-on-surface-light dark:text-on-surface-dark font-semibold tracking-tight">{{ T .Lang "files.heading" }}</h2>
-      <span class="font-mono-tabular text-mono-tabular px-2 py-0.5 rounded-full bg-surface-container-light dark:bg-surface-container-dark text-secondary dark:text-on-surface-variant-dark border border-outline-variant-light dark:border-outline-variant-dark">{{ len .Files }}</span>
+      {{ icon "draft" "text-[20px] text-primary" }}
+      <h2 id="files-heading" class="text-title tracking-tight">{{ T .Lang "files.heading" }}</h2>
+      <span class="font-mono text-mono px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">{{ len .Files }}</span>
     </div>
-    
-    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="filter-container">
-      <button class="filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-primary dark:bg-primary-container-dark text-white font-medium tracking-wide shadow-sm" 
-              onclick="filterByCategory('all', this)" type="button">{{ T .Lang "filter.all" }}</button>
-      <button class="filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark transition-colors" 
-              onclick="filterByCategory('code', this)" type="button">{{ T .Lang "filter.code" }}</button>
-      <button class="filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark transition-colors" 
-              onclick="filterByCategory('docs', this)" type="button">{{ T .Lang "filter.docs" }}</button>
-      <button class="filter-chip px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-light dark:bg-surface-container-dark border border-outline-variant-light dark:border-outline-variant-dark text-secondary dark:text-on-surface-variant-dark hover:text-on-surface-light dark:hover:text-on-surface-dark hover:bg-surface-container-highest-light dark:hover:bg-surface-container-high-dark transition-colors" 
-              onclick="filterByCategory('media', this)" type="button">{{ T .Lang "filter.media" }}</button>
+    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="filter-container" role="group" aria-label="{{ T .Lang "filter.label" }}">
+      <button type="button" class="chip" data-action="filter" data-category="all" aria-pressed="true">{{ T .Lang "filter.all" }}</button>
+      <button type="button" class="chip" data-action="filter" data-category="code" aria-pressed="false">{{ T .Lang "filter.code" }}</button>
+      <button type="button" class="chip" data-action="filter" data-category="docs" aria-pressed="false">{{ T .Lang "filter.docs" }}</button>
+      <button type="button" class="chip" data-action="filter" data-category="media" aria-pressed="false">{{ T .Lang "filter.media" }}</button>
     </div>
   </div>
 
-  {{ if and (not .Files) (not .Folders) }}
-    {{ if .Query }}
-      <div class="flex flex-col items-center justify-center p-12 text-center my-4">
-        <div class="w-16 h-16 rounded-full bg-surface-container-light dark:bg-surface-container-highest-dark flex items-center justify-center mb-3 text-secondary">
-          <span class="material-symbols-outlined text-4xl">search_off</span>
+  {{ if eq .ViewMode "grid" }}
+  <ul class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4" id="files-grid" role="list">
+    {{ range .Files }}
+    <li class="file-item group card p-2.5 hover:bg-surface-raised hover:shadow-card transition-all duration-200 flex flex-col" data-category="{{ .Category }}">
+      {{ if $.IsTrash }}
+      <div class="w-full aspect-[4/3] rounded-xl bg-surface-container relative overflow-hidden flex items-center justify-center">
+        {{ template "file_thumb" . }}
+      </div>
+      {{ else }}
+      <button type="button" class="w-full aspect-[4/3] rounded-xl bg-surface-container relative overflow-hidden flex items-center justify-center text-left"
+              hx-get="/api/preview?path={{ q .RelPath }}" hx-target="#modal-container" hx-indicator="#global-spinner"
+              aria-label="{{ T $.Lang "files.actions.preview" .Name }}">
+        {{ template "file_thumb" . }}
+      </button>
+      {{ end }}
+      <div class="mt-2.5 flex items-start justify-between gap-1 px-1">
+        <div class="min-w-0 flex-1">
+          <p class="text-body-sm font-semibold truncate group-hover:text-primary transition-colors" title="{{ .Name }}">{{ .Name }}</p>
+          <p class="mt-0.5 font-mono text-mono text-on-surface-variant truncate">
+            {{ .FormattedSize }} • {{ if and $.IsTrash .TrashOriginalPath }}{{ T $.Lang "trash.original_location" .TrashOriginalPath }}{{ else if .ParentPath }}/{{ .ParentPath }}{{ else }}{{ .FormattedMod }}{{ end }}
+          </p>
         </div>
-        <h3 class="font-semibold text-base text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "empty.search_title" .Query }}</h3>
-        <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark max-w-sm mt-1 mb-4">{{ T .Lang "empty.search_desc" }}</p>
       </div>
-    {{ else }}
-      <div class="flex flex-col items-center justify-center p-12 text-center my-4">
-        <div class="w-16 h-16 rounded-full bg-surface-container-light dark:bg-surface-container-highest-dark flex items-center justify-center mb-3 text-secondary">
-          <span class="material-symbols-outlined text-4xl">folder_open</span>
-        </div>
-        <h3 class="font-semibold text-base text-on-surface-light dark:text-on-surface-dark">{{ T .Lang "empty.folder_title" }}</h3>
-        <p class="font-body-sm text-body-sm text-secondary dark:text-on-surface-variant-dark max-w-sm mt-1">{{ T .Lang "empty.folder_desc" }}</p>
+      <div class="flex items-center justify-end gap-0.5 mt-1 reveal">
+        {{ if $.IsTrash }}{{ template "trash_actions" (dict "Item" . "Page" $) }}{{ else }}{{ template "file_actions" (dict "Item" . "Page" $) }}{{ end }}
       </div>
+    </li>
     {{ end }}
-  {{ else if not .Files }}
-    {{ if .Query }}
-      <div class="py-8 text-center text-secondary text-sm">
-        {{ T .Lang "empty.search_title" .Query }}
-      </div>
-    {{ end }}
+  </ul>
   {{ else }}
-
-    {{ if eq .ViewMode "grid" }}
-      <!-- GRID VIEW (Stitch Reference Line 17: 16/10 aspect ratio cards) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5" id="files-grid">
-        {{ range .Files }}
-        <div class="file-item group p-3 rounded-2xl bg-surface-container-light/50 dark:bg-surface-container-low-dark border border-outline-variant-light/40 dark:border-white/5 hover:bg-white dark:hover:bg-surface-container-dark transition-all duration-200 cursor-pointer flex flex-col justify-between"
-             data-name="{{ .Name }}"
-             data-category="{{ .Category }}">
-          
-          <!-- Thumbnail Container (16/10 aspect ratio) -->
-          <div class="w-full aspect-[16/10] rounded-xl bg-surface-container-light dark:bg-surface-container-dark/70 p-3.5 relative select-none flex flex-col justify-between overflow-hidden border border-outline-variant-light/40 dark:border-white/5"
-               {{ if not $.IsTrash }}
-               hx-get="/api/preview?path={{ .RelPath }}&lang={{ $.Lang }}"
-               hx-target="#modal-container"
-               hx-indicator="#global-spinner"
-               role="button"
-               tabindex="0"
-               aria-label="{{ T $.Lang "files.actions.preview" .Name }}"
-               {{ end }}>
-            
-            {{ if .IsImage }}
-              <img src="/download?path={{ .RelPath }}" 
-                   alt="{{ .Name }}" 
-                   loading="lazy" 
-                   class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-              <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
-              <div class="relative z-10 flex items-center justify-between w-full mt-auto">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-media/30 text-white backdrop-blur-sm">{{ if .Extension }}{{ .Extension }}{{ else }}IMG{{ end }}</span>
-                <span class="material-symbols-outlined text-[16px] text-white">image</span>
-              </div>
-            {{ else if eq .Category "code" }}
-              <div class="space-y-1 font-mono-tabular text-[10px] leading-4 text-on-surface-variant-light dark:text-on-surface-variant-dark opacity-90 overflow-hidden">
-                <div class="flex items-center gap-1.5 text-accent-go font-semibold">
-                  <span>package</span><span class="text-on-surface-light dark:text-on-surface-dark font-semibold">main</span>
-                </div>
-                <div class="text-secondary opacity-75 truncate">import "github.com/simplefs"</div>
-                <div class="text-primary dark:text-primary-dark font-medium truncate">func Handler() {</div>
-              </div>
-              <div class="flex items-center justify-between pt-1">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-go/20 text-accent-go">.{{ if .Extension }}{{ .Extension }}{{ else }}CODE{{ end }}</span>
-                <span class="material-symbols-outlined text-[16px] text-accent-go">code</span>
-              </div>
-            {{ else if eq .Category "markdown" }}
-              <div class="space-y-1.5 overflow-hidden">
-                <div class="flex items-center gap-2">
-                  <span class="font-headline-md text-[13px] font-bold text-on-surface-light dark:text-on-surface-dark truncate"># {{ .Name }}</span>
-                </div>
-                <p class="font-body-sm text-[10px] text-secondary dark:text-on-surface-variant-dark line-clamp-3 leading-relaxed">Documentación y notas de SimpleFS...</p>
-              </div>
-              <div class="flex items-center justify-between pt-1">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-primary/10 dark:bg-primary-container-dark/40 text-primary dark:text-primary-dark">.MD</span>
-                <span class="material-symbols-outlined text-[16px] text-primary dark:text-primary-dark">menu_book</span>
-              </div>
-            {{ else if eq .Category "pdf" }}
-              <div class="flex items-center justify-center flex-1">
-                <div class="w-12 h-12 rounded-2xl bg-accent-danger-pdf/15 flex items-center justify-center text-accent-danger-pdf">
-                  <span class="material-symbols-outlined text-[28px]">picture_as_pdf</span>
-                </div>
-              </div>
-              <div class="flex items-center justify-between pt-1">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-danger-pdf/20 text-accent-danger-pdf">PDF</span>
-                <span class="material-symbols-outlined text-[16px] text-accent-danger-pdf">picture_as_pdf</span>
-              </div>
-            {{ else if eq .Category "video" }}
-              <div class="absolute inset-0 bg-gradient-to-tr from-accent-media/15 via-surface-container-light dark:via-surface-container-dark to-primary-container-dark/20"></div>
-              <div class="w-10 h-10 rounded-full bg-white/90 dark:bg-surface-container-high-dark backdrop-blur-md flex items-center justify-center text-primary dark:text-primary-dark group-hover:scale-110 transition-transform z-10 shadow-md">
-                <span class="material-symbols-outlined text-[22px] ml-0.5">play_arrow</span>
-              </div>
-              <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between z-10">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-media/20 text-accent-media backdrop-blur-sm">MP4</span>
-                <span class="material-symbols-outlined text-[16px] text-accent-media">movie</span>
-              </div>
-            {{ else if .IsZip }}
-              <div class="flex items-center justify-center flex-1">
-                <div class="w-12 h-12 rounded-2xl bg-accent-js/15 flex items-center justify-center text-accent-js">
-                  <span class="material-symbols-outlined text-[28px]">folder_zip</span>
-                </div>
-              </div>
-              <div class="flex items-center justify-between pt-1">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-js/20 text-accent-js">ZIP</span>
-                <span class="material-symbols-outlined text-[16px] text-accent-js">folder_zip</span>
-              </div>
-            {{ else }}
-              <div class="flex items-center justify-center flex-1">
-                <div class="w-12 h-12 rounded-2xl bg-accent-sheet/15 flex items-center justify-center text-accent-sheet">
-                  <span class="material-symbols-outlined text-[28px]">{{ .MaterialIcon }}</span>
-                </div>
-              </div>
-              <div class="flex items-center justify-between pt-1">
-                <span class="px-2 py-0.5 rounded font-mono-tabular text-[10px] uppercase font-semibold bg-accent-sheet/20 text-accent-sheet">{{ if .Extension }}{{ .Extension }}{{ else }}FILE{{ end }}</span>
-                <span class="material-symbols-outlined text-[16px] text-accent-sheet">{{ .MaterialIcon }}</span>
-              </div>
+  <div class="overflow-hidden rounded-2xl border border-outline-variant" id="files-list">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="text-label uppercase tracking-wider text-on-surface-variant border-b border-outline-variant bg-surface-container">
+            {{ template "column_header" (dict "Key" "name" "Label" (T .Lang "files.table.name") "Page" . "Class" "") }}
+            {{ if or .IsTrash .IsRecent .Query }}
+            <th scope="col" class="py-3 px-4 font-medium hidden md:table-cell">{{ T .Lang "files.table.location" }}</th>
             {{ end }}
-
-          </div>
-
-          <!-- File Info & Actions -->
-          <div class="mt-3 flex items-start justify-between gap-2 px-1">
-            <div class="min-w-0 flex-1">
-              <p class="font-body-sm text-body-sm font-semibold text-on-surface-light dark:text-on-surface-dark truncate group-hover:text-primary dark:group-hover:text-primary-dark transition-colors" title="{{ .Name }}">{{ .Name }}</p>
-              <div class="flex items-center gap-2 mt-0.5 font-mono-tabular text-mono-tabular text-secondary text-[12px] truncate">
-                <span>{{ .FormattedSize }}</span>
-                <span>•</span>
-                <span class="truncate">{{ if and $.IsTrash .TrashOriginalPath }}{{ T $.Lang "trash.original_location" .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}</span>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            {{ template "column_header" (dict "Key" "modified" "Label" (T .Lang "files.table.modified") "Page" . "Class" "hidden sm:table-cell") }}
+            {{ template "column_header" (dict "Key" "size" "Label" (T .Lang "files.table.size") "Page" . "Class" "") }}
+            <th scope="col" class="py-3 px-4 font-medium text-right"><span class="sr-only sm:not-sr-only">{{ T .Lang "files.table.actions" }}</span></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-outline-variant/60 text-body-sm">
+          {{ range .Files }}
+          <tr class="file-item group hover:bg-surface-raised transition-colors" data-category="{{ .Category }}">
+            <td class="py-2 px-2 sm:px-3 max-w-0 w-full">
               {{ if $.IsTrash }}
-              <!-- Trashed File Actions: Restore & Permanent Delete -->
-              <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                      hx-post="/api/trash/restore?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                      hx-target="#file-list-container"
-                      hx-indicator="#global-spinner"
-                      title="{{ T $.Lang "trash.restore" }}"
-                      aria-label="{{ T $.Lang "trash.restore" }}"
-                      type="button">
-                <span class="material-symbols-outlined text-[18px]">restore_from_trash</span>
-              </button>
-              <button class="p-1.5 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
-                      hx-delete="/api/trash/delete?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                      hx-confirm="{{ T $.Lang "trash.delete_permanent_confirm" .Name }}"
-                      hx-target="#file-list-container"
-                      hx-indicator="#global-spinner"
-                      title="{{ T $.Lang "trash.delete_permanent" }}"
-                      aria-label="{{ T $.Lang "trash.delete_permanent" }}"
-                      type="button">
-                <span class="material-symbols-outlined text-[18px]">delete_forever</span>
-              </button>
+              <div class="flex items-center gap-3 px-2 py-1.5 min-w-0">
+                {{ icon .MaterialIcon (printf "text-[20px] %s" .IconColorClass) }}
+                <span class="font-medium truncate" title="{{ .Name }}">{{ .Name }}</span>
+              </div>
               {{ else }}
-              <!-- Normal File Actions -->
-              <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                      hx-get="/api/file-details?path={{ .RelPath }}&lang={{ $.Lang }}"
-                      hx-target="#modal-container"
-                      hx-indicator="#global-spinner"
-                      title="{{ T $.Lang "files.actions.details" .Name }}"
-                      aria-label="{{ T $.Lang "files.actions.details" .Name }}">
-                <span class="material-symbols-outlined text-[18px]">info</span>
-              </button>
-              <a href="/download?path={{ .RelPath }}" download
-                 class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                 title="{{ T $.Lang "files.actions.download" .Name }}"
-                 aria-label="{{ T $.Lang "files.actions.download" .Name }}">
-                <span class="material-symbols-outlined text-[18px]">download</span>
-              </a>
-              {{ if .IsZip }}
-              <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                      hx-post="/api/extract-zip?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                      hx-confirm="{{ T $.Lang "files.actions.extract_confirm" .Name }}"
-                      hx-target="#file-list-container"
-                      hx-indicator="#global-spinner"
-                      title="{{ T $.Lang "files.actions.extract_zip" }}"
-                      aria-label="{{ T $.Lang "files.actions.extract_zip" }}">
-                <span class="material-symbols-outlined text-[18px]">folder_zip</span>
+              <button type="button" class="flex items-center gap-3 px-2 py-1.5 min-w-0 w-full rounded-lg text-left hover:text-primary"
+                      hx-get="/api/preview?path={{ q .RelPath }}" hx-target="#modal-container" hx-indicator="#global-spinner"
+                      aria-label="{{ T $.Lang "files.actions.preview" .Name }}">
+                {{ icon .MaterialIcon (printf "text-[20px] %s" .IconColorClass) }}
+                <span class="font-medium truncate" title="{{ .Name }}">{{ .Name }}</span>
               </button>
               {{ end }}
-              <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
-                      hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                      hx-confirm="{{ T $.Lang "files.delete_confirm" .Name }}"
-                      hx-target="#file-list-container"
-                      hx-indicator="#global-spinner"
-                      title="{{ T $.Lang "files.actions.delete" .Name }}"
-                      aria-label="{{ T $.Lang "files.actions.delete" .Name }}">
-                <span class="material-symbols-outlined text-[18px]">delete</span>
-              </button>
-              {{ end }}
-            </div>
-          </div>
-
-        </div>
-        {{ end }}
-      </div>
-
-    {{ else }}
-      <!-- LIST VIEW (Stitch Reference Line 19: Tabular View) -->
-      <div class="overflow-hidden rounded-2xl border border-outline-variant-light dark:border-outline-variant-dark" id="files-list">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="text-secondary font-label-md text-label-md uppercase tracking-wider border-b border-outline-variant-light dark:border-outline-variant-dark bg-surface-container-light dark:bg-surface-container-dark">
-                <th class="py-3 px-4 font-medium">
-                  <button type="button" 
-                          onclick="toggleColumnSort('name')"
-                          class="flex items-center gap-1 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors {{ if eq .SortBy "name" }}text-primary dark:text-primary-dark font-bold{{ end }}">
-                    <span>{{ T .Lang "files.table.name" }}</span>
-                    {{ if eq .SortBy "name" }}
-                      <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
-                    {{ else }}
-                      <span class="material-symbols-outlined text-sm opacity-40">unfold_more</span>
-                    {{ end }}
-                  </button>
-                </th>
-                <th class="py-3 px-4 font-medium hidden sm:table-cell">
-                  <button type="button" 
-                          onclick="toggleColumnSort('modified')"
-                          class="flex items-center gap-1 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors {{ if eq .SortBy "modified" }}text-primary dark:text-primary-dark font-bold{{ end }}">
-                    <span>{{ if .IsTrash }}{{ T .Lang "trash.original_location" }}{{ else }}{{ T .Lang "files.table.modified" }}{{ end }}</span>
-                    {{ if eq .SortBy "modified" }}
-                      <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
-                    {{ else }}
-                      <span class="material-symbols-outlined text-sm opacity-40">unfold_more</span>
-                    {{ end }}
-                  </button>
-                </th>
-                <th class="py-3 px-4 font-medium">
-                  <button type="button" 
-                          onclick="toggleColumnSort('size')"
-                          class="flex items-center gap-1 hover:text-on-surface-light dark:hover:text-on-surface-dark transition-colors {{ if eq .SortBy "size" }}text-primary dark:text-primary-dark font-bold{{ end }}">
-                    <span>{{ T .Lang "files.table.size" }}</span>
-                    {{ if eq .SortBy "size" }}
-                      <span class="material-symbols-outlined text-sm">{{ if eq .SortOrder "asc" }}arrow_upward{{ else }}arrow_downward{{ end }}</span>
-                    {{ else }}
-                      <span class="material-symbols-outlined text-sm opacity-40">unfold_more</span>
-                    {{ end }}
-                  </button>
-                </th>
-                <th class="py-3 px-4 font-medium text-right">{{ T .Lang "files.table.actions" }}</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-outline-variant-light/50 dark:divide-outline-variant-dark/50 text-on-surface-light dark:text-on-surface-dark font-body-sm text-body-sm">
-              {{ range .Files }}
-              <tr class="file-item hover:bg-white dark:hover:bg-surface-container-dark transition-colors group cursor-pointer"
-                  data-name="{{ .Name }}"
-                  data-category="{{ .Category }}">
-                <td class="py-3.5 px-4 flex items-center gap-3"
-                    {{ if not $.IsTrash }}
-                    hx-get="/api/preview?path={{ .RelPath }}&lang={{ $.Lang }}"
-                    hx-target="#modal-container"
-                    hx-indicator="#global-spinner"
-                    {{ end }}>
-                  <span class="material-symbols-outlined text-[20px] {{ .IconColorClass }}">{{ .MaterialIcon }}</span>
-                  <span class="font-medium text-on-surface-light dark:text-on-surface-dark truncate">{{ .Name }}</span>
-                </td>
-                <td class="py-3.5 px-4 font-mono-tabular text-mono-tabular text-secondary hidden sm:table-cell truncate" title="{{ if and $.IsTrash .TrashOriginalPath }}{{ .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}">
-                  {{ if and $.IsTrash .TrashOriginalPath }}{{ .TrashOriginalPath }}{{ else }}{{ .FormattedMod }}{{ end }}
-                </td>
-                <td class="py-3.5 px-4 font-mono-tabular text-mono-tabular text-secondary">{{ .FormattedSize }}</td>
-                <td class="py-3.5 px-4 text-right">
-                  <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {{ if $.IsTrash }}
-                    <!-- Trashed Table Actions -->
-                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                            hx-post="/api/trash/restore?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                            hx-target="#file-list-container"
-                            hx-indicator="#global-spinner"
-                            title="{{ T $.Lang "trash.restore" }}"
-                            aria-label="{{ T $.Lang "trash.restore" }}">
-                      <span class="material-symbols-outlined text-[18px]">restore_from_trash</span>
-                    </button>
-                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
-                            hx-delete="/api/trash/delete?name={{ .Name }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                            hx-confirm="{{ T $.Lang "trash.delete_permanent_confirm" .Name }}"
-                            hx-target="#file-list-container"
-                            hx-indicator="#global-spinner"
-                            title="{{ T $.Lang "trash.delete_permanent" }}"
-                            aria-label="{{ T $.Lang "trash.delete_permanent" }}">
-                      <span class="material-symbols-outlined text-[18px]">delete_forever</span>
-                    </button>
-                    {{ else }}
-                    <!-- Normal Table Actions -->
-                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                            hx-get="/api/file-details?path={{ .RelPath }}&lang={{ $.Lang }}"
-                            hx-target="#modal-container"
-                            hx-indicator="#global-spinner"
-                            title="{{ T $.Lang "files.actions.details" .Name }}">
-                      <span class="material-symbols-outlined text-[18px]">info</span>
-                    </button>
-                    <a href="/download?path={{ .RelPath }}" download
-                       class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                       title="{{ T $.Lang "files.actions.download" .Name }}">
-                      <span class="material-symbols-outlined text-[18px]">download</span>
-                    </a>
-                    {{ if .IsZip }}
-                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-primary dark:hover:text-primary-dark transition-colors"
-                            hx-post="/api/extract-zip?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                            hx-confirm="{{ T $.Lang "files.actions.extract_confirm" .Name }}"
-                            hx-target="#file-list-container"
-                            hx-indicator="#global-spinner"
-                            title="{{ T $.Lang "files.actions.extract_zip" }}">
-                      <span class="material-symbols-outlined text-[18px]">folder_zip</span>
-                    </button>
-                    {{ end }}
-                    <button class="p-1 rounded-lg text-secondary dark:text-on-surface-variant-dark hover:text-error transition-colors"
-                            hx-delete="/api/delete?path={{ .RelPath }}&view={{ $.ViewMode }}&sort={{ $.SortBy }}&order={{ $.SortOrder }}&lang={{ $.Lang }}"
-                            hx-confirm="{{ T $.Lang "files.delete_confirm" .Name }}"
-                            hx-target="#file-list-container"
-                            hx-indicator="#global-spinner"
-                            title="{{ T $.Lang "files.actions.delete" .Name }}">
-                      <span class="material-symbols-outlined text-[18px]">delete</span>
-                    </button>
-                    {{ end }}
-                  </div>
-                </td>
-              </tr>
-              {{ end }}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    {{ end }}
-
+            </td>
+            {{ if or $.IsTrash $.IsRecent $.Query }}
+            <td class="py-2 px-4 font-mono text-mono text-on-surface-variant hidden md:table-cell whitespace-nowrap max-w-[16rem] truncate" title="{{ if $.IsTrash }}{{ .TrashOriginalPath }}{{ else }}/{{ .ParentPath }}{{ end }}">
+              {{ if $.IsTrash }}{{ .TrashOriginalPath }}{{ else }}/{{ .ParentPath }}{{ end }}
+            </td>
+            {{ end }}
+            <td class="py-2 px-4 font-mono text-mono text-on-surface-variant hidden sm:table-cell whitespace-nowrap">{{ .FormattedMod }}</td>
+            <td class="py-2 px-4 font-mono text-mono text-on-surface-variant whitespace-nowrap">{{ .FormattedSize }}</td>
+            <td class="py-2 px-3 text-right whitespace-nowrap">
+              <div class="flex items-center justify-end gap-0.5 reveal">
+                {{ if $.IsTrash }}{{ template "trash_actions" (dict "Item" . "Page" $) }}{{ else }}{{ template "file_actions" (dict "Item" . "Page" $) }}{{ end }}
+              </div>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
   {{ end }}
 </section>
 {{ end }}
 
+{{ end }}
+
+{{ define "file_thumb" }}
+{{ if .IsImage }}
+  <img src="/download?path={{ .RelPath }}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+  <span class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></span>
+  <span class="badge absolute left-2 bottom-2 bg-black/40 text-white backdrop-blur-sm">{{ if .Extension }}{{ .Extension }}{{ else }}IMG{{ end }}</span>
+{{ else }}
+  <span class="w-14 h-14 rounded-2xl {{ .TileClass }} flex items-center justify-center group-hover:scale-105 transition-transform">{{ icon .MaterialIcon "text-[30px]" }}</span>
+  <span class="badge absolute left-2 bottom-2 {{ .TileClass }}">{{ if .Extension }}{{ .Extension }}{{ else }}FILE{{ end }}</span>
+{{ end }}
+{{ end }}
+
+{{ define "column_header" }}
+<th scope="col" class="py-3 px-4 font-medium {{ .Class }}" {{ if eq .Page.SortBy .Key }}aria-sort="{{ if eq .Page.SortOrder "asc" }}ascending{{ else }}descending{{ end }}"{{ end }}>
+  {{ if .Page.IsRecent }}
+  <span>{{ .Label }}</span>
+  {{ else }}
+  <button type="button" data-action="column-sort" data-sort="{{ .Key }}" class="flex items-center gap-1 uppercase hover:text-on-surface transition-colors {{ if eq .Page.SortBy .Key }}text-primary font-bold{{ end }}">
+    <span>{{ .Label }}</span>
+    {{ if eq .Page.SortBy .Key }}
+      {{ if eq .Page.SortOrder "asc" }}{{ icon "arrow_upward" "text-sm" }}{{ else }}{{ icon "arrow_downward" "text-sm" }}{{ end }}
+    {{ else }}
+      {{ icon "unfold_more" "text-sm opacity-40" }}
+    {{ end }}
+  </button>
+  {{ end }}
+</th>
+{{ end }}
+
+{{ define "file_actions" }}
+{{ $f := .Item }}{{ $p := .Page }}
+<button type="button" class="icon-btn" hx-get="/api/file-details?path={{ q $f.RelPath }}" hx-target="#modal-container" hx-indicator="#global-spinner"
+        title="{{ T $p.Lang "files.actions.details" }}" aria-label="{{ T $p.Lang "files.actions.details" }}: {{ $f.Name }}">{{ icon "info" "text-[18px]" }}</button>
+<a href="/download?path={{ $f.RelPath }}&download=1" download class="icon-btn"
+   title="{{ T $p.Lang "files.actions.download" }}" aria-label="{{ T $p.Lang "files.actions.download" }}: {{ $f.Name }}">{{ icon "download" "text-[18px]" }}</a>
+<button type="button" class="icon-btn" data-action="copy-curl" data-path="{{ $f.RelPath }}" data-name="{{ $f.Name }}"
+        title="{{ T $p.Lang "files.actions.copy_curl" }}" aria-label="{{ T $p.Lang "files.actions.copy_curl" }}: {{ $f.Name }}">{{ icon "terminal" "text-[18px]" }}</button>
+{{ if not $p.ReadOnly }}
+  {{ if $f.IsZip }}
+  <button type="button" class="icon-btn" hx-post="/api/extract-zip?path={{ q $f.RelPath }}" hx-confirm="{{ T $p.Lang "files.actions.extract_confirm" $f.Name }}" hx-target="#file-list-container" hx-indicator="#global-spinner"
+          title="{{ T $p.Lang "files.actions.extract_zip" }}" aria-label="{{ T $p.Lang "files.actions.extract_zip" }}: {{ $f.Name }}">{{ icon "unarchive" "text-[18px]" }}</button>
+  {{ end }}
+  <button type="button" class="icon-btn-danger" hx-delete="/api/delete?path={{ q $f.RelPath }}" hx-confirm="{{ T $p.Lang "files.delete_confirm" $f.Name }}" hx-target="#file-list-container" hx-indicator="#global-spinner"
+          title="{{ T $p.Lang "files.actions.delete" }}" aria-label="{{ T $p.Lang "files.actions.delete" }}: {{ $f.Name }}">{{ icon "delete" "text-[18px]" }}</button>
+{{ end }}
+{{ end }}
+
+{{ define "trash_actions" }}
+{{ $f := .Item }}{{ $p := .Page }}
+{{ if not $p.ReadOnly }}
+<button type="button" class="icon-btn hover:text-primary" hx-post="/api/trash/restore?name={{ q $f.Name }}" hx-target="#file-list-container" hx-indicator="#global-spinner"
+        title="{{ T $p.Lang "trash.restore" }}" aria-label="{{ T $p.Lang "trash.restore" }}: {{ $f.Name }}">{{ icon "restore_from_trash" "text-[18px]" }}</button>
+<button type="button" class="icon-btn-danger" hx-delete="/api/trash/delete?name={{ q $f.Name }}" hx-confirm="{{ T $p.Lang "trash.delete_permanent_confirm" $f.Name }}" hx-target="#file-list-container" hx-indicator="#global-spinner"
+        title="{{ T $p.Lang "trash.delete_permanent" }}" aria-label="{{ T $p.Lang "trash.delete_permanent" }}: {{ $f.Name }}">{{ icon "delete_forever" "text-[18px]" }}</button>
+{{ end }}
 {{ end }}

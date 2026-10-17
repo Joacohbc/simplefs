@@ -4,6 +4,12 @@
  */
 
 const BASE_URL = process.env.SIMPLEFS_URL || 'http://127.0.0.1:8080';
+const TOKEN = process.env.SIMPLEFS_TOKEN || '';
+const nativeFetch = globalThis.fetch;
+const fetch = (url, options = {}) => nativeFetch(url, {
+  ...options,
+  headers: { ...(options.headers || {}), ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}) },
+});
 
 async function testDownloadFolder() {
   console.log("[*] Testing download of folder as ZIP...");

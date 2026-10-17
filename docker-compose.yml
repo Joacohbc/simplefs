@@ -3,13 +3,25 @@ services:
     image: ghcr.io/joacohbc/simplefs:latest
     build:
       context: .
-      dockerfile: Dockerfile
     container_name: simplefs
     restart: unless-stopped
+    # Published on loopback by default. To share over a VPN set BIND_IP to the VPN
+    # address of this machine (e.g. the 100.x.y.z Tailscale IP) instead of 0.0.0.0:
+    # Docker bypasses host firewalls such as ufw for published ports.
     ports:
-      - "8080:8080"
+      - "${BIND_IP:-127.0.0.1}:${HOST_PORT:-8080}:8080"
+    # Run as your host user so files in ./uploads stay readable and writable by you
+    # (PUID=$(id -u) PGID=$(id -g) docker compose up -d). Create ./uploads first.
+    user: "${PUID:-10001}:${PGID:-10001}"
     environment:
-      - PORT=8080
-      - STORAGE_DIR=/data
+      SIMPLEFS_TOKEN: ${SIMPLEFS_TOKEN:-}
+      SIMPLEFS_READ_TOKEN: ${SIMPLEFS_READ_TOKEN:-}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-0}
     volumes:
       - ./uploads:/data
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

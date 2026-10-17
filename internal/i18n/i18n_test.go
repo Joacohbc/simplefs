@@ -120,11 +120,29 @@ func TestResolveLang(t *testing.T) {
 				req.Header.Set("Accept-Language", tt.accept)
 			}
 
+			if tt.formLang != "" {
+				// ResolveLang only reads an already parsed form so streaming bodies are never consumed.
+				if err := req.ParseForm(); err != nil {
+					t.Fatal(err)
+				}
+			}
 			result := i18n.ResolveLang(req)
 			if result != tt.expected {
 				t.Errorf("ResolveLang() = %q, want %q", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestResolveLang_DoesNotConsumeBody(t *testing.T) {
+	body := strings.NewReader("lang=en")
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if got := i18n.ResolveLang(req); got != i18n.LangES {
+		t.Errorf("expected default language without parsed form, got %q", got)
+	}
+	if body.Len() != len("lang=en") {
+		t.Error("ResolveLang consumed the request body")
 	}
 }
 
